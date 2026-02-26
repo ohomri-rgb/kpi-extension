@@ -258,7 +258,7 @@ async function load(){
       }});
     } else {
       // Line chart — reduce tension for small point counts to avoid overshoot
-      var tension=pts.length<=4?0.1:0.4;
+      var tension=(frame==='range')?0:(pts.length<=4?0.1:0.4);
       ch=new Chart(canvas,{type:'line',data:{
         labels:pts.map(function(p){return p.x;}),
         datasets:[
