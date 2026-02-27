@@ -30,7 +30,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label">Current:</span> <span id="cur">—</span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label">vs:</span> <span id="prev">—</span></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v30</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v32</div>
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -38,8 +38,8 @@ var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',
 var ch=null, ws=null, timer=null;
 
 var LANG={
-  he:{current:'תקופה נוכחית:',vs:'השוואה:',vsRange:'השוואה:',yoy:'לעומת אותה תקופה אשתקד',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
-  en:{current:'Current:',vs:'vs:',vsRange:'vs:',yoy:'vs same period last year',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'}
+  he:{current:'תקופה נוכחית:',vs:'השוואה:',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
+  en:{current:'Current:',vs:'vs:',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'}
 };
 
 function isHebrew(s){return /[\u0590-\u05FF]/.test(s);}
@@ -95,18 +95,6 @@ function cleanName(s){
   return s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
 }
 
-// Read color from any parameter whose value is a hex color string
-async function readParamColor(){
-  try{
-    var params=await tableau.extensions.worksheetContent.worksheet.getParametersAsync();
-    for(var i=0;i<params.length;i++){
-      var v=String(params[i].currentValue.value||'').trim();
-      if(/^#[0-9a-fA-F]{3,6}$/.test(v)) return v;
-    }
-  }catch(e){}
-  return '#6366f1';
-}
-
 // Read a parameter value by name
 async function readParam(name){
   try{
@@ -127,7 +115,6 @@ function fmtDateParam(s){
 
 async function load(){
   try{
-    var color=await readParamColor();
     var frame=await readParam('frame');
 
     var dt=await ws.getSummaryDataAsync({ignoreSelection:true});
@@ -160,7 +147,7 @@ async function load(){
 
     var measureName=cleanName(cols[mi].fieldName);
     var L=applyLang(measureName);
-    var pts, prv, last, lastPrv, curLabel, prevLabel, yoyText;
+    var pts, prv, last, lastPrv, curLabel, prevLabel;
 
     if(frame==='range' && rangeColIdx>=0){
       // ── RANGE MODE ──
@@ -193,7 +180,6 @@ async function load(){
       var f2=await readParam('from2'), t2=await readParam('to2');
       curLabel=fmtDateParam(f1)+' - '+fmtDateParam(t1);
       prevLabel=fmtDateParam(f2)+' - '+fmtDateParam(t2);
-      yoyText=isHebrew(measureName)?'לעומת תקופה קודמת':'vs prior period';
       // Range mode: השוואה on its own line (show period-cmp div)
       G('vs-label').textContent=isHebrew(measureName)?'השוואה:':'vs:';
       G('period-cmp-row').style.display='block';
@@ -221,7 +207,6 @@ async function load(){
       lastPrv=prv[prv.length-1];
       curLabel=last.x;
       prevLabel=lastPrv?lastPrv.x||'N/A':'N/A';
-      yoyText=L.yoy;
       G('vs-label').textContent=L.vs;
       G('period-cmp-row').style.display='inline';
     }
@@ -233,8 +218,10 @@ async function load(){
     G('prev').textContent=prevLabel;
     G('prev').className='date-val';
 
+    var color='#6366f1';
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
       var diff=last.y-lastPrv.y, pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>=0;
+      color=up?'#16a34a':'#dc2626';
       G('chg').innerHTML='<span style="direction:ltr;unicode-bidi:embed">'+(up?'▲+':'▼-')+fmt(Math.abs(diff))+' ('+(up?'+':'-')+pct+'%)'+'</span>';
       G('chg').className='chg '+(up?'up':'down');
     } else { G('chg').textContent=''; }
