@@ -17,8 +17,8 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
 .val{font-weight:800;color:#111;letter-spacing:-1.5px;line-height:1}
 .chg{font-weight:600}
 .up{color:#16a34a}.down{color:#dc2626}
-.period-cur,.period-cmp{color:#6b7280;font-weight:500;margin-bottom:0.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.period-cur strong,.period-cmp strong{color:#111;font-weight:700}
+.period-cur{color:#6b7280;font-weight:500;margin-bottom:0.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.period-cur span.date-val{color:#374151;font-weight:500}
 .wrap{flex:1;min-height:0;position:relative}
 </style></head><body>
 <div id="app">
@@ -27,10 +27,9 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
     <div class="val" id="val">—</div>
     <div class="chg" id="chg"></div>
   </div>
-  <div class="period-cur"><span id="cur-label">Current:</span> <strong id="cur">—</strong></div>
-  <div class="period-cmp"><span id="vs-label">vs:</span> <strong id="prev">—</strong></div>
+  <div class="period-cur"><span id="cur-label">Current:</span> <span id="cur">—</span> &nbsp; <span id="vs-label">vs:</span> <span id="prev">—</span></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v26</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v27</div>
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -38,7 +37,7 @@ var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',
 var ch=null, ws=null, timer=null;
 
 var LANG={
-  he:{current:'תקופה נוכחית:',vs:'לעומת:',vsRange:'השוואה:',yoy:'לעומת אותה תקופה אשתקד',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
+  he:{current:'תקופה נוכחית:',vs:'השוואה:',vsRange:'השוואה:',yoy:'לעומת אותה תקופה אשתקד',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
   en:{current:'Current:',vs:'vs:',vsRange:'vs:',yoy:'vs same period last year',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'}
 };
 
@@ -61,7 +60,6 @@ function setFonts(){
   G('chg').style.fontSize=Math.round(base*0.06)+'px';
   var pSize=Math.round(base*0.05)+'px';
   if(document.querySelector('.period-cur')) document.querySelector('.period-cur').style.fontSize=pSize;
-  if(document.querySelector('.period-cmp')) document.querySelector('.period-cmp').style.fontSize=pSize;
 }
 window.addEventListener('resize',setFonts);
 
@@ -230,7 +228,9 @@ async function load(){
     G('lbl').textContent=measureName;
     G('val').textContent=fmt(last.y);
     G('cur').textContent=curLabel;
+    G('cur').className='date-val';
     G('prev').textContent=prevLabel;
+    G('prev').className='date-val';
 
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
       var diff=last.y-lastPrv.y, pct=(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>=0;
