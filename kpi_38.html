@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <title>KPI</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;800&display=swap" rel="stylesheet">
 <script src="tableau.extensions.js"></script>
@@ -24,7 +27,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="periods"><span id="cur-label">Current:</span> <strong id="cur">—</strong> &nbsp;<span id="vs-label">vs:</span> <strong id="prev">—</strong></div>
   <div class="chg" id="chg"></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v23</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v24</div>
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -158,14 +161,13 @@ async function load(){
     if(frame==='range' && rangeColIdx>=0){
       // ── RANGE MODE ──
       // Use 'Normalized Date' for X axis — it aligns both periods for overlay
-      var normIdx=cols.findIndex(function(c){return c.fieldName.toLowerCase().includes('normalized');});
-      if(normIdx<0) normIdx=di; // fallback to Truncated
+      // Group by Truncated (respects granularity parameter)
       var g1={}, g2={};
       rows.forEach(function(r){
         var rv=String(r[rangeColIdx].value!==null&&r[rangeColIdx].value!==undefined
           ?r[rangeColIdx].value:r[rangeColIdx].formattedValue||'');
-        var key=r[normIdx].formattedValue;
-        var d=parseDate(r[normIdx].value, r[normIdx].formattedValue);
+        var key=r[di].formattedValue;
+        var d=parseDate(r[di].value, r[di].formattedValue);
         var y=parseFloat(r[mi].value)||0;
         if(rv==='1'){
           if(!g1[key]) g1[key]={x:key,y:0,d:d};
@@ -178,10 +180,8 @@ async function load(){
       pts=Object.values(g1).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});
       var pts2=Object.values(g2).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});
       if(!pts.length) return;
-      // Align by matching normalized date key
-      var g2map={};
-      pts2.forEach(function(p){ g2map[p.x]=p; });
-      prv=pts.map(function(p){ return g2map[p.x]||{x:null,y:null}; });
+      // Align by index position
+      prv=pts.map(function(p,i){return pts2[i]||{x:null,y:null};});
       last=pts[pts.length-1];
       lastPrv=prv[prv.length-1];
       // Period labels from parameters
