@@ -13,21 +13,24 @@
 html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;background:#fff;overflow:hidden}
 #app{padding:3%;height:100%;display:flex;flex-direction:column}
 .lbl{font-weight:600;color:#374151}
-.val{font-weight:800;color:#111;letter-spacing:-1.5px;line-height:1;margin:0.2em 0 0.15em}
-.periods{color:#6b7280;font-weight:500;margin-bottom:0.3em}
-.periods strong{color:#111;font-weight:700}
-.chg{font-weight:600;margin-bottom:0.2em}
+.val-row{display:flex;align-items:baseline;gap:0.3em;margin:0.2em 0 0.2em;flex-wrap:nowrap}
+.val{font-weight:800;color:#111;letter-spacing:-1.5px;line-height:1}
+.chg{font-weight:600}
 .up{color:#16a34a}.down{color:#dc2626}
-.chg span{font-weight:400;color:#9ca3af}
+.period-cur,.period-cmp{color:#6b7280;font-weight:500;margin-bottom:0.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.period-cur strong,.period-cmp strong{color:#111;font-weight:700}
 .wrap{flex:1;min-height:0;position:relative}
 </style></head><body>
 <div id="app">
   <div class="lbl" id="lbl">—</div>
-  <div class="val" id="val">—</div>
-  <div class="periods" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cur-label">Current:</span> <strong id="cur">—</strong> &nbsp;<span id="vs-label">vs:</span> <strong id="prev">—</strong></div>
-  <div class="chg" id="chg"></div>
+  <div class="val-row">
+    <div class="val" id="val">—</div>
+    <div class="chg" id="chg"></div>
+  </div>
+  <div class="period-cur"><span id="cur-label">Current:</span> <strong id="cur">—</strong></div>
+  <div class="period-cmp"><span id="vs-label">vs:</span> <strong id="prev">—</strong></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v25</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v26</div>
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -55,8 +58,10 @@ function setFonts(){
   var base=Math.min(window.innerWidth,window.innerHeight);
   G('lbl').style.fontSize=Math.round(base*0.07)+'px';
   G('val').style.fontSize=Math.round(base*0.14)+'px';
-  G('chg').style.fontSize=Math.round(base*0.05)+'px';
-  document.querySelector('.periods').style.fontSize=Math.round(base*0.05)+'px';
+  G('chg').style.fontSize=Math.round(base*0.06)+'px';
+  var pSize=Math.round(base*0.05)+'px';
+  if(document.querySelector('.period-cur')) document.querySelector('.period-cur').style.fontSize=pSize;
+  if(document.querySelector('.period-cmp')) document.querySelector('.period-cmp').style.fontSize=pSize;
 }
 window.addEventListener('resize',setFonts);
 
@@ -229,7 +234,7 @@ async function load(){
 
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
       var diff=last.y-lastPrv.y, pct=(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>=0;
-      G('chg').innerHTML=(up?'▲+':'▼')+fmt(Math.abs(diff))+' ('+(up?'+':'')+pct+'%) <span>'+yoyText+'</span>';
+      G('chg').innerHTML=(up?'▲+':'▼')+fmt(Math.abs(diff))+' ('+(up?'+':'')+pct+'%)';
       G('chg').className='chg '+(up?'up':'down');
     } else { G('chg').textContent=''; }
 
