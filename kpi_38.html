@@ -24,10 +24,10 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
 <div id="app">
   <div class="lbl" id="lbl">—</div>
   <div class="val" id="val">—</div>
-  <div class="periods"><span id="cur-label">Current:</span> <strong id="cur">—</strong> &nbsp;<span id="vs-label">vs:</span> <strong id="prev">—</strong></div>
+  <div class="periods" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span id="cur-label">Current:</span> <strong id="cur">—</strong> &nbsp;<span id="vs-label">vs:</span> <strong id="prev">—</strong></div>
   <div class="chg" id="chg"></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v24</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v25</div>
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -35,8 +35,8 @@ var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',
 var ch=null, ws=null, timer=null;
 
 var LANG={
-  he:{current:'תקופה נוכחית:',vs:'לעומת:',yoy:'לעומת אותה תקופה אשתקד',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
-  en:{current:'Current:',vs:'vs:',yoy:'vs same period last year',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'}
+  he:{current:'תקופה נוכחית:',vs:'לעומת:',vsRange:'השוואה:',yoy:'לעומת אותה תקופה אשתקד',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
+  en:{current:'Current:',vs:'vs:',vsRange:'vs:',yoy:'vs same period last year',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'}
 };
 
 function isHebrew(s){return /[\u0590-\u05FF]/.test(s);}
@@ -187,9 +187,13 @@ async function load(){
       // Period labels from parameters
       var f1=await readParam('from1'), t1=await readParam('to1');
       var f2=await readParam('from2'), t2=await readParam('to2');
-      curLabel=fmtDateParam(f1)+' → '+fmtDateParam(t1);
-      prevLabel=fmtDateParam(f2)+' → '+fmtDateParam(t2);
+      curLabel=fmtDateParam(f1)+' - '+fmtDateParam(t1);
+      prevLabel=fmtDateParam(f2)+' - '+fmtDateParam(t2);
       yoyText=isHebrew(measureName)?'לעומת תקופה קודמת':'vs prior period';
+      // Update vs label to השוואה in range mode
+      G('vs-label').textContent=isHebrew(measureName)?'השוואה:':'vs:';
+      G('vs-label').style.whiteSpace='nowrap';
+      G('prev').style.whiteSpace='nowrap';
     } else {
       // ── LAST YEAR MODE (original behavior) ──
       var grouped={};
@@ -215,6 +219,7 @@ async function load(){
       curLabel=last.x;
       prevLabel=lastPrv?lastPrv.x||'N/A':'N/A';
       yoyText=L.yoy;
+      G('vs-label').textContent=L.vs;
     }
 
     G('lbl').textContent=measureName;
@@ -224,7 +229,7 @@ async function load(){
 
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
       var diff=last.y-lastPrv.y, pct=(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>=0;
-      G('chg').innerHTML=(up?'▲ +':'▼ ')+fmt(Math.abs(diff))+' ('+(up?'+':'')+pct+'%) <span>'+yoyText+'</span>';
+      G('chg').innerHTML=(up?'▲+':'▼')+fmt(Math.abs(diff))+' ('+(up?'+':'')+pct+'%) <span>'+yoyText+'</span>';
       G('chg').className='chg '+(up?'up':'down');
     } else { G('chg').textContent=''; }
 
