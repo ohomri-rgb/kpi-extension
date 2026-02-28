@@ -29,8 +29,8 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   </div>
   <div class="period-cur"><span id="cur-label">Current:</span> <span id="cur">—</span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label">vs:</span> <span id="prev">—</span></div>
-  <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v36
+  <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v37
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -229,7 +229,7 @@ async function load(){
     if(ch){ch.destroy();ch=null;}
     var canvas=G('ch');
     // Restore canvas if it was replaced by a message div
-    var wrap=document.querySelector('.wrap');
+    var wrap=G('wrap');
     if(!canvas||!wrap.contains(canvas)){
       wrap.innerHTML='<canvas id="ch"></canvas>';
       canvas=G('ch');
