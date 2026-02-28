@@ -114,6 +114,7 @@ function fmtDateParam(s){
 }
 
 async function load(){
+  G('period-cmp-row').style.display='none';
   try{
     var frame=await readParam('frame');
 
@@ -208,7 +209,7 @@ async function load(){
       curLabel=last.x;
       prevLabel=lastPrv?lastPrv.x||'N/A':'N/A';
       G('vs-label').textContent=L.vs;
-      G('period-cmp-row').style.display='inline';
+      G('period-cmp-row').style.display='block';
     }
 
     G('lbl').textContent=measureName;
