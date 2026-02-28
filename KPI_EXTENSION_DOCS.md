@@ -9,9 +9,9 @@ Supports two comparison modes: **Last Year** (YoY automatic) and **Range** (manu
 
 ## File Structure (Production)
 ```
-kpi_38.html               ← Main extension (all logic) — ~315 lines
-kpi_38_desktop.trex       ← Tableau manifest for Desktop (localhost:8765)
-kpi_38_cloud.trex         ← Tableau manifest for Tableau Cloud (GitHub Pages)
+kpi_39.html               ← Main extension (all logic) — ~209 lines
+kpi_39_desktop.trex       ← Tableau manifest for Desktop (localhost:8765)
+kpi_39_cloud.trex         ← Tableau manifest for Tableau Cloud (GitHub Pages)
 tableau.extensions.js     ← Tableau Extensions API (local copy)
 chart.js                  ← Chart.js v4.4.1 (local copy)
 NotoSansHebrew-Regular.ttf
@@ -25,14 +25,14 @@ NotoSansHebrew-ExtraBold.ttf
 
 ### Desktop (development)
 1. Run `python -m http.server 8765` from extension folder
-2. Load `kpi_38_desktop.trex` → Tableau Desktop → Add Extension → Access Local Viz Extensions
+2. Load `kpi_39_desktop.trex` → Tableau Desktop → Add Extension → Access Local Viz Extensions
 
 ### Tableau Cloud (production)
 - GitHub repo: `https://github.com/ohomri-rgb/kpi-extension`
 - GitHub Pages URL: `https://ohomri-rgb.github.io/kpi-extension/`
 - Whitelist in Tableau Cloud → Settings → Extensions → Add URL:
-  `https://ohomri-rgb.github.io/kpi-extension/kpi_38.html`
-- Load `kpi_38_cloud.trex`
+  `https://ohomri-rgb.github.io/kpi-extension/kpi_39.html`
+- Load `kpi_39_cloud.trex`
 - Live debug: open workbook in browser → F12 → Console
 
 ### Updating the extension
@@ -43,8 +43,8 @@ NotoSansHebrew-ExtraBold.ttf
 ### Two .trex files
 | File | URL |
 |---|---|
-| `kpi_38_desktop.trex` | `http://localhost:8765/kpi_38.html` |
-| `kpi_38_cloud.trex` | `https://ohomri-rgb.github.io/kpi-extension/kpi_38.html` |
+| `kpi_39_desktop.trex` | `http://localhost:8765/kpi_39.html` |
+| `kpi_39_cloud.trex` | `https://ohomri-rgb.github.io/kpi-extension/kpi_39.html` |
 
 ---
 
@@ -169,35 +169,37 @@ Wrapped in `dir="ltr"` span to prevent RTL reversal.
 
 ---
 
-## Code Structure (~315 lines)
+## Code Structure (~209 lines)
 
 ```
 Head         meta no-cache, font, scripts
 CSS          layout, val-row, period-cur
 HTML         lbl / val-row(val+chg) / period-cur / period-cmp-row / wrap+canvas / version
 Global vars  G, fmt, ch, ws, timer
-LANG         he/en: vs, vsRange, yoy, dir, lineCur, linePrv
+LANG         he/en: vs, dir, lineCur, linePrv
+MONTHS       month-name → index map
 isHebrew     /[\u0590-\u05FF]/ test
 applyLang    sets direction + cur-label text
 setFonts     JS-based responsive sizing (NOT vw/vh)
 hexToRgba    color helper
 parseDate    5 fallbacks: ISO / formatted / Month YYYY / Qn/YYYY / DD/MM/YYYY
 cleanName    strips SUM() AVG() etc
-readParamColor  scans all params for hex color
-readParam    gets param value by name
-fmtDateParam YYYY-MM-DD → DD/MM/YYYY
+getParam     gets param value by name from pre-fetched array
+fmtDP        YYYY-MM-DD → DD/MM/YYYY (renamed from fmtDateParam)
+sortPts      filter-valid + sort-by-date helper (used in range mode for g1/g2)
+mkTip        builds shared Chart.js tooltip config object (used in both chart types)
 
 load()
-  S1: read color + frame param
+  S1: read frame param
   S2: getSummaryDataAsync
-  S3: detect Truncated / range / measure cols
-  S4a RANGE: group by Truncated per range value
-            sort, align by index, read date params
+  S3: detect Truncated / range / measure cols (single-pass loop)
+  S4a RANGE: group by Truncated per range value (ternary g1/g2 selection)
+            sort via sortPts(), align by index, read date params
             show period-cmp-row, set השוואה label
   S4b LAST YEAR: group by Truncated, YoY match
             inline period-cmp-row, set השוואה label
   Update DOM: lbl, val, cur, prev, chg (LTR span)
-  Render: bubble (1pt) or line chart
+  Render: bubble (1pt) or line chart (tooltip via mkTip)
 
 debouncedLoad   200ms debounce
 init            initializeAsync + event listeners
@@ -230,7 +232,8 @@ init            initializeAsync + event listeners
 | v34 | Superseded | Bug #2 fix: reset `period-cmp-row` to `none` at top of `load()`; standardized `'inline'` → `'block'` |
 | v35 | Superseded | Bug #3 fix: neutral uses `Math.abs(diff)<0.0001` instead of `diff===0`; Bug #4 fix: catch block shows error in card + stale `v12` log corrected to `v35` |
 | v36 | Superseded | Bug #8 fix: replaced async `readParam()` (5 separate API calls) with sync `getParam()` — params fetched once per `load()` call |
-| v37 | ✅ Current approved | Bug #10 fix: added `id="wrap"` to wrap div; replaced `document.querySelector('.wrap')` with `G('wrap')` for consistency |
+| v37 | Superseded | Bug #10 fix: added `id="wrap"` to wrap div; replaced `document.querySelector('.wrap')` with `G('wrap')` for consistency |
+| v39 | ✅ Current approved | Refactor: ~31% shorter (303→209 lines). Merged double-loop column detection into single pass; extracted `sortPts()`, `mkTip()`, `fmtDP()` helpers; collapsed range g1/g2 grouping to ternary; removed all inline comments; no features removed |
 
 ---
 
@@ -252,7 +255,7 @@ init            initializeAsync + event listeners
 | `period-cmp-row` state leak | Switching range→last year left השוואה row visible with stale dates | Reset to `display:none` at top of `load()`; standardized show value to `block` everywhere (v34) |
 | Neutral color false negative | `diff===0` fails for floating point decimals | Use `Math.abs(diff)<0.0001` epsilon check (v35) |
 | Silent error swallowing | try/catch only logged to console — user saw blank card with no feedback | catch block now sets `val` to `'Error'` and `chg` to `e.message` (v35) |
-| Stale error log version | `console.error('KPI v12 error')` was never updated | Corrected to `v35` in catch block (v35) |
+| Stale error log version | `console.error('KPI v12 error')` was never updated | Corrected to `v39` in catch block |
 | Fragile measure detection | Picks column with largest max value — could pick wrong col if 2 measures present | N/A for current setup (single measure + date cols only); documented for future awareness |
 | `readParam` redundant API calls | 5 separate `getParametersAsync()` calls per `load()` | Replaced with single fetch + sync `getParam()` helper (v36) |
 | `querySelector` inconsistency | `.wrap` used class selector, bypassing `G()` helper | Added `id="wrap"`, replaced with `G('wrap')` (v37) |
@@ -281,7 +284,7 @@ Debug version with stage-by-stage error boundaries:
 ## Production Checklist
 1. Push files to GitHub repo
 2. Whitelist exact URL in Tableau Cloud Settings → Extensions
-3. Load `kpi_38_cloud.trex` in workbook
+3. Load `kpi_39_cloud.trex` in workbook
 4. Verify version watermark matches expected
 5. Test both `last year` and `range` modes
 6. Test granularities: day / week / month / quarter
