@@ -30,7 +30,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label">Current:</span> <span id="cur">—</span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label">vs:</span> <span id="prev">—</span></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v35</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v36
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -95,15 +95,12 @@ function cleanName(s){
   return s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
 }
 
-// Read a parameter value by name
-async function readParam(name){
-  try{
-    var params=await tableau.extensions.worksheetContent.worksheet.getParametersAsync();
-    for(var i=0;i<params.length;i++){
-      if(params[i].name.toLowerCase()===name.toLowerCase())
-        return String(params[i].currentValue.value||params[i].currentValue.formattedValue||'').trim();
-    }
-  }catch(e){}
+// Get a parameter value by name from a pre-fetched params array
+function getParam(params,name){
+  for(var i=0;i<params.length;i++){
+    if(params[i].name.toLowerCase()===name.toLowerCase())
+      return String(params[i].currentValue.value||params[i].currentValue.formattedValue||'').trim();
+  }
   return '';
 }
 
@@ -116,7 +113,8 @@ function fmtDateParam(s){
 async function load(){
   G('period-cmp-row').style.display='none';
   try{
-    var frame=await readParam('frame');
+    var params=await ws.getParametersAsync();
+    var frame=getParam(params,'frame');
 
     var dt=await ws.getSummaryDataAsync({ignoreSelection:true});
     var cols=dt.columns, rows=dt.data;
@@ -177,8 +175,8 @@ async function load(){
       last=pts[pts.length-1];
       lastPrv=prv[prv.length-1];
       // Period labels from parameters
-      var f1=await readParam('from1'), t1=await readParam('to1');
-      var f2=await readParam('from2'), t2=await readParam('to2');
+      var f1=getParam(params,'from1'), t1=getParam(params,'to1');
+      var f2=getParam(params,'from2'), t2=getParam(params,'to2');
       curLabel=fmtDateParam(f1)+' - '+fmtDateParam(t1);
       prevLabel=fmtDateParam(f2)+' - '+fmtDateParam(t2);
       // Range mode: השוואה on its own line (show period-cmp div)
