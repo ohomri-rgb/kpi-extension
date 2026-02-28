@@ -226,7 +226,11 @@ init            initializeAsync + event listeners
 | v30 | Superseded | Double minus fix (`pct` uses Math.abs); both period lines responsive (querySelectorAll) |
 | v31 | Superseded | Removed dead code: `vsRange`, `yoy` from LANG, `yoyText` variable |
 | v32 | Superseded | Chart color driven by trend (green/red/indigo); removed `readParamColor()` |
-| v33 | ✅ Current approved | Neutral state when diff=0: indigo color, no arrow, `0 (0%)` display |
+| v33 | Superseded | Neutral state when diff=0: indigo color, no arrow, `0 (0%)` display |
+| v34 | Superseded | Bug #2 fix: reset `period-cmp-row` to `none` at top of `load()`; standardized `'inline'` → `'block'` |
+| v35 | Superseded | Bug #3 fix: neutral uses `Math.abs(diff)<0.0001` instead of `diff===0`; Bug #4 fix: catch block shows error in card + stale `v12` log corrected to `v35` |
+| v36 | Superseded | Bug #8 fix: replaced async `readParam()` (5 separate API calls) with sync `getParam()` — params fetched once per `load()` call |
+| v37 | ✅ Current approved | Bug #10 fix: added `id="wrap"` to wrap div; replaced `document.querySelector('.wrap')` with `G('wrap')` for consistency |
 
 ---
 
@@ -245,6 +249,15 @@ init            initializeAsync + event listeners
 | GitHub caching | Browser cached old HTML | no-cache meta headers |
 | Tableau whitelist | Folder URL rejected | Must whitelist exact filename URL |
 | RTL flips chg text | Hebrew RTL reverses arrow+number | Wrap in `<span dir="ltr">` |
+| `period-cmp-row` state leak | Switching range→last year left השוואה row visible with stale dates | Reset to `display:none` at top of `load()`; standardized show value to `block` everywhere (v34) |
+| Neutral color false negative | `diff===0` fails for floating point decimals | Use `Math.abs(diff)<0.0001` epsilon check (v35) |
+| Silent error swallowing | try/catch only logged to console — user saw blank card with no feedback | catch block now sets `val` to `'Error'` and `chg` to `e.message` (v35) |
+| Stale error log version | `console.error('KPI v12 error')` was never updated | Corrected to `v35` in catch block (v35) |
+| Fragile measure detection | Picks column with largest max value — could pick wrong col if 2 measures present | N/A for current setup (single measure + date cols only); documented for future awareness |
+| `readParam` redundant API calls | 5 separate `getParametersAsync()` calls per `load()` | Replaced with single fetch + sync `getParam()` helper (v36) |
+| `querySelector` inconsistency | `.wrap` used class selector, bypassing `G()` helper | Added `id="wrap"`, replaced with `G('wrap')` (v37) |
+| Empty date param shows `' - '` | `getParam()` returns `''` if param not set | N/A — all date params have defaults set in Tableau |
+| Empty date param alignment | Index alignment could misalign if periods have gaps | N/A — data has no gaps |
 
 ---
 
