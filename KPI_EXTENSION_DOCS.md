@@ -9,9 +9,9 @@ Supports two comparison modes: **Last Year** (YoY automatic) and **Range** (manu
 
 ## File Structure (Production)
 ```
-kpi_39.html               ← Main extension (all logic) — ~209 lines
-kpi_39_desktop.trex       ← Tableau manifest for Desktop (localhost:8765)
-kpi_39_cloud.trex         ← Tableau manifest for Tableau Cloud (GitHub Pages)
+kpi_40.html               ← Main extension (all logic) — ~215 lines
+kpi_40_desktop.trex       ← Tableau manifest for Desktop (localhost:8765)
+kpi_40_cloud.trex         ← Tableau manifest for Tableau Cloud (GitHub Pages)
 tableau.extensions.js     ← Tableau Extensions API (local copy)
 chart.js                  ← Chart.js v4.4.1 (local copy)
 NotoSansHebrew-Regular.ttf
@@ -25,26 +25,26 @@ NotoSansHebrew-ExtraBold.ttf
 
 ### Desktop (development)
 1. Run `python -m http.server 8765` from extension folder
-2. Load `kpi_39_desktop.trex` → Tableau Desktop → Add Extension → Access Local Viz Extensions
+2. Load `kpi_40_desktop.trex` → Tableau Desktop → Add Extension → Access Local Viz Extensions
 
 ### Tableau Cloud (production)
 - GitHub repo: `https://github.com/ohomri-rgb/kpi-extension`
 - GitHub Pages URL: `https://ohomri-rgb.github.io/kpi-extension/`
 - Whitelist in Tableau Cloud → Settings → Extensions → Add URL:
-  `https://ohomri-rgb.github.io/kpi-extension/kpi_39.html`
-- Load `kpi_39_cloud.trex`
+  `https://ohomri-rgb.github.io/kpi-extension/kpi_40.html`
+- Load `kpi_40_cloud.trex`
 - Live debug: open workbook in browser → F12 → Console
 
 ### Updating the extension
-- Edit `kpi_38.html`, bump version watermark (bottom-left)
+- Edit `kpi_40.html`, bump version watermark (bottom-left)
 - Push to GitHub — no-cache meta headers ensure fresh load
 - No need to update `.trex`
 
 ### Two .trex files
 | File | URL |
 |---|---|
-| `kpi_39_desktop.trex` | `http://localhost:8765/kpi_39.html` |
-| `kpi_39_cloud.trex` | `https://ohomri-rgb.github.io/kpi-extension/kpi_39.html` |
+| `kpi_40_desktop.trex` | `http://localhost:8765/kpi_40.html` |
+| `kpi_40_cloud.trex` | `https://ohomri-rgb.github.io/kpi-extension/kpi_40.html` |
 
 ---
 
@@ -108,8 +108,8 @@ END
 ```
 הזמנות
 4.3K   ▲+1K (+32%)
-תקופה נוכחית: 20/02/2025 - 25/02/2025
-השוואה: 20/02/2024 - 25/02/2024      ← range mode only (own line)
+תקופה נוכחית: 20.02.2025 - 25.02.2025
+השוואה: 20.02.2024 - 25.02.2024      ← range mode only (own line)
 [chart]
 ```
 
@@ -169,12 +169,13 @@ Wrapped in `dir="ltr"` span to prevent RTL reversal.
 
 ---
 
-## Code Structure (~209 lines)
+## Code Structure (~215 lines)
 
 ```
 Head         meta no-cache, font, scripts
-CSS          layout, val-row, period-cur
+CSS          layout, val-row, period-cur; #app opacity:0 initially
 HTML         lbl / val-row(val+chg) / period-cur / period-cmp-row / wrap+canvas / version
+             (all initial text content empty — no "—" flash)
 Global vars  G, fmt, ch, ws, timer
 LANG         he/en: vs, dir, lineCur, linePrv
 MONTHS       month-name → index map
@@ -185,7 +186,9 @@ hexToRgba    color helper
 parseDate    5 fallbacks: ISO / formatted / Month YYYY / Qn/YYYY / DD/MM/YYYY
 cleanName    strips SUM() AVG() etc
 getParam     gets param value by name from pre-fetched array
-fmtDP        YYYY-MM-DD → DD/MM/YYYY (renamed from fmtDateParam)
+normDate     unified date normalizer → always DD.MM.YYYY (replaces fmtDP)
+             handles: YYYY-MM-DD / DD/MM/YYYY / D.M.YYYY / already DD.MM.YYYY
+             non-date labels (month name, quarter) returned as-is
 sortPts      filter-valid + sort-by-date helper (used in range mode for g1/g2)
 mkTip        builds shared Chart.js tooltip config object (used in both chart types)
 
@@ -194,15 +197,18 @@ load()
   S2: getSummaryDataAsync
   S3: detect Truncated / range / measure cols (single-pass loop)
   S4a RANGE: group by Truncated per range value (ternary g1/g2 selection)
-            sort via sortPts(), align by index, read date params
+            sort via sortPts(), align by index, read date params via normDate()
             show period-cmp-row, set השוואה label
   S4b LAST YEAR: group by Truncated, YoY match
+            labels passed through normDate() → consistent DD.MM.YYYY
             inline period-cmp-row, set השוואה label
   Update DOM: lbl, val, cur, prev, chg (LTR span)
   Render: bubble (1pt) or line chart (tooltip via mkTip)
+  Reveal: set #app opacity:1 (fade-in after full render)
 
 debouncedLoad   200ms debounce
-init            initializeAsync + event listeners
+init            poll every 50ms for tableau object (was 400ms) → tighter multi-card sync
+                initializeAsync + event listeners
 ```
 
 ### Refactoring targets (future)
@@ -233,7 +239,8 @@ init            initializeAsync + event listeners
 | v35 | Superseded | Bug #3 fix: neutral uses `Math.abs(diff)<0.0001` instead of `diff===0`; Bug #4 fix: catch block shows error in card + stale `v12` log corrected to `v35` |
 | v36 | Superseded | Bug #8 fix: replaced async `readParam()` (5 separate API calls) with sync `getParam()` — params fetched once per `load()` call |
 | v37 | Superseded | Bug #10 fix: added `id="wrap"` to wrap div; replaced `document.querySelector('.wrap')` with `G('wrap')` for consistency |
-| v39 | ✅ Current approved | Refactor: ~31% shorter (303→209 lines). Merged double-loop column detection into single pass; extracted `sortPts()`, `mkTip()`, `fmtDP()` helpers; collapsed range g1/g2 grouping to ternary; removed all inline comments; no features removed |
+| v39 | Superseded | Refactor: ~31% shorter (303→209 lines). Merged double-loop column detection into single pass; extracted `sortPts()`, `mkTip()`, `fmtDP()` helpers; collapsed range g1/g2 grouping to ternary; removed all inline comments; no features removed |
+| v40 | ✅ Current approved | Bug fixes: (1) Multi-card stagger — init poll reduced 400ms→50ms, all cards find Tableau simultaneously; (2) Blank flash on load — `#app` starts `opacity:0`, reveals via CSS transition only after full render; HTML initial content emptied; (3) Date format inconsistency — replaced `fmtDP` with `normDate`: unified DD.MM.YYYY (dots) for all modes (range params + last year labels), non-date labels pass through unchanged |
 
 ---
 
@@ -255,12 +262,15 @@ init            initializeAsync + event listeners
 | `period-cmp-row` state leak | Switching range→last year left השוואה row visible with stale dates | Reset to `display:none` at top of `load()`; standardized show value to `block` everywhere (v34) |
 | Neutral color false negative | `diff===0` fails for floating point decimals | Use `Math.abs(diff)<0.0001` epsilon check (v35) |
 | Silent error swallowing | try/catch only logged to console — user saw blank card with no feedback | catch block now sets `val` to `'Error'` and `chg` to `e.message` (v35) |
-| Stale error log version | `console.error('KPI v12 error')` was never updated | Corrected to `v39` in catch block |
+| Stale error log version | `console.error('KPI v12 error')` was never updated | Corrected to `v40` in catch block |
 | Fragile measure detection | Picks column with largest max value — could pick wrong col if 2 measures present | N/A for current setup (single measure + date cols only); documented for future awareness |
 | `readParam` redundant API calls | 5 separate `getParametersAsync()` calls per `load()` | Replaced with single fetch + sync `getParam()` helper (v36) |
 | `querySelector` inconsistency | `.wrap` used class selector, bypassing `G()` helper | Added `id="wrap"`, replaced with `G('wrap')` (v37) |
 | Empty date param shows `' - '` | `getParam()` returns `''` if param not set | N/A — all date params have defaults set in Tableau |
 | Empty date param alignment | Index alignment could misalign if periods have gaps | N/A — data has no gaps |
+| Multi-card stagger on load | Each iframe polled for `tableau` every 400ms independently — cards appeared one by one | Reduced poll interval to 50ms → all cards initialize near-simultaneously (v40) |
+| Blank "—" flash on load | HTML had `—` as initial placeholder text, visible before data loaded | Initial content emptied; `#app opacity:0` → revealed with fade transition only after full render (v40) |
+| Date format inconsistency | Range mode used `fmtDP` (DD/MM/YYYY slashes); last year mode showed Tableau's raw label (DD.MM.YYYY dots) | Replaced `fmtDP` with `normDate`: all dates normalized to DD.MM.YYYY regardless of source format (v40) |
 
 ---
 
@@ -284,7 +294,7 @@ Debug version with stage-by-stage error boundaries:
 ## Production Checklist
 1. Push files to GitHub repo
 2. Whitelist exact URL in Tableau Cloud Settings → Extensions
-3. Load `kpi_39_cloud.trex` in workbook
+3. Load `kpi_40_cloud.trex` in workbook
 4. Verify version watermark matches expected
 5. Test both `last year` and `range` modes
 6. Test granularities: day / week / month / quarter
