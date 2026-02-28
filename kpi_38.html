@@ -30,272 +30,178 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label">Current:</span> <span id="cur">—</span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label">vs:</span> <span id="prev">—</span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v37
-</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v39</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
-var ch=null, ws=null, timer=null;
+var ch=null,ws=null,timer=null;
 
 var LANG={
   he:{current:'תקופה נוכחית:',vs:'השוואה:',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
   en:{current:'Current:',vs:'vs:',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'}
 };
+var MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 
 function isHebrew(s){return /[\u0590-\u05FF]/.test(s);}
-
-function applyLang(measureName){
-  var L=isHebrew(measureName)?LANG.he:LANG.en;
-  var app=document.getElementById('app');
-  app.style.direction=L.dir;
-  app.style.textAlign=L.dir==='rtl'?'right':'left';
-  G('cur-label').textContent=L.current;
-  G('vs-label').textContent=L.vs;
+function applyLang(name){
+  var L=isHebrew(name)?LANG.he:LANG.en,app=G('app');
+  app.style.direction=L.dir;app.style.textAlign=L.dir==='rtl'?'right':'left';
+  G('cur-label').textContent=L.current;G('vs-label').textContent=L.vs;
   return L;
 }
-
 function setFonts(){
-  var base=Math.min(window.innerWidth,window.innerHeight);
-  G('lbl').style.fontSize=Math.round(base*0.07)+'px';
-  G('val').style.fontSize=Math.round(base*0.14)+'px';
-  G('chg').style.fontSize=Math.round(base*0.06)+'px';
-  var pSize=Math.round(base*0.05)+'px';
-  document.querySelectorAll('.period-cur').forEach(function(el){el.style.fontSize=pSize;});
+  var b=Math.min(window.innerWidth,window.innerHeight);
+  G('lbl').style.fontSize=Math.round(b*0.07)+'px';
+  G('val').style.fontSize=Math.round(b*0.14)+'px';
+  G('chg').style.fontSize=Math.round(b*0.06)+'px';
+  var p=Math.round(b*0.05)+'px';
+  document.querySelectorAll('.period-cur').forEach(function(el){el.style.fontSize=p;});
 }
 window.addEventListener('resize',setFonts);
 
 function hexToRgba(hex,a){
-  var clean=(hex||'').replace('#','');
-  if(clean.length===3) clean=clean[0]+clean[0]+clean[1]+clean[1]+clean[2]+clean[2];
-  var r=parseInt(clean.slice(0,2),16),g=parseInt(clean.slice(2,4),16),b=parseInt(clean.slice(4,6),16);
-  if(isNaN(r)) return 'rgba(99,102,241,'+a+')';
-  return 'rgba('+r+','+g+','+b+','+a+')';
+  var c=(hex||'').replace('#','');
+  if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  var r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);
+  return isNaN(r)?'rgba(99,102,241,'+a+')':'rgba('+r+','+g+','+b+','+a+')';
 }
-
-var MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 function parseDate(raw,fv){
-  var d=new Date(raw);
-  if(!isNaN(d)&&d.getFullYear()>1990) return d;
+  var d=new Date(raw),s,m;
+  if(!isNaN(d)&&d.getFullYear()>1990)return d;
   d=new Date(fv);
-  if(!isNaN(d)&&d.getFullYear()>1990) return d;
-  var s=String(fv||raw||'');
-  var m=s.match(/([A-Za-z]+)\s+(\d{4})/);
-  if(m&&MONTHS[m[1].toLowerCase()]!==undefined) return new Date(+m[2],MONTHS[m[1].toLowerCase()],1);
-  m=s.match(/Q(\d)[\/\s\-]?(\d{4})/i);
-  if(m) return new Date(+m[2],(+m[1]-1)*3,1);
-  m=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if(m) return new Date(+m[3],+m[2]-1,+m[1]);
-  m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if(m) return new Date(+m[1],+m[2]-1,+m[3]);
-  m=s.match(/\d{4}/);
-  return m?new Date(+m[0],0,1):new Date('invalid');
+  if(!isNaN(d)&&d.getFullYear()>1990)return d;
+  s=String(fv||raw||'');
+  if((m=s.match(/([A-Za-z]+)\s+(\d{4})/))&&MONTHS[m[1].toLowerCase()]!==undefined)return new Date(+m[2],MONTHS[m[1].toLowerCase()],1);
+  if(m=s.match(/Q(\d)[\/\s\-]?(\d{4})/i))return new Date(+m[2],(+m[1]-1)*3,1);
+  if(m=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/))return new Date(+m[3],+m[2]-1,+m[1]);
+  if(m=s.match(/(\d{4})-(\d{2})-(\d{2})/))return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/\d{4}/);return m?new Date(+m[0],0,1):new Date('invalid');
 }
-
-function cleanName(s){
-  return s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
-}
-
-// Get a parameter value by name from a pre-fetched params array
+function cleanName(s){return s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();}
 function getParam(params,name){
-  for(var i=0;i<params.length;i++){
+  for(var i=0;i<params.length;i++)
     if(params[i].name.toLowerCase()===name.toLowerCase())
       return String(params[i].currentValue.value||params[i].currentValue.formattedValue||'').trim();
-  }
   return '';
 }
-
-function fmtDateParam(s){
-  // Convert YYYY-MM-DD to DD/MM/YYYY
-  var m=String(s||'').match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m?m[3]+'/'+m[2]+'/'+m[1]:s;
-}
+function fmtDP(s){var m=String(s||'').match(/(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:s;}
+function sortPts(g){return Object.values(g).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});}
+function mkTip(cb){return {backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,titleColor:'#374151',bodyColor:'#111',padding:12,boxPadding:5,callbacks:cb};}
 
 async function load(){
   G('period-cmp-row').style.display='none';
   try{
     var params=await ws.getParametersAsync();
     var frame=getParam(params,'frame');
-
     var dt=await ws.getSummaryDataAsync({ignoreSelection:true});
-    var cols=dt.columns, rows=dt.data;
+    var cols=dt.columns,rows=dt.data;
 
     var di=cols.findIndex(function(c){return c.fieldName.toLowerCase()==='truncated';});
-    if(di<0) di=cols.findIndex(function(c){return c.dataType.toLowerCase().includes('date');});
-
-    var allDateCols=[];
-    cols.forEach(function(c,i){if(c.dataType.toLowerCase().includes('date')) allDateCols.push(i);});
-    var numCols=[];
-    cols.forEach(function(c,i){
-      if(!allDateCols.includes(i)&&['float','int','real','integer','number'].some(function(t){return c.dataType.toLowerCase().includes(t);})){
-        numCols.push(i);
-      }
-    });
-    // Exclude range col from measure detection
+    if(di<0)di=cols.findIndex(function(c){return c.dataType.toLowerCase().includes('date');});
     var rangeColIdx=cols.findIndex(function(c){return c.fieldName.toLowerCase()==='range';});
-    var mi=-1;
-    if(numCols.length){
-      var maxVal=-Infinity;
-      numCols.forEach(function(colIdx){
-        if(colIdx===rangeColIdx) return;
-        var colMax=0;
-        rows.forEach(function(r){colMax=Math.max(colMax,Math.abs(parseFloat(r[colIdx].value)||0));});
-        if(colMax>maxVal){maxVal=colMax;mi=colIdx;}
-      });
-    }
-    if(di<0||mi<0) return;
+
+    var mi=-1,maxVal=-Infinity;
+    cols.forEach(function(c,i){
+      if(i===rangeColIdx||c.dataType.toLowerCase().includes('date'))return;
+      if(!['float','int','real','integer','number'].some(function(t){return c.dataType.toLowerCase().includes(t);}))return;
+      var colMax=0;
+      rows.forEach(function(r){colMax=Math.max(colMax,Math.abs(parseFloat(r[i].value)||0));});
+      if(colMax>maxVal){maxVal=colMax;mi=i;}
+    });
+    if(di<0||mi<0)return;
 
     var measureName=cleanName(cols[mi].fieldName);
     var L=applyLang(measureName);
-    var pts, prv, last, lastPrv, curLabel, prevLabel;
+    var pts,prv,last,lastPrv,curLabel,prevLabel;
 
-    if(frame==='range' && rangeColIdx>=0){
-      // ── RANGE MODE ──
-      // Use 'Normalized Date' for X axis — it aligns both periods for overlay
-      // Group by Truncated (respects granularity parameter)
-      var g1={}, g2={};
+    if(frame==='range'&&rangeColIdx>=0){
+      var g1={},g2={};
       rows.forEach(function(r){
-        var rv=String(r[rangeColIdx].value!==null&&r[rangeColIdx].value!==undefined
-          ?r[rangeColIdx].value:r[rangeColIdx].formattedValue||'');
-        var key=r[di].formattedValue;
-        var d=parseDate(r[di].value, r[di].formattedValue);
-        var y=parseFloat(r[mi].value)||0;
-        if(rv==='1'){
-          if(!g1[key]) g1[key]={x:key,y:0,d:d};
-          g1[key].y+=y;
-        } else if(rv==='2'){
-          if(!g2[key]) g2[key]={x:key,y:0,d:d};
-          g2[key].y+=y;
-        }
+        var rv=String(r[rangeColIdx].value!=null?r[rangeColIdx].value:r[rangeColIdx].formattedValue||'');
+        var key=r[di].formattedValue,d=parseDate(r[di].value,r[di].formattedValue),y=parseFloat(r[mi].value)||0;
+        var g=rv==='1'?g1:rv==='2'?g2:null;
+        if(g){if(!g[key])g[key]={x:key,y:0,d:d};g[key].y+=y;}
       });
-      pts=Object.values(g1).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});
-      var pts2=Object.values(g2).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});
-      if(!pts.length) return;
-      // Align by index position
+      pts=sortPts(g1);var pts2=sortPts(g2);
+      if(!pts.length)return;
       prv=pts.map(function(p,i){return pts2[i]||{x:null,y:null};});
-      last=pts[pts.length-1];
-      lastPrv=prv[prv.length-1];
-      // Period labels from parameters
-      var f1=getParam(params,'from1'), t1=getParam(params,'to1');
-      var f2=getParam(params,'from2'), t2=getParam(params,'to2');
-      curLabel=fmtDateParam(f1)+' - '+fmtDateParam(t1);
-      prevLabel=fmtDateParam(f2)+' - '+fmtDateParam(t2);
-      // Range mode: השוואה on its own line (show period-cmp div)
+      last=pts[pts.length-1];lastPrv=prv[prv.length-1];
+      curLabel=fmtDP(getParam(params,'from1'))+' - '+fmtDP(getParam(params,'to1'));
+      prevLabel=fmtDP(getParam(params,'from2'))+' - '+fmtDP(getParam(params,'to2'));
       G('vs-label').textContent=isHebrew(measureName)?'השוואה:':'vs:';
       G('period-cmp-row').style.display='block';
     } else {
-      // ── LAST YEAR MODE (original behavior) ──
       var grouped={};
       rows.forEach(function(r){
-        var key=r[di].formattedValue;
-        var d=parseDate(r[di].value, r[di].formattedValue);
-        var y=parseFloat(r[mi].value)||0;
-        if(!grouped[key]) grouped[key]={x:key,y:0,d:d};
-        grouped[key].y+=y;
+        var key=r[di].formattedValue,d=parseDate(r[di].value,r[di].formattedValue),y=parseFloat(r[mi].value)||0;
+        if(!grouped[key])grouped[key]={x:key,y:0,d:d};grouped[key].y+=y;
       });
-      pts=Object.values(grouped).filter(function(p){
-        return !isNaN(p.d)&&p.d.getFullYear()>1990&&p.y!==0;
-      }).sort(function(a,b){return a.d-b.d;});
-      if(!pts.length) return;
+      pts=Object.values(grouped).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990&&p.y!==0;}).sort(function(a,b){return a.d-b.d;});
+      if(!pts.length)return;
       prv=pts.map(function(p){
-        var target=new Date(p.d); target.setFullYear(target.getFullYear()-1);
+        var target=new Date(p.d);target.setFullYear(target.getFullYear()-1);
         var best=null,bestDiff=Infinity;
         pts.forEach(function(q){var diff=Math.abs(q.d-target);if(diff<bestDiff&&diff<20*864e5){bestDiff=diff;best=q;}});
         return best||{x:null,y:null};
       });
-      last=pts[pts.length-1];
-      lastPrv=prv[prv.length-1];
-      curLabel=last.x;
-      prevLabel=lastPrv?lastPrv.x||'N/A':'N/A';
-      G('vs-label').textContent=L.vs;
-      G('period-cmp-row').style.display='block';
+      last=pts[pts.length-1];lastPrv=prv[prv.length-1];
+      curLabel=last.x;prevLabel=lastPrv?lastPrv.x||'N/A':'N/A';
+      G('vs-label').textContent=L.vs;G('period-cmp-row').style.display='block';
     }
 
-    G('lbl').textContent=measureName;
-    G('val').textContent=fmt(last.y);
-    G('cur').textContent=curLabel;
-    G('cur').className='date-val';
-    G('prev').textContent=prevLabel;
-    G('prev').className='date-val';
+    G('lbl').textContent=measureName;G('val').textContent=fmt(last.y);
+    G('cur').textContent=curLabel;G('cur').className='date-val';
+    G('prev').textContent=prevLabel;G('prev').className='date-val';
 
     var color='#6366f1';
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
-      var diff=last.y-lastPrv.y, pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>0, neutral=Math.abs(diff)<0.0001;
+      var diff=last.y-lastPrv.y,pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0),up=diff>0,neutral=Math.abs(diff)<0.0001;
       color=neutral?'#6366f1':up?'#16a34a':'#dc2626';
-      G('chg').innerHTML='<span style="direction:ltr;unicode-bidi:embed">'+(neutral?'':up?'▲+':'▼-')+fmt(Math.abs(diff))+' ('+(neutral?'':up?'+':'-')+pct+'%)'+'</span>';
+      G('chg').innerHTML='<span style="direction:ltr;unicode-bidi:embed">'+(neutral?'':up?'▲+':'▼-')+fmt(Math.abs(diff))+' ('+(neutral?'':up?'+':'-')+pct+'%)</span>';
       G('chg').className='chg '+(neutral?'':up?'up':'down');
-    } else { G('chg').textContent=''; }
+    } else {G('chg').textContent='';}
 
-    // Chart
     if(ch){ch.destroy();ch=null;}
-    var canvas=G('ch');
-    // Restore canvas if it was replaced by a message div
     var wrap=G('wrap');
-    if(!canvas||!wrap.contains(canvas)){
-      wrap.innerHTML='<canvas id="ch"></canvas>';
-      canvas=G('ch');
-    }
-    var h=canvas.parentElement.offsetHeight||200;
-    var ctx=canvas.getContext('2d');
-    var grad=ctx.createLinearGradient(0,0,0,h);
-    grad.addColorStop(0,hexToRgba(color,0.2));
-    grad.addColorStop(1,hexToRgba(color,0));
+    if(!wrap.querySelector('canvas')){wrap.innerHTML='<canvas id="ch"></canvas>';}
+    var canvas=G('ch'),h=canvas.parentElement.offsetHeight||200;
+    var ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,hexToRgba(color,0.2));grad.addColorStop(1,hexToRgba(color,0));
 
-    // Single point — dot chart
     if(pts.length===1){
       var prvY=prv[0]&&prv[0].y!=null?prv[0].y:null;
-      ch=new Chart(canvas,{type:'bubble',data:{
-        datasets:[
-          {label:L.lineCur,data:[{x:0,y:pts[0].y,r:18}],backgroundColor:hexToRgba(color,0.85),borderColor:color,borderWidth:2},
-          prvY!=null?{label:L.linePrv,data:[{x:0,y:prvY,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
-        ]
-      },options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,
-          titleColor:'#374151',bodyColor:'#111',padding:12,boxPadding:5,
-          callbacks:{label:function(c){return ' '+c.dataset.label+': '+fmt(c.raw.y);}}}},
-        scales:{x:{display:false},y:{display:false}},animation:{duration:300}
-      }});
+      ch=new Chart(canvas,{type:'bubble',data:{datasets:[
+        {label:L.lineCur,data:[{x:0,y:pts[0].y,r:18}],backgroundColor:hexToRgba(color,0.85),borderColor:color,borderWidth:2},
+        prvY!=null?{label:L.linePrv,data:[{x:0,y:prvY,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
+      ]},options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return ' '+c.dataset.label+': '+fmt(c.raw.y);}})},
+        scales:{x:{display:false},y:{display:false}},animation:{duration:300}}});
     } else {
-      // Line chart — reduce tension for small point counts to avoid overshoot
       var tension=(frame==='range')?0:(pts.length<=4?0.1:0.4);
       ch=new Chart(canvas,{type:'line',data:{
         labels:pts.map(function(p){return p.x;}),
         datasets:[
-          {label:L.lineCur,data:pts.map(function(p){return p.y;}),
-           borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,
-           pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
-          {label:L.linePrv,data:prv.map(function(p){return p.y;}),
-           borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],
-           fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
+          {label:L.lineCur,data:pts.map(function(p){return p.y;}),borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
+          {label:L.linePrv,data:prv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
         ]
-      },options:{
-        responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,
-          titleColor:'#374151',bodyColor:'#111',padding:12,boxPadding:5,
-          callbacks:{label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}}}},
-        scales:{x:{display:false},y:{display:false}},animation:{duration:300}
-      }});
+      },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
+        scales:{x:{display:false},y:{display:false}},animation:{duration:300}}});
     }
-
-  }catch(e){console.error('KPI v35 error:',e);G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';}
+  }catch(e){console.error('KPI v39 error:',e);G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';}
   setFonts();
 }
 
 function debouncedLoad(){clearTimeout(timer);timer=setTimeout(load,200);}
-
 async function init(){
   if(typeof tableau==='undefined'){setTimeout(init,400);return;}
   await tableau.extensions.initializeAsync();
   ws=tableau.extensions.worksheetContent.worksheet;
-  setFonts();
-  load();
+  setFonts();load();
   ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
-  // Parameter change listener
   try{
     var params=await ws.getParametersAsync();
-    params.forEach(function(p){
-      p.addEventListener(tableau.TableauEventType.ParameterChanged,debouncedLoad);
-    });
+    params.forEach(function(p){p.addEventListener(tableau.TableauEventType.ParameterChanged,debouncedLoad);});
   }catch(e){console.warn('No param listener:',e);}
 }
 window.onload=init;
