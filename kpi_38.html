@@ -30,7 +30,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label">Current:</span> <span id="cur">—</span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label">vs:</span> <span id="prev">—</span></div>
   <div class="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v34</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v35</div>
 </div>
 <script>
 var G=function(id){return document.getElementById(id);};
@@ -221,7 +221,7 @@ async function load(){
 
     var color='#6366f1';
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
-      var diff=last.y-lastPrv.y, pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>0, neutral=diff===0;
+      var diff=last.y-lastPrv.y, pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0), up=diff>0, neutral=Math.abs(diff)<0.0001;
       color=neutral?'#6366f1':up?'#16a34a':'#dc2626';
       G('chg').innerHTML='<span style="direction:ltr;unicode-bidi:embed">'+(neutral?'':up?'▲+':'▼-')+fmt(Math.abs(diff))+' ('+(neutral?'':up?'+':'-')+pct+'%)'+'</span>';
       G('chg').className='chg '+(neutral?'':up?'up':'down');
