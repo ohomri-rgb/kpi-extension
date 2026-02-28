@@ -279,7 +279,7 @@ async function load(){
       }});
     }
 
-  }catch(e){console.error('KPI v12 error:',e);}
+  }catch(e){console.error('KPI v35 error:',e);G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';}
   setFonts();
 }
 
