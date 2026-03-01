@@ -240,7 +240,9 @@ init            poll every 50ms for tableau object (was 400ms) → tighter multi
 | v36 | Superseded | Bug #8 fix: replaced async `readParam()` (5 separate API calls) with sync `getParam()` — params fetched once per `load()` call |
 | v37 | Superseded | Bug #10 fix: added `id="wrap"` to wrap div; replaced `document.querySelector('.wrap')` with `G('wrap')` for consistency |
 | v39 | Superseded | Refactor: ~31% shorter (303→209 lines). Merged double-loop column detection into single pass; extracted `sortPts()`, `mkTip()`, `fmtDP()` helpers; collapsed range g1/g2 grouping to ternary; removed all inline comments; no features removed |
-| v40 | ✅ Current approved | Bug fixes: (1) Multi-card stagger — init poll reduced 400ms→50ms, all cards find Tableau simultaneously; (2) Blank flash on load — `#app` starts `opacity:0`, reveals via CSS transition only after full render; HTML initial content emptied; (3) Date format inconsistency — replaced `fmtDP` with `normDate`: unified DD.MM.YYYY (dots) for all modes (range params + last year labels), non-date labels pass through unchanged |
+| v40 | Superseded | Bug fixes: multi-card stagger (init poll 50ms), blank flash (opacity:0→1), date format (normDate DD.MM.YYYY) |
+| v41 | Superseded | Attempted sync fix: debounce 200ms→600ms + 400ms initial load delay. Stagger reduced, not eliminated |
+| v42 | ⚠️ Current (issue open) | Attempted sync fix: BroadcastChannel('kpi_sync') — cards broadcast reload signal to each other to align debounce deadline. Stagger still visible on server |
 
 ---
 
@@ -269,6 +271,7 @@ init            poll every 50ms for tableau object (was 400ms) → tighter multi
 | Empty date param shows `' - '` | `getParam()` returns `''` if param not set | N/A — all date params have defaults set in Tableau |
 | Empty date param alignment | Index alignment could misalign if periods have gaps | N/A — data has no gaps |
 | Multi-card stagger on load | Each iframe polled for `tableau` every 400ms independently — cards appeared one by one | Reduced poll interval to 50ms → all cards initialize near-simultaneously (v40) |
+| Multi-card stagger on parameter change ⚠️ NOT RESOLVED | Tableau delivers `ParameterChanged` event to each iframe independently with ~ms gaps — cards update one by one. Attempted: debounce 200ms→600ms (v41), BroadcastChannel to sync all iframes to same deadline (v42). Still visible stagger on server. Root cause likely Tableau Cloud iframe sandboxing limiting cross-iframe communication. Needs further investigation. | Partial — BroadcastChannel approach in v42, stagger reduced but not eliminated |
 | Blank "—" flash on load | HTML had `—` as initial placeholder text, visible before data loaded | Initial content emptied; `#app opacity:0` → revealed with fade transition only after full render (v40) |
 | Date format inconsistency | Range mode used `fmtDP` (DD/MM/YYYY slashes); last year mode showed Tableau's raw label (DD.MM.YYYY dots) | Replaced `fmtDP` with `normDate`: all dates normalized to DD.MM.YYYY regardless of source format (v40) |
 
