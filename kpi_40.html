@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v42</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v43</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -205,32 +205,53 @@ async function load(){
     G('app').style.opacity='1';
 
   }catch(e){
-    console.error('KPI v42 error:',e);
+    console.error('KPI v43 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     G('app').style.opacity='1'; // still reveal on error so user sees the message
   }
   setFonts();
 }
 
-// BroadcastChannel sync: all KPI iframes on the same page share one channel.
-// When any card gets a Tableau event it broadcasts "reload" —
-// every card resets its debounce to the same deadline → all fire load() simultaneously.
-var bc=null;
+// v43 SYNC FIX: anchor-based shared deadline via BroadcastChannel.
+// Problem with v42: each card reset its own 300ms countdown independently →
+// Card A fires at T+300, Card B at T+305, etc. → visible stagger.
+//
+// Fix: on any event, broadcast an absolute anchor timestamp (Date.now()+DELAY).
+// Every card — including the sender — schedules load() to fire AT that exact
+// wall-clock time (not 300ms from now). Any later event pushes the anchor further
+// out and all cards reschedule to the new deadline.
+// Result: all cards fire load() within ~1ms of each other regardless of
+// when each iframe received its Tableau event.
+
+var bc=null, currentAnchor=0, SYNC_DELAY=350;
 try{bc=new BroadcastChannel('kpi_sync');}catch(e){}
 
-function debouncedLoad(){
+function scheduleAt(anchorTime){
+  // Always take the LATEST anchor so a burst of events keeps pushing deadline
+  // until quiet, then all fire together.
+  if(anchorTime<currentAnchor)anchorTime=currentAnchor; // don't go backwards
+  currentAnchor=anchorTime;
   clearTimeout(timer);
-  timer=setTimeout(load,300);
-  try{if(bc)bc.postMessage('reload');}catch(e){}
+  var delay=Math.max(50,anchorTime-Date.now());
+  timer=setTimeout(function(){currentAnchor=0;load();},delay);
+}
+
+function debouncedLoad(){
+  var anchor=Date.now()+SYNC_DELAY;
+  scheduleAt(anchor);
+  try{if(bc)bc.postMessage({type:'kpi_sync',anchor:anchor});}catch(e){}
 }
 
 async function init(){
   if(typeof tableau==='undefined'){setTimeout(init,50);return;}
-  if(bc)bc.onmessage=function(){clearTimeout(timer);timer=setTimeout(load,300);};
+  if(bc)bc.onmessage=function(e){
+    if(e.data&&e.data.type==='kpi_sync')scheduleAt(e.data.anchor);
+  };
   await tableau.extensions.initializeAsync();
   ws=tableau.extensions.worksheetContent.worksheet;
   setFonts();
-  setTimeout(load,300);
+  // Initial load: broadcast so all cards load together on startup too
+  debouncedLoad();
   ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
   try{
     var params=await ws.getParametersAsync();
