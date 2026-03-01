@@ -152,11 +152,15 @@ async function load(){
       });
       var allPts=Object.values(grouped).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});
       if(!allPts.length)return;
-      var half=Math.floor(allPts.length/2);
-      var prvAll=allPts.slice(0,half);
-      pts=allPts.slice(half);
-      // Align prior to current 1:1 by index (index 0 of current = index 0 of prior)
-      prv=pts.map(function(p,i){return prvAll[i]||{x:null,y:null};});
+      // Split by date: cutoff = lastDate minus exactly 1 year
+      // Align prior from END so last prior always matches last current (same date last year)
+      var lastDate=allPts[allPts.length-1].d;
+      var cutoff=new Date(lastDate);cutoff.setFullYear(cutoff.getFullYear()-1);
+      pts=allPts.filter(function(p){return p.d>cutoff;});
+      var prvAll=allPts.filter(function(p){return p.d<=cutoff;});
+      if(!pts.length)return;
+      var offset=prvAll.length-pts.length;
+      prv=pts.map(function(p,i){var pi=offset+i;return(pi>=0&&pi<prvAll.length)?prvAll[pi]:{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prvAll[prvAll.length-1]||{x:null,y:null};
       curLabel=normDate(last.x);
       prevLabel=normDate(lastPrv.x||'');
