@@ -11,7 +11,6 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;background:#fff;overflow:hidden}
-/* BUG 1+2 FIX: start invisible, fade in after load — hides blank "—" flash and softens stagger between cards */
 #app{padding:3%;height:100%;display:flex;flex-direction:column;opacity:0}
 .lbl{font-weight:600;color:#374151}
 .val-row{display:flex;align-items:baseline;gap:0.3em;margin:0.2em 0 0.2em;flex-wrap:nowrap}
@@ -22,7 +21,6 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
 .period-cur span.date-val{color:#374151;font-weight:500}
 .wrap{flex:1;min-height:0;position:relative}
 </style></head><body>
-<!-- BUG 2 FIX: empty initial content instead of "—" so nothing ugly shows before fade-in -->
 <div id="app">
   <div class="lbl" id="lbl"></div>
   <div class="val-row">
@@ -32,7 +30,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v48</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v49</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -86,14 +84,12 @@ function getParam(params,name){
       return String(params[i].currentValue.value||params[i].currentValue.formattedValue||'').trim();
   return '';
 }
-// BUG 3 FIX: unified date normalizer → always outputs DD.MM.YYYY (dots) regardless of input format
-// Handles: YYYY-MM-DD (from params), DD/MM/YYYY (Tableau locale), D.M.YYYY, already DD.MM.YYYY
 function normDate(s){
   var t,x=String(s||'').trim();
   if((t=x.match(/^(\d{4})-(\d{2})-(\d{2})$/)))return t[3]+'.'+t[2]+'.'+t[1];
   if((t=x.match(/^(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})$/)))
     return (t[1].length<2?'0':'')+t[1]+'.'+(t[2].length<2?'0':'')+t[2]+'.'+t[3];
-  return x; // quarter / year / month labels — return as-is
+  return x;
 }
 function sortPts(g){return Object.values(g).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});}
 function mkTip(cb){return {backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,titleColor:'#374151',bodyColor:'#111',padding:12,boxPadding:5,callbacks:cb};}
@@ -125,6 +121,7 @@ async function load(){
     var pts,prv,last,lastPrv,curLabel,prevLabel;
 
     if(frame==='range'&&rangeColIdx>=0){
+      // ── RANGE MODE (unchanged) ──────────────────────────────────────────
       var g1={},g2={};
       rows.forEach(function(r){
         var rv=String(r[rangeColIdx].value!=null?r[rangeColIdx].value:r[rangeColIdx].formattedValue||'');
@@ -136,18 +133,66 @@ async function load(){
       if(!pts.length)return;
       prv=pts.map(function(p,i){return pts2[i]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1];
-      // BUG 3 FIX: normDate for range params (YYYY-MM-DD → DD.MM.YYYY with dots)
       curLabel=normDate(getParam(params,'from1'))+' - '+normDate(getParam(params,'to1'));
       prevLabel=normDate(getParam(params,'from2'))+' - '+normDate(getParam(params,'to2'));
       G('vs-label').textContent=isHebrew(measureName)?'השוואה:':'vs:';
       G('period-cmp-row').style.display='block';
-    } else {
+
+    } else if(frame==='yoy'){
+      // ── YOY MODE (new) ─────────────────────────────────────────────────
+      // Requires Tableau to supply ~26 months of data (no range col needed).
+      // JS splits by date: last 13 months = current, prior block = prior year.
+      // Both series are index-aligned and rendered exactly like range mode.
       var grouped={};
       rows.forEach(function(r){
         var key=r[di].formattedValue,d=parseDate(r[di].value,r[di].formattedValue),y=parseFloat(r[mi].value)||0;
-        if(!grouped[key])grouped[key]={x:key,y:0,d:d};grouped[key].y+=y;
+        if(!grouped[key])grouped[key]={x:key,y:0,d:d};
+        grouped[key].y+=y;
       });
-      pts=Object.values(grouped).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990&&p.y!==0;}).sort(function(a,b){return a.d-b.d;});
+      var allPts=Object.values(grouped)
+        .filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;})
+        .sort(function(a,b){return a.d-b.d;});
+      if(!allPts.length)return;
+
+      // Cutoff = last data point minus exactly 13 months
+      var lastDate=allPts[allPts.length-1].d;
+      var cutoff=new Date(lastDate);
+      cutoff.setMonth(cutoff.getMonth()-13);
+
+      // Current series: everything after cutoff
+      pts=allPts.filter(function(p){return p.d>cutoff;});
+      // Prior series: everything up to and including cutoff
+      var prvAll=allPts.filter(function(p){return p.d<=cutoff;});
+
+      if(!pts.length)return;
+
+      // Align prior to current by index from the END of prvAll
+      // so the last prior point lines up with the first current point (YOY)
+      var offset=prvAll.length-pts.length;
+      prv=pts.map(function(p,i){
+        var pi=offset+i;
+        return (pi>=0&&pi<prvAll.length)?prvAll[pi]:{x:null,y:null};
+      });
+
+      last=pts[pts.length-1];
+      lastPrv=prv[prv.length-1];
+
+      // Labels: show full date ranges for both periods
+      curLabel=normDate(pts[0].x)+' – '+normDate(last.x);
+      var prvFirst=prv.find(function(p){return p.x!=null;});
+      prevLabel=(prvFirst?normDate(prvFirst.x)+' – ':'')+(lastPrv&&lastPrv.x?normDate(lastPrv.x):'N/A');
+
+      G('vs-label').textContent=isHebrew(measureName)?'השוואה:':'vs:';
+      G('period-cmp-row').style.display='block';
+
+    } else {
+      // ── DEFAULT MODE (unchanged) ────────────────────────────────────────
+      var grouped2={};
+      rows.forEach(function(r){
+        var key=r[di].formattedValue,d=parseDate(r[di].value,r[di].formattedValue),y=parseFloat(r[mi].value)||0;
+        if(!grouped2[key])grouped2[key]={x:key,y:0,d:d};grouped2[key].y+=y;
+      });
+      pts=Object.values(grouped2).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990&&p.y!==0;}).sort(function(a,b){return a.d-b.d;});
       if(!pts.length)return;
       prv=pts.map(function(p){
         var target=new Date(p.d);target.setFullYear(target.getFullYear()-1);
@@ -156,7 +201,6 @@ async function load(){
         return best||{x:null,y:null};
       });
       last=pts[pts.length-1];lastPrv=prv[prv.length-1];
-      // BUG 3 FIX: normDate on last year labels so DD/MM/YYYY → DD.MM.YYYY (consistent dots)
       curLabel=normDate(last.x);prevLabel=lastPrv?normDate(lastPrv.x||'N/A'):'N/A';
       G('vs-label').textContent=L.vs;G('period-cmp-row').style.display='block';
     }
@@ -180,7 +224,9 @@ async function load(){
     var ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
     grad.addColorStop(0,hexToRgba(color,0.2));grad.addColorStop(1,hexToRgba(color,0));
 
-    // animation:0 everywhere — instant render, no stagger visible between cards
+    // 'yoy' renders indexed like range mode (tension=0, no date gaps)
+    var isIndexed=(frame==='range'||frame==='yoy');
+
     if(pts.length===1){
       var prvY=prv[0]&&prv[0].y!=null?prv[0].y:null;
       ch=new Chart(canvas,{type:'bubble',data:{datasets:[
@@ -190,22 +236,32 @@ async function load(){
         plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return ' '+c.dataset.label+': '+fmt(c.raw.y);}})},
         scales:{x:{display:false},y:{display:false}},animation:false}});
     } else {
-      var tension=(frame==='range')?0:(pts.length<=4?0.1:0.4);
+      var tension=isIndexed?0:(pts.length<=4?0.1:0.4);
       ch=new Chart(canvas,{type:'line',data:{
-        labels:pts.map(function(p){return p.x;}),
+        labels:pts.map(function(p,i){return isIndexed?i:p.x;}),
         datasets:[
           {label:L.lineCur,data:pts.map(function(p){return p.y;}),borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
-          {label:L.linePrv,data:prv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
+          {label:L.linePrv,data:prv.map(function(p){return p&&p.y!=null?p.y:null;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4,spanGaps:false}
         ]
       },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
+        plugins:{legend:{display:false},tooltip:mkTip({
+          title:function(items){
+            // In yoy mode show both series labels in tooltip title
+            if(!isIndexed)return items[0]&&items[0].label?[items[0].label]:[];
+            var i=items[0]&&items[0].dataIndex!=null?items[0].dataIndex:0;
+            var curX=pts[i]?pts[i].x:'';
+            var prvX=prv[i]&&prv[i].x?prv[i].x:'';
+            return prvX?[curX+' / '+prvX]:[curX];
+          },
+          label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}
+        })},
         scales:{x:{display:false},y:{display:false}},animation:false}});
     }
 
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v48 error:',e);
+    console.error('KPI v49 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
