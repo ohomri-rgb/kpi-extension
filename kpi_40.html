@@ -200,14 +200,14 @@ async function load(){
           {label:L.linePrv,data:prv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
         ]
       },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
+        plugins:{legend:{display:false},tooltip:mkTip({title:function(items){var i=items[0]?items[0].dataIndex:0;var cx=pts[i]?normDate(pts[i].x):'';var px=prv[i]&&prv[i].x?normDate(prv[i].x):'';return px?[cx+' / '+px]:[cx];},label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
         scales:{x:{display:false},y:{display:false}},animation:false}});
     }
 
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v48 error:',e);
+    console.error('KPI v50 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
