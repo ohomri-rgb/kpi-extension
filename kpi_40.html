@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v47</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v48</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -173,65 +173,45 @@ async function load(){
       G('chg').className='chg '+(neutral?'':up?'up':'down');
     } else {G('chg').textContent='';}
 
-    // Reuse chart if same type — instant in-place update, zero animation, no blank flash
-    var needBubble=(pts.length===1);
-    var tension=(frame==='range')?0:(pts.length<=4?0.1:0.4);
-    var sameType=(ch&&ch.config&&((needBubble&&ch.config.type==='bubble')||(!needBubble&&ch.config.type==='line')));
+    if(ch){ch.destroy();ch=null;}
+    var wrap=G('wrap');
+    if(!wrap.querySelector('canvas')){wrap.innerHTML='<canvas id="ch"></canvas>';}
+    var canvas=G('ch'),h=canvas.parentElement.offsetHeight||200;
+    var ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,hexToRgba(color,0.2));grad.addColorStop(1,hexToRgba(color,0));
 
-    if(sameType){
-      var ds=ch.data.datasets;
-      if(needBubble){
-        var bPrv=prv[0]&&prv[0].y!=null?prv[0].y:null;
-        ds[0].data=[{x:0,y:pts[0].y,r:18}];ds[0].backgroundColor=hexToRgba(color,0.85);ds[0].borderColor=color;
-        if(ds[1])ds[1].data=bPrv!=null?[{x:0,y:bPrv,r:14}]:[];
-      } else {
-        var cnv=G('ch'),hh=cnv.parentElement.offsetHeight||200,cx=cnv.getContext('2d');
-        var g2=cx.createLinearGradient(0,0,0,hh);
-        g2.addColorStop(0,hexToRgba(color,0.2));g2.addColorStop(1,hexToRgba(color,0));
-        ch.data.labels=pts.map(function(p){return p.x;});
-        ds[0].data=pts.map(function(p){return p.y;});ds[0].borderColor=color;ds[0].backgroundColor=g2;ds[0].tension=tension;
-        ds[1].data=prv.map(function(p){return p.y;});ds[1].tension=tension;
-      }
-      ch.update('none');
+    // animation:0 everywhere — instant render, no stagger visible between cards
+    if(pts.length===1){
+      var prvY=prv[0]&&prv[0].y!=null?prv[0].y:null;
+      ch=new Chart(canvas,{type:'bubble',data:{datasets:[
+        {label:L.lineCur,data:[{x:0,y:pts[0].y,r:18}],backgroundColor:hexToRgba(color,0.85),borderColor:color,borderWidth:2},
+        prvY!=null?{label:L.linePrv,data:[{x:0,y:prvY,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
+      ]},options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return ' '+c.dataset.label+': '+fmt(c.raw.y);}})},
+        scales:{x:{display:false},y:{display:false}},animation:false}});
     } else {
-      if(ch){ch.destroy();ch=null;}
-      var wrap=G('wrap');if(!wrap.querySelector('canvas')){wrap.innerHTML='<canvas id="ch"></canvas>';}
-      var canvas=G('ch'),h=canvas.parentElement.offsetHeight||200;
-      var ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
-      grad.addColorStop(0,hexToRgba(color,0.2));grad.addColorStop(1,hexToRgba(color,0));
-      if(needBubble){
-        var bPrv2=prv[0]&&prv[0].y!=null?prv[0].y:null;
-        ch=new Chart(canvas,{type:'bubble',data:{datasets:[
-          {label:L.lineCur,data:[{x:0,y:pts[0].y,r:18}],backgroundColor:hexToRgba(color,0.85),borderColor:color,borderWidth:2},
-          bPrv2!=null?{label:L.linePrv,data:[{x:0,y:bPrv2,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
-        ]},options:{responsive:true,maintainAspectRatio:false,
-          plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return ' '+c.dataset.label+': '+fmt(c.raw.y);}})},
-          scales:{x:{display:false},y:{display:false}},animation:{duration:0}}});
-      } else {
-        ch=new Chart(canvas,{type:'line',data:{
-          labels:pts.map(function(p){return p.x;}),
-          datasets:[
-            {label:L.lineCur,data:pts.map(function(p){return p.y;}),borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
-            {label:L.linePrv,data:prv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
-          ]
-        },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-          plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
-          scales:{x:{display:false},y:{display:false}},animation:{duration:0}}});
-      }
+      var tension=(frame==='range')?0:(pts.length<=4?0.1:0.4);
+      ch=new Chart(canvas,{type:'line',data:{
+        labels:pts.map(function(p){return p.x;}),
+        datasets:[
+          {label:L.lineCur,data:pts.map(function(p){return p.y;}),borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
+          {label:L.linePrv,data:prv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
+        ]
+      },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
+        scales:{x:{display:false},y:{display:false}},animation:false}});
     }
 
-    // Reveal once on first load — subsequent updates paint in-place, no hide/show
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v47 error:',e);
+    console.error('KPI v48 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
   setFonts();
 }
 
-// Simple debounce — no sync needed because updates are instant (animation:0, in-place)
 function debouncedLoad(){clearTimeout(timer);timer=setTimeout(load,150);}
 
 async function init(){
