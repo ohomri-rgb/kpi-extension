@@ -12,7 +12,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;background:#fff;overflow:hidden}
 /* BUG 1+2 FIX: start invisible, fade in after load — hides blank "—" flash and softens stagger between cards */
-#app{padding:3%;height:100%;display:flex;flex-direction:column;opacity:0;transition:opacity 0.18s ease}
+#app{padding:3%;height:100%;display:flex;flex-direction:column;opacity:0}
 .lbl{font-weight:600;color:#374151}
 .val-row{display:flex;align-items:baseline;gap:0.3em;margin:0.2em 0 0.2em;flex-wrap:nowrap}
 .val{font-weight:800;color:#111;letter-spacing:-1.5px;line-height:1}
@@ -32,50 +32,11 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v46</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v47</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
-var ch=null,ws=null,timer=null,firstLoad=true,pendingRender=null,renderTimer=null;
-
-// v46 SYNC STRATEGY:
-// Root cause: Tableau serves getSummaryDataAsync() to each card sequentially
-// (~90ms each), so card 1 finishes at T+90ms, card 2 at T+180ms, card 3 at T+270ms.
-// By the time we render, cards are already staggered.
-//
-// Fix: TWO-PHASE load.
-//   Phase 1 (load): fetch data, compute everything, store as pendingRender callback.
-//                   Don't touch the DOM yet.
-//   Phase 2 (commit): fire all pendingRender callbacks simultaneously after a
-//                     fixed COMMIT_DELAY (400ms) from the triggering event.
-//
-// localStorage sync: all same-origin iframes share localStorage + storage events.
-// When any card's Tableau event fires, it writes a shared commit timestamp to
-// localStorage. All cards listen and align their commit timer to that timestamp.
-// Result: even though fetch completes at different times, ALL cards paint at T+400ms.
-
-var COMMIT_DELAY = 400;
-var LS_KEY = 'kpi_commit_anchor';
-
-function scheduleCommit(anchor) {
-  clearTimeout(renderTimer);
-  var delay = Math.max(20, anchor - Date.now());
-  renderTimer = setTimeout(function() {
-    if (pendingRender) { pendingRender(); pendingRender = null; }
-  }, delay);
-}
-
-function broadcastAnchor(anchor) {
-  try { localStorage.setItem(LS_KEY, String(anchor)); } catch(e) {}
-  scheduleCommit(anchor);
-}
-
-window.addEventListener('storage', function(e) {
-  if (e.key === LS_KEY && e.newValue) {
-    var anchor = parseInt(e.newValue, 10);
-    if (!isNaN(anchor)) scheduleCommit(anchor);
-  }
-});
+var ch=null,ws=null,timer=null,firstLoad=true;
 
 var LANG={
   he:{current:'תקופה נוכחית:',vs:'השוואה:',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'},
@@ -200,89 +161,84 @@ async function load(){
       G('vs-label').textContent=L.vs;G('period-cmp-row').style.display='block';
     }
 
-    var capturedMeasureName=measureName,capturedLast=last,capturedLastPrv=lastPrv,capturedCurLabel=curLabel,capturedPrevLabel=prevLabel;
-    G('lbl').textContent=measureName; // label can update immediately (not part of stagger)
+    G('lbl').textContent=measureName;G('val').textContent=fmt(last.y);
+    G('cur').textContent=curLabel;G('cur').className='date-val';
+    G('prev').textContent=prevLabel;G('prev').className='date-val';
 
     var color='#6366f1';
-    var chgHTML='',chgClass='chg';
     if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
       var diff=last.y-lastPrv.y,pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0),up=diff>0,neutral=Math.abs(diff)<0.0001;
       color=neutral?'#6366f1':up?'#16a34a':'#dc2626';
-      chgHTML='<span style="direction:ltr;unicode-bidi:embed">'+(neutral?'':up?'▲+':'▼-')+fmt(Math.abs(diff))+' ('+(neutral?'':up?'+':'-')+pct+'%)</span>';
-      chgClass='chg '+(neutral?'':up?'up':'down');
-    }
+      G('chg').innerHTML='<span style="direction:ltr;unicode-bidi:embed">'+(neutral?'':up?'▲+':'▼-')+fmt(Math.abs(diff))+' ('+(neutral?'':up?'+':'-')+pct+'%)</span>';
+      G('chg').className='chg '+(neutral?'':up?'up':'down');
+    } else {G('chg').textContent='';}
 
-    // Phase 2 closure: all DOM writes and chart paint happen at commit time
-    var capturedPts=pts,capturedPrv=prv,capturedColor=color,capturedFrame=frame,capturedL=L;
-    var capturedChgHTML=chgHTML,capturedChgClass=chgClass;
+    // Reuse chart if same type — instant in-place update, zero animation, no blank flash
+    var needBubble=(pts.length===1);
+    var tension=(frame==='range')?0:(pts.length<=4?0.1:0.4);
+    var sameType=(ch&&ch.config&&((needBubble&&ch.config.type==='bubble')||(!needBubble&&ch.config.type==='line')));
 
-    pendingRender = function() {
-      G('val').textContent=fmt(capturedLast.y);
-      G('cur').textContent=capturedCurLabel;G('cur').className='date-val';
-      G('prev').textContent=capturedPrevLabel;G('prev').className='date-val';
-      G('chg').innerHTML=capturedChgHTML||'';
-      G('chg').className=capturedChgClass;
-
+    if(sameType){
+      var ds=ch.data.datasets;
+      if(needBubble){
+        var bPrv=prv[0]&&prv[0].y!=null?prv[0].y:null;
+        ds[0].data=[{x:0,y:pts[0].y,r:18}];ds[0].backgroundColor=hexToRgba(color,0.85);ds[0].borderColor=color;
+        if(ds[1])ds[1].data=bPrv!=null?[{x:0,y:bPrv,r:14}]:[];
+      } else {
+        var cnv=G('ch'),hh=cnv.parentElement.offsetHeight||200,cx=cnv.getContext('2d');
+        var g2=cx.createLinearGradient(0,0,0,hh);
+        g2.addColorStop(0,hexToRgba(color,0.2));g2.addColorStop(1,hexToRgba(color,0));
+        ch.data.labels=pts.map(function(p){return p.x;});
+        ds[0].data=pts.map(function(p){return p.y;});ds[0].borderColor=color;ds[0].backgroundColor=g2;ds[0].tension=tension;
+        ds[1].data=prv.map(function(p){return p.y;});ds[1].tension=tension;
+      }
+      ch.update('none');
+    } else {
       if(ch){ch.destroy();ch=null;}
-      var wrap=G('wrap');
-      if(!wrap.querySelector('canvas')){wrap.innerHTML='<canvas id="ch"></canvas>';}
+      var wrap=G('wrap');if(!wrap.querySelector('canvas')){wrap.innerHTML='<canvas id="ch"></canvas>';}
       var canvas=G('ch'),h=canvas.parentElement.offsetHeight||200;
       var ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
-      grad.addColorStop(0,hexToRgba(capturedColor,0.2));grad.addColorStop(1,hexToRgba(capturedColor,0));
-
-      if(capturedPts.length===1){
-        var prvY=capturedPrv[0]&&capturedPrv[0].y!=null?capturedPrv[0].y:null;
+      grad.addColorStop(0,hexToRgba(color,0.2));grad.addColorStop(1,hexToRgba(color,0));
+      if(needBubble){
+        var bPrv2=prv[0]&&prv[0].y!=null?prv[0].y:null;
         ch=new Chart(canvas,{type:'bubble',data:{datasets:[
-          {label:capturedL.lineCur,data:[{x:0,y:capturedPts[0].y,r:18}],backgroundColor:hexToRgba(capturedColor,0.85),borderColor:capturedColor,borderWidth:2},
-          prvY!=null?{label:capturedL.linePrv,data:[{x:0,y:prvY,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
+          {label:L.lineCur,data:[{x:0,y:pts[0].y,r:18}],backgroundColor:hexToRgba(color,0.85),borderColor:color,borderWidth:2},
+          bPrv2!=null?{label:L.linePrv,data:[{x:0,y:bPrv2,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
         ]},options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return ' '+c.dataset.label+': '+fmt(c.raw.y);}})},
           scales:{x:{display:false},y:{display:false}},animation:{duration:0}}});
       } else {
-        var tension=(capturedFrame==='range')?0:(capturedPts.length<=4?0.1:0.4);
         ch=new Chart(canvas,{type:'line',data:{
-          labels:capturedPts.map(function(p){return p.x;}),
+          labels:pts.map(function(p){return p.x;}),
           datasets:[
-            {label:capturedL.lineCur,data:capturedPts.map(function(p){return p.y;}),borderColor:capturedColor,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:capturedColor,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
-            {label:capturedL.linePrv,data:capturedPrv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
+            {label:L.lineCur,data:pts.map(function(p){return p.y;}),borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:tension,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
+            {label:L.linePrv,data:prv.map(function(p){return p.y;}),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:tension,pointRadius:0,pointHoverRadius:4}
           ]
         },options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
           plugins:{legend:{display:false},tooltip:mkTip({label:function(c){return c.raw==null?null:' '+c.dataset.label+': '+fmt(c.raw);}})},
           scales:{x:{display:false},y:{display:false}},animation:{duration:0}}});
       }
-      if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
-      setFonts();
-    };
+    }
+
+    // Reveal once on first load — subsequent updates paint in-place, no hide/show
+    if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v46 error:',e);
-    pendingRender=function(){
-      G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
-      if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
-    };
+    console.error('KPI v47 error:',e);
+    G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
+    if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
   setFonts();
 }
 
-function debouncedLoad(){
-  clearTimeout(timer);
-  timer=setTimeout(function(){
-    // Broadcast a shared commit anchor so all cards paint simultaneously
-    var anchor=Date.now()+COMMIT_DELAY;
-    broadcastAnchor(anchor);
-    load(); // Phase 1: fetch + compute (async, doesn't touch DOM)
-  }, 100);
-}
+// Simple debounce — no sync needed because updates are instant (animation:0, in-place)
+function debouncedLoad(){clearTimeout(timer);timer=setTimeout(load,150);}
 
 async function init(){
   if(typeof tableau==='undefined'){setTimeout(init,50);return;}
   await tableau.extensions.initializeAsync();
   ws=tableau.extensions.worksheetContent.worksheet;
-  setFonts();
-  // Initial load — broadcast anchor so all cards first-paint together
-  var anchor=Date.now()+COMMIT_DELAY;
-  broadcastAnchor(anchor);
-  load();
+  setFonts();load();
   ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
   try{
     var params=await ws.getParametersAsync();
