@@ -158,8 +158,8 @@ async function load(){
       // Align prior to current 1:1 by index (index 0 of current = index 0 of prior)
       prv=pts.map(function(p,i){return prvAll[i]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prvAll[prvAll.length-1]||{x:null,y:null};
-      curLabel=normDate(pts[0].x)+' – '+normDate(last.x);
-      prevLabel=normDate(prvAll[0].x)+' – '+normDate(lastPrv.x||'');
+      curLabel=normDate(last.x);
+      prevLabel=normDate(lastPrv.x||'');
       G('vs-label').textContent=L.vs;G('period-cmp-row').style.display='block';
     }
 
