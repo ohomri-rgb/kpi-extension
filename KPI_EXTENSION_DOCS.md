@@ -173,10 +173,10 @@ Wrapped in `dir="ltr"` span to prevent RTL reversal.
 
 ```
 Head         meta no-cache, font, scripts
-CSS          layout, val-row, period-cur; #app opacity:0 initially
+CSS          layout, val-row, period-cur; #app opacity:0 initially (no transition)
 HTML         lbl / val-row(val+chg) / period-cur / period-cmp-row / wrap+canvas / version
              (all initial text content empty — no "—" flash)
-Global vars  G, fmt, ch, ws, timer
+Global vars  G, fmt, ch, ws, timer, firstLoad
 LANG         he/en: vs, dir, lineCur, linePrv
 MONTHS       month-name → index map
 isHebrew     /[\u0590-\u05FF]/ test
@@ -204,10 +204,10 @@ load()
             inline period-cmp-row, set השוואה label
   Update DOM: lbl, val, cur, prev, chg (LTR span)
   Render: bubble (1pt) or line chart (tooltip via mkTip)
-  Reveal: set #app opacity:1 (fade-in after full render)
+  Reveal: if firstLoad → set #app opacity:1 and clear firstLoad flag (subsequent renders update in-place, no hide/show)
 
-debouncedLoad   200ms debounce
-init            poll every 50ms for tableau object (was 400ms) → tighter multi-card sync
+debouncedLoad   150ms debounce (no sync — animation:false makes stagger imperceptible)
+init            poll every 50ms for tableau object → tighter multi-card sync
                 initializeAsync + event listeners
 ```
 
@@ -242,7 +242,13 @@ init            poll every 50ms for tableau object (was 400ms) → tighter multi
 | v39 | Superseded | Refactor: ~31% shorter (303→209 lines). Merged double-loop column detection into single pass; extracted `sortPts()`, `mkTip()`, `fmtDP()` helpers; collapsed range g1/g2 grouping to ternary; removed all inline comments; no features removed |
 | v40 | Superseded | Bug fixes: multi-card stagger (init poll 50ms), blank flash (opacity:0→1), date format (normDate DD.MM.YYYY) |
 | v41 | Superseded | Attempted sync fix: debounce 200ms→600ms + 400ms initial load delay. Stagger reduced, not eliminated |
-| v42 | ⚠️ Current (issue open) | Attempted sync fix: BroadcastChannel('kpi_sync') — cards broadcast reload signal to each other to align debounce deadline. Stagger still visible on server |
+| v42 | Superseded | Attempted sync fix: BroadcastChannel('kpi_sync') — cards broadcast reload signal to each other to align debounce deadline. Stagger still visible on server |
+| v43 | Superseded | Attempted anchor-based sync: BroadcastChannel with absolute wall-clock timestamp so all cards schedule `load()` at same moment. Still staggered — BroadcastChannel confirmed blocked by Tableau Cloud iframe sandbox |
+| v44 | Superseded | Removed BroadcastChannel. `opacity:0→1` only on `firstLoad`; subsequent updates in-place. Broken: cards still staggered because data fetches arrive sequentially from Tableau server |
+| v45 | Superseded | Attempted chart reuse via `ch.update('none')` to avoid destroy/blank flash. Broken: `sameType` logic corrupted charts when dataset structure changed (e.g. frame switch) |
+| v46 | Superseded | Two-phase fetch/commit with `localStorage` anchor sync. Broken: race condition — commit timer fired before async `load()` stored `pendingRender`; param switching stopped working |
+| v47 | Superseded | Simplified: always destroy+recreate chart, `animation:{duration:0}`, `firstLoad` reveal. Broken: `sameType` reuse code left in caused bubble/line corruption |
+| v48 | ✅ Current | Final fix: removed all sync/reuse complexity. `animation:false` everywhere (Chart.js instant render, no stagger visible). `opacity:0→1` on first load only. Clean destroy+recreate each time. No BroadcastChannel, no localStorage, no pendingRender |
 
 ---
 
@@ -271,7 +277,7 @@ init            poll every 50ms for tableau object (was 400ms) → tighter multi
 | Empty date param shows `' - '` | `getParam()` returns `''` if param not set | N/A — all date params have defaults set in Tableau |
 | Empty date param alignment | Index alignment could misalign if periods have gaps | N/A — data has no gaps |
 | Multi-card stagger on load | Each iframe polled for `tableau` every 400ms independently — cards appeared one by one | Reduced poll interval to 50ms → all cards initialize near-simultaneously (v40) |
-| Multi-card stagger on parameter change ⚠️ NOT RESOLVED | Tableau delivers `ParameterChanged` event to each iframe independently with ~ms gaps — cards update one by one. Attempted: debounce 200ms→600ms (v41), BroadcastChannel to sync all iframes to same deadline (v42). Still visible stagger on server. Root cause likely Tableau Cloud iframe sandboxing limiting cross-iframe communication. Needs further investigation. | Partial — BroadcastChannel approach in v42, stagger reduced but not eliminated |
+| Multi-card stagger on parameter change ⚠️ PARTIALLY RESOLVED | Root cause investigated across v42–v48. Findings: (1) BroadcastChannel is blocked by Tableau Cloud iframe sandbox. (2) localStorage storage events also do not reliably fire cross-iframe in Tableau Cloud. (3) Tableau serves `getSummaryDataAsync()` to each card sequentially (~80-90ms apart) — this cannot be controlled from extension code. (4) Chart.js `animation:{duration:300}` made the stagger visually obvious. Fix in v48: `animation:false` makes each card render instantly on data arrival — stagger of ~90-180ms between cards still exists but is imperceptible without animation. Switching params is noticeably better; initial load still has some lag on slower connections. | Improved — `animation:false` in v48 |
 | Blank "—" flash on load | HTML had `—` as initial placeholder text, visible before data loaded | Initial content emptied; `#app opacity:0` → revealed with fade transition only after full render (v40) |
 | Date format inconsistency | Range mode used `fmtDP` (DD/MM/YYYY slashes); last year mode showed Tableau's raw label (DD.MM.YYYY dots) | Replaced `fmtDP` with `normDate`: all dates normalized to DD.MM.YYYY regardless of source format (v40) |
 
