@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v60</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v61</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -182,21 +182,44 @@ async function load(){
       prvAll.forEach(function(p){prvMap[periodNum(p.d,gran)]=p;});
       prv=pts.map(function(p){return prvMap[periodNum(p.d,gran)]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1]||{x:null,y:null};
-      // For year granularity: recalculate prior y as YTD sum (same months as current year)
+      // For year granularity: recalculate prior y as YTD sum capped to same month+day as current
       if(gran.toLowerCase()==='year'){
-        var maxMonth=0;
-        rows.forEach(function(r){
-          var d2=parseDate(r[di].value,r[di].formattedValue);
-          if(!isNaN(d2)&&d2.getFullYear()===curYear&&d2.getMonth()>maxMonth)maxMonth=d2.getMonth();
+        // Find max raw date from ALL date cols except Truncated (di) — raw datetime col wins
+        var rawMaxDate=new Date(0);
+        cols.forEach(function(c,ci){
+          if(ci===di||ci===rangeColIdx)return;
+          if(!c.dataType.toLowerCase().includes('date'))return;
+          rows.forEach(function(r){
+            var d2=parseDate(r[ci].value,r[ci].formattedValue);
+            if(!isNaN(d2)&&d2.getFullYear()===curYear&&d2>rawMaxDate)rawMaxDate=d2;
+          });
         });
+        var capMonth=rawMaxDate>new Date(0)?rawMaxDate.getMonth():11;
+        var capDay=rawMaxDate>new Date(0)?rawMaxDate.getDate():31;
+        // Sum prior year rows where raw date month+day <= cap
         var prvYTD=0;
-        rows.forEach(function(r){
-          var d2=parseDate(r[di].value,r[di].formattedValue);
-          if(!isNaN(d2)&&d2.getFullYear()===curYear-1&&d2.getMonth()<=maxMonth)
-            prvYTD+=parseFloat(r[mi].value)||0;
+        cols.forEach(function(c,ci){
+          if(ci===di||ci===rangeColIdx)return;
+          if(!c.dataType.toLowerCase().includes('date'))return;
+          rows.forEach(function(r){
+            var d2=parseDate(r[ci].value,r[ci].formattedValue);
+            if(!isNaN(d2)&&d2.getFullYear()===curYear-1){
+              if(d2.getMonth()<capMonth||(d2.getMonth()===capMonth&&d2.getDate()<=capDay))
+                prvYTD+=parseFloat(r[mi].value)||0;
+            }
+          });
         });
-        if(lastPrv&&prvYTD>0)lastPrv={x:lastPrv.x,y:prvYTD,d:lastPrv.d};
-        if(prv.length>0&&prv[prv.length-1])prv[prv.length-1]=lastPrv;
+        if(prvYTD>0){
+          lastPrv={x:lastPrv?lastPrv.x:null,y:prvYTD,d:lastPrv?lastPrv.d:null};
+          if(prv.length>0)prv[prv.length-1]=lastPrv;
+        }
+        // Fix end date label using rawMaxDate
+        if(rawMaxDate>new Date(0)){
+          function fmtDMY2(d){return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();}
+          var endPrvDate=new Date(rawMaxDate);endPrvDate.setFullYear(curYear-1);
+          curLabel='01.01.'+curYear+' – '+fmtDMY2(rawMaxDate);
+          prevLabel='01.01.'+(curYear-1)+' – '+fmtDMY2(endPrvDate);
+        }
       }
       // For year granularity show full YTD range — scan raw rows to find actual max date
       if(gran.toLowerCase()==='year'){
@@ -266,7 +289,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v60 error:',e);
+    console.error('KPI v61 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
