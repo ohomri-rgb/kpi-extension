@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v54</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v55</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -177,9 +177,12 @@ async function load(){
         var start=new Date(d.getFullYear(),0,0);
         return Math.floor((d-start)/86400000);
       }
-      // Build lookup: periodNum → point, for prior block
+      // Only match against the 12 months immediately before cutoff (exclude older years)
+      var prvCutoff=new Date(cutoff);prvCutoff.setFullYear(prvCutoff.getFullYear()-1);
+      var prvYear=prvAll.filter(function(p){return p.d>prvCutoff;});
+      // Build lookup: periodNum → point, last-write-wins so most recent prior year is used
       var prvMap={};
-      prvAll.forEach(function(p){var k=periodNum(p.d,gran);if(!prvMap[k])prvMap[k]=p;});
+      prvYear.forEach(function(p){prvMap[periodNum(p.d,gran)]=p;});
       prv=pts.map(function(p){return prvMap[periodNum(p.d,gran)]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1]||{x:null,y:null};
       curLabel=normDate(last.x);
@@ -231,7 +234,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v54 error:',e);
+    console.error('KPI v55 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
