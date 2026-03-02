@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v53</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v54</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -153,19 +153,34 @@ async function load(){
       var allPts=Object.values(grouped).filter(function(p){return !isNaN(p.d)&&p.d.getFullYear()>1990;}).sort(function(a,b){return a.d-b.d;});
       if(!allPts.length)return;
       // Split by date: current = last 12 months, prior = everything before
-      // Per-point YOY match: find prior point closest to exactly 1 year earlier (±16 days tolerance)
-      // Works for day/week/month/quarter/year regardless of unequal year lengths
+      // Match by period number (ISO week, month, quarter, day-of-year) so week 52 matches week 52
       var lastDate=allPts[allPts.length-1].d;
       var cutoff=new Date(lastDate);cutoff.setFullYear(cutoff.getFullYear()-1);
       pts=allPts.filter(function(p){return p.d>cutoff;});
       var prvAll=allPts.filter(function(p){return p.d<=cutoff;});
       if(!pts.length)return;
-      prv=pts.map(function(p){
-        var target=new Date(p.d);target.setFullYear(target.getFullYear()-1);
-        var best=null,bestDiff=Infinity;
-        prvAll.forEach(function(q){var diff=Math.abs(q.d-target);if(diff<bestDiff&&diff<16*864e5){bestDiff=diff;best=q;}});
-        return best||{x:null,y:null};
-      });
+      var gran=getParam(params,'parameter 1')||getParam(params,'parameter1')||'month';
+      function periodNum(d,g){
+        var g2=g.toLowerCase();
+        if(g2==='month')return d.getMonth();
+        if(g2==='quarter')return Math.floor(d.getMonth()/3);
+        if(g2==='year')return d.getFullYear();
+        if(g2==='week'){
+          // ISO week number
+          var tmp=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+          var dayNum=tmp.getUTCDay()||7;
+          tmp.setUTCDate(tmp.getUTCDate()+4-dayNum);
+          var yearStart=new Date(Date.UTC(tmp.getUTCFullYear(),0,1));
+          return Math.ceil((((tmp-yearStart)/86400000)+1)/7);
+        }
+        // day: day of year
+        var start=new Date(d.getFullYear(),0,0);
+        return Math.floor((d-start)/86400000);
+      }
+      // Build lookup: periodNum → point, for prior block
+      var prvMap={};
+      prvAll.forEach(function(p){var k=periodNum(p.d,gran);if(!prvMap[k])prvMap[k]=p;});
+      prv=pts.map(function(p){return prvMap[periodNum(p.d,gran)]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1]||{x:null,y:null};
       curLabel=normDate(last.x);
       prevLabel=normDate(lastPrv.x||'');
@@ -216,7 +231,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v53 error:',e);
+    console.error('KPI v54 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
