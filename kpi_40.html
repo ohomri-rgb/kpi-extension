@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v56</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v57</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -164,7 +164,7 @@ async function load(){
         var g2=g.toLowerCase();
         if(g2==='month')return d.getMonth();
         if(g2==='quarter')return Math.floor(d.getMonth()/3);
-        if(g2==='year')return d.getFullYear();
+        if(g2==='year')return 0; // single point per year — always match
         if(g2==='week'){
           // ISO week number
           var tmp=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
@@ -231,7 +231,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v56 error:',e);
+    console.error('KPI v57 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
