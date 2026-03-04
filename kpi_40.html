@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v62</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v63</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -182,23 +182,51 @@ async function load(){
       prvAll.forEach(function(p){prvMap[periodNum(p.d,gran)]=p;});
       prv=pts.map(function(p){return prvMap[periodNum(p.d,gran)]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1]||{x:null,y:null};
-      // For year granularity: Tableau already caps data via filter.
-      // Scan all non-Truncated date cols to find actual max date for label display only.
+
+      // For year granularity: regroup by raw date col truncated to month, take first+last as 2 pts
+      // This gives a line (not bubble) showing start→end of each year period
       if(gran.toLowerCase()==='year'){
-        var rawMaxDate=new Date(0);
+        // Find raw date col (not Truncated, not Normalized, not range — pick col with most precise dates)
+        var rawColIdx=-1;
+        var rawMaxTest=new Date(0);
         cols.forEach(function(c,ci){
           if(ci===di||ci===rangeColIdx)return;
           if(!c.dataType.toLowerCase().includes('date'))return;
-          rows.forEach(function(r){
-            var d2=parseDate(r[ci].value,r[ci].formattedValue);
-            if(!isNaN(d2)&&d2.getFullYear()===curYear&&d2>rawMaxDate)rawMaxDate=d2;
-          });
+          var colMax=new Date(0);
+          rows.forEach(function(r){var d2=parseDate(r[ci].value,r[ci].formattedValue);if(d2>colMax)colMax=d2;});
+          if(colMax>rawMaxTest){rawMaxTest=colMax;rawColIdx=ci;}
         });
-        if(rawMaxDate>new Date(0)){
-          function fmtDMY2(d){return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();}
-          var endPrv=new Date(rawMaxDate);endPrv.setFullYear(curYear-1);
-          curLabel='01.01.'+curYear+' – '+fmtDMY2(rawMaxDate);
-          prevLabel='01.01.'+(curYear-1)+' – '+fmtDMY2(endPrv);
+        if(rawColIdx>=0){
+          // Group current year and prior year by month using raw col
+          var gCur={},gPrv={};
+          rows.forEach(function(r){
+            var d2=parseDate(r[rawColIdx].value,r[rawColIdx].formattedValue);
+            var y=parseFloat(r[mi].value)||0;
+            if(isNaN(d2))return;
+            var yr=d2.getFullYear();
+            var mKey=yr+'-'+String(d2.getMonth()+1).padStart(2,'0');
+            var bucket=d2.getMonth()+1; // 1-12
+            if(yr===curYear){
+              if(!gCur[bucket])gCur[bucket]={x:mKey,y:0,d:new Date(yr,d2.getMonth(),1)};
+              gCur[bucket].y+=y;
+            } else if(yr===curYear-1){
+              if(!gPrv[bucket])gPrv[bucket]={x:mKey,y:0,d:new Date(yr,d2.getMonth(),1)};
+              gPrv[bucket].y+=y;
+            }
+          });
+          var mCur=Object.values(gCur).sort(function(a,b){return a.d-b.d;});
+          var mPrv=Object.values(gPrv).sort(function(a,b){return a.d-b.d;});
+          if(mCur.length>=2){
+            // Take only first and last month as 2 data points
+            pts=[mCur[0],mCur[mCur.length-1]];
+            var prvFirst=mPrv[0]||{x:null,y:null};
+            var prvLast=mPrv[mPrv.length-1]||{x:null,y:null};
+            prv=[prvFirst,prvLast];
+            last=pts[1];lastPrv=prvLast;
+            function fmtDMY2(d){return '01.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();}
+            curLabel=fmtDMY2(pts[0].d)+' – '+fmtDMY2(last.d);
+            prevLabel=prvFirst.d?fmtDMY2(prvFirst.d)+' – '+fmtDMY2(prvLast.d):'';
+          }
         }
       }
       // For year granularity show full YTD range — scan raw rows to find actual max date
@@ -269,7 +297,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v62 error:',e);
+    console.error('KPI v63 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
