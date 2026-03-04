@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v65</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v66</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -133,7 +133,13 @@ async function load(){
         if(g){if(!g[key])g[key]={x:key,y:0,d:d};g[key].y+=y;}
       });
       pts=sortPts(g1);var pts2=sortPts(g2);
-      if(!pts.length)return;
+      if(!pts.length){
+        G('val').textContent='—';
+        G('chg').textContent='No data for Period 1';G('chg').className='chg';
+        G('cur').textContent=normDate(getParam(params,'from1'))+' \u2013 '+normDate(getParam(params,'to1'));
+        if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
+        setFonts();return;
+      }
       prv=pts.map(function(p,i){return pts2[i]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1];
       // BUG 3 FIX: normDate for range params (YYYY-MM-DD → DD.MM.YYYY with dots)
@@ -312,7 +318,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v65 error:',e);
+    console.error('KPI v66 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
