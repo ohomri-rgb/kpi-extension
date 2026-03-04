@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v64</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v65</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -256,6 +256,15 @@ async function load(){
         curLabel=normDate(last.x);
         prevLabel=normDate(lastPrv.x||'');
       }
+      // Year mode: make both chart points carry the full period total (flat line)
+      // and label them with the full period range string so tooltip is consistent
+      // at both the start and end hover points.
+      if(gran.toLowerCase()==='year'&&pts.length===2){
+        pts[0].x=curLabel;pts[0].y=last.y;
+        pts[1].x=curLabel;pts[1].y=last.y;
+        if(prv[0]){prv[0].x=prevLabel;prv[0].y=lastPrv.y||0;}
+        if(prv[1]){prv[1].x=prevLabel;prv[1].y=lastPrv.y||0;}
+      }
       G('vs-label').textContent=L.vs;G('period-cmp-row').style.display='block';
     }
 
@@ -303,7 +312,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v64 error:',e);
+    console.error('KPI v65 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
