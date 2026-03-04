@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v67</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v68</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -143,6 +143,17 @@ async function load(){
       }
       prv=pts.map(function(p,i){return pts2[i]||{x:null,y:null};});
       last=pts[pts.length-1];lastPrv=prv[prv.length-1];
+      // Range mode: always show a line, never a bubble.
+      // If only 1 point per period, duplicate into 2 points (flat line) using from/to as labels.
+      var f1=normDate(getParam(params,'from1')),t1=normDate(getParam(params,'to1'));
+      var f2=normDate(getParam(params,'from2')),t2=normDate(getParam(params,'to2'));
+      if(pts.length===1){
+        pts=[{x:f1,y:pts[0].y,d:pts[0].d},{x:t1,y:pts[0].y,d:pts[0].d}];
+        var p2y=pts2.length?pts2[0].y:null;
+        prv=[{x:f2,y:p2y,d:pts2.length?pts2[0].d:null},{x:t2,y:p2y,d:pts2.length?pts2[0].d:null}];
+        last={x:f1+' \u2013 '+t1,y:pts[0].y,d:pts[0].d};
+        lastPrv={x:f2+' \u2013 '+t2,y:p2y,d:prv[0].d};
+      }
       // BUG 3 FIX: normDate for range params (YYYY-MM-DD → DD.MM.YYYY with dots)
       curLabel=normDate(getParam(params,'from1'))+' - '+normDate(getParam(params,'to1'));
       prevLabel=normDate(getParam(params,'from2'))+' - '+normDate(getParam(params,'to2'));
@@ -318,7 +329,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v67 error:',e);
+    console.error('KPI v68 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
