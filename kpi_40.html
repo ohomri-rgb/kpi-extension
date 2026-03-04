@@ -32,7 +32,7 @@ html,body{width:100%;height:100%;font-family:'Noto Sans Hebrew',sans-serif;backg
   <div class="period-cur"><span id="cur-label"></span> <span id="cur"></span></div>
   <div class="period-cur" id="period-cmp-row" style="display:none"><span id="vs-label"></span> <span id="prev"></span></div>
   <div class="wrap" id="wrap"><canvas id="ch"></canvas></div>
-  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v63</div>
+  <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">v64</div>
 <script>
 var G=function(id){return document.getElementById(id);};
 var fmt=function(n){return n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';};
@@ -217,14 +217,20 @@ async function load(){
           var mCur=Object.values(gCur).sort(function(a,b){return a.d-b.d;});
           var mPrv=Object.values(gPrv).sort(function(a,b){return a.d-b.d;});
           if(mCur.length>=2){
-            // Take only first and last month as 2 data points
+            // Take only first and last month as 2 data points for the line visual
             pts=[mCur[0],mCur[mCur.length-1]];
             var prvFirst=mPrv[0]||{x:null,y:null};
             var prvLast=mPrv[mPrv.length-1]||{x:null,y:null};
             prv=[prvFirst,prvLast];
-            last=pts[1];lastPrv=prvLast;
+            // KPI headline = total sum of full period, not just last month
+            var totalCur=mCur.reduce(function(s,p){return s+p.y;},0);
+            var totalPrv=mPrv.reduce(function(s,p){return s+p.y;},0);
+            // last/lastPrv carry the total for KPI calc, x label = year string for tooltip
+            last={x:String(curYear),y:totalCur,d:pts[1].d};
+            lastPrv={x:String(curYear-1),y:totalPrv,d:prvLast.d||null};
+            prv[1]=lastPrv;
             function fmtDMY2(d){return '01.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();}
-            curLabel=fmtDMY2(pts[0].d)+' – '+fmtDMY2(last.d);
+            curLabel=fmtDMY2(pts[0].d)+' – '+fmtDMY2(pts[1].d);
             prevLabel=prvFirst.d?fmtDMY2(prvFirst.d)+' – '+fmtDMY2(prvLast.d):'';
           }
         }
@@ -297,7 +303,7 @@ async function load(){
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
 
   }catch(e){
-    console.error('KPI v63 error:',e);
+    console.error('KPI v64 error:',e);
     G('val').textContent='Error';G('chg').textContent=e.message||'check console';G('chg').className='chg down';
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
