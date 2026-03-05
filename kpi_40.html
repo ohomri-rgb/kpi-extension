@@ -220,7 +220,7 @@ async function load(){
     }else{G('chg').textContent='';}
 
     const wrap=G('wrap');
-    if(!wrap.querySelector('canvas'))wrap.innerHTML='<canvas id="ch"></canvas>';
+    wrap.innerHTML='<canvas id="ch"></canvas>';
     const canvas=G('ch'),h=canvas.parentElement.offsetHeight||200;
     const ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
     grad.addColorStop(0,hexToRgba(color,0.2));grad.addColorStop(1,hexToRgba(color,0));
