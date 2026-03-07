@@ -31,10 +31,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
 #color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
 #color-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
 #color-pop-close:hover{color:#374151}
-#bg-color-btn{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s,color .15s}
-#bg-color-btn:hover{border-color:#6366f1;color:#6366f1}
-#bg-color-swatch{width:14px;height:14px;border-radius:3px;border:1px solid #d1d5db;background:#ffffff;flex-shrink:0}
-#bg-row{display:flex;align-items:center;flex-shrink:0;padding-top:2px}
+#bg-legend{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.bg-swatch-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:2px 7px;transition:border-color .15s}
+.bg-swatch-item:hover{border-color:#6366f1;color:#6366f1}
+.bg-swatch-dot{width:12px;height:12px;border-radius:3px;border:1px solid #d1d5db;flex-shrink:0}
 </style>
 </head><body>
 <div id="color-pop">
@@ -49,18 +49,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
   <div id="header">
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
+      <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
       <div id="version">v20</div>
     </div>
   </div>
   <div id="error"></div>
   <div id="chart-wrap"><canvas id="ch"></canvas></div>
-  <div id="bg-row">
-    <button id="bg-color-btn" title="Set sheet background color">
-      <div id="bg-color-swatch"></div>
-      <span>Background Color</span>
-    </button>
-  </div>
   <div id="legend"></div>
 </div>
 <script>
@@ -78,32 +73,15 @@ const QUARTER_LABELS = ['Q1','Q2','Q3','Q4'];
 
 let ch = null, ws = null, timer = null, firstLoad = true;
 const colorMap = {};
+const bgColorMap = {};  // value → hex background color
 
 /* ── color popover ── */
-let _popTarget = null;
-let _bgMode = false;
-let _currentBg = '#ffffff';
+let _popTarget = null; // {label, swatchEl, isBg}
 
-function openBgColorPop(e) {
+function openColorPop(label, currentColor, swatchEl, isBg, e) {
   e.stopPropagation();
-  _bgMode = true;
-  _popTarget = null;
-  G('color-pop-label').textContent = 'Sheet Background';
-  G('color-pop-native').value = G('color-pop-hex').value = _currentBg;
-  const pop = G('color-pop'), vw = window.innerWidth, vh = window.innerHeight;
-  let x = e.clientX + 8, y = e.clientY + 8;
-  if (x + 190 > vw) x = e.clientX - 190;
-  if (y + 90 > vh) y = e.clientY - 90;
-  pop.style.left = x + 'px'; pop.style.top = y + 'px';
-  pop.classList.add('open');
-}
-
-G('bg-color-btn').addEventListener('click', openBgColorPop);
-function openColorPop(label, currentColor, swatchEl, e) {
-  e.stopPropagation();
-  _bgMode = false;
-  _popTarget = {label, swatchEl};
-  G('color-pop-label').textContent = label;
+  _popTarget = {label, swatchEl, isBg};
+  G('color-pop-label').textContent = isBg ? `BG: ${label}` : label;
   G('color-pop-native').value = G('color-pop-hex').value = currentColor;
   const pop = G('color-pop'), vw = window.innerWidth, vh = window.innerHeight;
   let x = e.clientX + 8, y = e.clientY + 8;
@@ -114,29 +92,37 @@ function openColorPop(label, currentColor, swatchEl, e) {
 }
 
 function applyColor(hex) {
-  if (_bgMode) {
-    _currentBg = hex;
-    document.body.style.background = hex;
-    G('app').style.background = hex;
-    G('bg-color-swatch').style.background = hex;
+  if (!_popTarget) return;
+  const {label, swatchEl, isBg} = _popTarget;
+  swatchEl.style.background = hex;
+  if (isBg) {
+    bgColorMap[label] = hex;
+    applyBgFromMap();
     return;
   }
-  if (!_popTarget || !ch) return;
-  const {label, swatchEl} = _popTarget;
+  if (!ch) return;
   colorMap[label] = hex;
-  swatchEl.style.background = hex;
   ch.data.datasets.forEach((ds, i) => {
     if (ds.label === label) {
       ds.borderColor = ds.pointBackgroundColor = ds.pointHoverBackgroundColor = hex;
       ds.backgroundColor = hex + '22';
     }
-    // Reset Chart.js element cache so hover states pick up new colors
     const meta = ch.getDatasetMeta(i);
     if (meta?.data) meta.data.forEach(el => { if (el._options) el._options = null; });
     if (meta?.dataset?._options) meta.dataset._options = null;
   });
   ch.update('none');
 }
+
+function applyBgFromMap() {
+  // Apply the first matched bg value's color to the extension background
+  const keys = Object.keys(bgColorMap);
+  const color = keys.length ? (bgColorMap[_activeBgValue] || bgColorMap[keys[0]] || '#ffffff') : '#ffffff';
+  document.body.style.background = color;
+  G('app').style.background = color;
+}
+
+let _activeBgValue = null;
 
 G('color-pop-native').addEventListener('input', e => {
   G('color-pop-hex').value = e.target.value;
@@ -150,6 +136,25 @@ G('color-pop-hex').addEventListener('keydown', e => { if (e.key === 'Enter') G('
 G('color-pop-close').addEventListener('click', () => G('color-pop').classList.remove('open'));
 document.addEventListener('click', e => { if (!G('color-pop').contains(e.target)) G('color-pop').classList.remove('open'); });
 
+/* ── bg legend (header swatches for BG slot values) ── */
+function buildBgLegend(bgValues) {
+  const el = G('bg-legend');
+  if (!bgValues.length) { el.innerHTML = ''; return; }
+  el.innerHTML = bgValues.map(v => {
+    const color = bgColorMap[v] || '#ffffff';
+    return `<div class="bg-swatch-item" data-val="${v}" title="Set background color for: ${v}">
+      <div class="bg-swatch-dot" style="background:${color}"></div>
+      <span>${v}</span>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.bg-swatch-item').forEach(item => {
+    const val = item.dataset.val;
+    item.addEventListener('click', e =>
+      openColorPop(val, bgColorMap[val] || '#ffffff', item.querySelector('.bg-swatch-dot'), true, e)
+    );
+  });
+}
+
 /* ── legend ── */
 function buildLegend(datasets) {
   G('legend').innerHTML = datasets.map(ds =>
@@ -160,7 +165,7 @@ function buildLegend(datasets) {
   ).join('');
   G('legend').querySelectorAll('.legend-item').forEach((item, i) => {
     item.addEventListener('click', e =>
-      openColorPop(datasets[i].label, datasets[i].borderColor, item.querySelector('.legend-swatch'), e)
+      openColorPop(datasets[i].label, datasets[i].borderColor, item.querySelector('.legend-swatch'), false, e)
     );
   });
 }
@@ -180,7 +185,7 @@ async function load() {
     const dt = await ws.getSummaryDataAsync({ignoreSelection:true});
     const cols = dt.columns, rows = dt.data;
 
-    let measureIdx = -1, dateIdx = -1, groupIdx = -1;
+    let measureIdx = -1, dateIdx = -1, groupIdx = -1, bgIdx = -1;
     try {
       const spec = await ws.getVisualSpecificationAsync();
       const encList = spec?.marksSpecificationList?.[0]?.encodingList || [];
@@ -192,7 +197,7 @@ async function load() {
         if (idx < 0) idx = cols.findIndex(c => c.fieldName === cleanName(fname));
         return idx;
       };
-      measureIdx = pickIdx('measure'); dateIdx = pickIdx('date'); groupIdx = pickIdx('group');
+      measureIdx = pickIdx('measure'); dateIdx = pickIdx('date'); groupIdx = pickIdx('group'); bgIdx = pickIdx('bg');
     } catch(e) { console.warn('spec failed:', e); }
 
     if (measureIdx < 0) measureIdx = cols.findIndex(c => ['float','real','number','double'].some(t => c.dataType.toLowerCase().includes(t)));
@@ -216,6 +221,21 @@ async function load() {
       if (!groups[grp]) groups[grp] = {};
       groups[grp][bucket] = (groups[grp][bucket] || 0) + val;
     });
+
+    // Collect unique BG field values and build header swatches
+    const bgValues = [];
+    if (bgIdx >= 0) {
+      rows.forEach(r => {
+        const v = r[bgIdx].formattedValue || r[bgIdx].value || '(blank)';
+        if (!bgValues.includes(v)) bgValues.push(v);
+      });
+      // Set active bg value (first unique value in current data)
+      _activeBgValue = bgValues[0] || null;
+      applyBgFromMap();
+    } else {
+      _activeBgValue = null;
+    }
+    buildBgLegend(bgValues);
 
     const groupNames = Object.keys(groups);
     if (!groupNames.length) return showError('No data returned. Check filters and field configuration.');

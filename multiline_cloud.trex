@@ -26,6 +26,9 @@
     <encoding id="group">
       <display-name resource-id="enc_group"/>
     </encoding>
+    <encoding id="bg">
+      <display-name resource-id="enc_bg"/>
+    </encoding>
   </worksheet-extension>
   <resources>
     <resource id="name">
@@ -42,6 +45,9 @@
     </resource>
     <resource id="enc_group">
       <text locale="en_US">Group By</text>
+    </resource>
+    <resource id="enc_bg">
+      <text locale="en_US">BG Color</text>
     </resource>
   </resources>
 </manifest>
