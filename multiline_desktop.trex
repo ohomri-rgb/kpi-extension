@@ -49,7 +49,7 @@
       <text locale="en_US">Time-series line chart with custom grouping. Drag a measure, a date, and a group-by dimension onto the Marks card. Control granularity (month/quarter) via a Tableau Parameter.</text>
     </resource>
     <resource id="enc_measure">
-      <text locale="en_US">Measure (KPI)</text>
+      <text locale="en_US">Measure</text>
     </resource>
     <resource id="enc_date">
       <text locale="en_US">Date</text>
