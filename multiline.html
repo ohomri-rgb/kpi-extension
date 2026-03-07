@@ -151,11 +151,14 @@ async function load(){
     });
 
     const groupIdx=colIdx(groupFieldName,()=>{
-      // first string/boolean dim that isn't date or measure
-      return cols.findIndex((c,i)=>
+      // Prefer string/bool dims (Segment, Category), but also accept integer dims like YEAR()
+      const strIdx=cols.findIndex((c,i)=>
         i!==dateIdx&&i!==measureIdx&&
         ['string','bool','boolean','wstring','unicode_string','date_string'].some(t=>c.dataType.toLowerCase().includes(t))
       );
+      if(strIdx>=0)return strIdx;
+      // fallback: any remaining col that isn't date or measure (catches YEAR() = integer)
+      return cols.findIndex((_,i)=>i!==dateIdx&&i!==measureIdx);
     });
 
     if(dateIdx<0||measureIdx<0){
