@@ -78,7 +78,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
       <div id="timeframe-badge"></div>
-      <div id="version">v7</div>
+      <div id="version">v8</div>
     </div>
   </div>
   <div id="error"></div>
@@ -214,108 +214,23 @@ async function load(){
     const dt=await ws.getSummaryDataAsync({ignoreSelection:true});
     const cols=dt.columns,rows=dt.data;
 
-    /* 3 ── read encoding slots from marks card via visual spec */
-    let measureFieldName=null,dateFieldName=null,groupFieldName=null;
-    try{
-      const spec=await ws.getVisualSpecificationAsync();
-      // Walk every possible nesting the API might use
-      const encList=
-        spec?.marksSpecificationList?.[0]?.encodingList ||
-        spec?.marksSpecificationList?.[0]?.encoding ||
-        spec?.encodingList ||
-        spec?.encoding ||
-        spec?.marksEncoding ||
-        [];
-      // Log column names so we can debug
-      console.log('[MultiLine v4] cols:', cols.map((c,i)=>`[${i}] ${c.fieldName} (${c.dataType})`).join(' | '));
-      console.log('[MultiLine v4] encList:', JSON.stringify(encList));
+    /* 3+4 ── column assignment
+       Tableau sends getSummaryDataAsync columns in EXACTLY the Marks card slot order:
+         col[0] = slot A = Measure (KPI)
+         col[1] = slot B = Date
+         col[2] = slot C = Group By  (optional)
+       This is the only reliable source — visual spec API shape varies too much.      */
+    console.log('[MultiLine v8] cols:', cols.map((c,i)=>`[${i}] ${c.fieldName} (${c.dataType})`).join(' | '));
 
-      const pickField=id=>{
-        if(Array.isArray(encList)){
-          for(const e of encList){
-            const eid=e.id??e.vizEncoding??e.encodingType??e.name??'';
-            if(eid===id){
-              return e?.fields?.[0]?.fieldName
-                  ?? e?.field?.fieldName
-                  ?? e?.fieldName ?? null;
-            }
-          }
-          return null;
-        }
-        const e=encList[id];
-        return e?.fields?.[0]?.fieldName??e?.field?.fieldName??e?.fieldName??null;
-      };
-      measureFieldName=pickField('measure');
-      dateFieldName   =pickField('date');
-      groupFieldName  =pickField('group');
-      console.log('[MultiLine v3] resolved → measure:',measureFieldName,'| date:',dateFieldName,'| group:',groupFieldName);
-    }catch(specErr){
-      console.warn('[MultiLine v4] spec error:',specErr);
-    }
+    if(cols.length<2) return showError('Drag a measure (slot A) and a date (slot B) onto the Marks card.');
 
-    /* 4 ── resolve column indices
-       Match by field name from spec.
-       If spec gave nothing (API shape mismatch), fall back to dataType sniffing:
-         - measureIdx = first numeric col
-         - dateIdx    = first date col with >1 distinct month (real date, not year-trunc)
-         - groupIdx   = remaining col (if any)                                          */
-    const findCol=name=>cols.findIndex(c=>c.fieldName===name);
-
-    let measureIdx = measureFieldName ? findCol(measureFieldName) : -1;
-    let dateIdx    = dateFieldName    ? findCol(dateFieldName)    : -1;
-    let groupIdx   = groupFieldName   ? findCol(groupFieldName)   : -1;
-
-    if(measureIdx<0){
-      let best=-1,bestVal=-Infinity;
-      cols.forEach((c,i)=>{
-        if(!['float','int','real','integer','number','double'].some(t=>c.dataType.toLowerCase().includes(t)))return;
-        let mv=0;rows.forEach(r=>{mv=Math.max(mv,Math.abs(parseFloat(r[i].value)||0));});
-        if(mv>bestVal){bestVal=mv;best=i;}
-      });
-      measureIdx=best;
-    }
-    if(dateIdx<0){
-      // Pick date col with MOST distinct months → real date field (not DATETRUNC year)
-      let best=-1,bestScore=-1;
-      cols.forEach((c,i)=>{
-        if(i===measureIdx)return;
-        if(!c.dataType.toLowerCase().includes('date'))return;
-        const months=new Set();
-        rows.forEach(r=>{const d=parseDate(r[i].value,r[i].formattedValue);if(!isNaN(d)&&d.getFullYear()>1990)months.add(d.getMonth());});
-        if(months.size>bestScore){bestScore=months.size;best=i;}
-      });
-      dateIdx=best;
-    }
-    if(groupIdx<0){
-      // Prefer: integer col (YEAR() returns int) OR date col with LOW month variance (DATETRUNC year)
-      // Avoid: the date col already chosen as dateIdx, and the measure col
-      let best=-1;
-      // pass 1: integer dim (YEAR([Date]) → int)
-      best=cols.findIndex((c,i)=>i!==measureIdx&&i!==dateIdx&&['int','integer'].some(t=>c.dataType.toLowerCase()===t));
-      if(best<0){
-        // pass 2: string/bool dim (Segment, Category)
-        best=cols.findIndex((c,i)=>i!==measureIdx&&i!==dateIdx&&
-          ['string','bool','boolean','wstring','unicode_string'].some(t=>c.dataType.toLowerCase().includes(t)));
-      }
-      if(best<0){
-        // pass 3: date col with lowest month variance (year-truncated grouper)
-        let lowScore=Infinity;
-        cols.forEach((c,i)=>{
-          if(i===measureIdx||i===dateIdx)return;
-          if(!c.dataType.toLowerCase().includes('date'))return;
-          const months=new Set();
-          rows.forEach(r=>{const d=parseDate(r[i].value,r[i].formattedValue);if(!isNaN(d)&&d.getFullYear()>1990)months.add(d.getMonth());});
-          if(months.size<lowScore){lowScore=months.size;best=i;}
-        });
-      }
-      groupIdx=best; // -1 = no group → single line
-    }
-
-    console.log('[MultiLine v4] cols:',cols.map((c,i)=>`[${i}]${c.fieldName}(${c.dataType})`).join(' '));
-    console.log('[MultiLine v4] final idx → measure:',measureIdx,'date:',dateIdx,'group:',groupIdx);
+    const measureIdx = 0;           // slot A — always the measure
+    const dateIdx    = 1;           // slot B — always the date
+    const groupIdx   = cols.length>=3 ? 2 : -1;  // slot C — optional group
 
     if(measureIdx<0) return showError('Drag a measure to the "Measure (KPI)" slot on the Marks card.');
     if(dateIdx<0)    return showError('Drag a date field to the "Date" slot on the Marks card.');
+    console.log('[MultiLine v8] → measure:',cols[measureIdx]?.fieldName,' date:',cols[dateIdx]?.fieldName,' group:',cols[groupIdx]?.fieldName);
 
     const measureName=cleanName(cols[measureIdx].fieldName);
     G('measure-name').textContent=measureName;
