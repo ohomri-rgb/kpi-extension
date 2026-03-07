@@ -78,7 +78,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
       <div id="timeframe-badge"></div>
-      <div id="version">v6</div>
+      <div id="version">v7</div>
     </div>
   </div>
   <div id="error"></div>
@@ -139,17 +139,26 @@ function applyColor(hex){
   colorMap[label]=hex;
   swatchEl.style.background=hex;
   // update chart datasets live
-  ch.data.datasets.forEach(ds=>{
+  ch.data.datasets.forEach((ds,i)=>{
     if(ds.label===label){
       ds.borderColor=hex;
       ds.backgroundColor=hex+'22';
-      ds.pointBackgroundColor=hex;        // filled dot color
-      ds.pointBorderColor='#fff';         // keep white ring
+      ds.pointBackgroundColor=hex;
+      ds.pointBorderColor='#fff';
       ds.pointHoverBackgroundColor=hex;
       ds.pointHoverBorderColor='#fff';
+      // Also patch Chart.js internal element cache so styles apply immediately
+      const meta=ch.getDatasetMeta(i);
+      if(meta&&meta.data){
+        meta.data.forEach(el=>{
+          el.options.backgroundColor=hex;
+          el.options.borderColor='#fff';
+          el.options.hoverBackgroundColor=hex;
+        });
+      }
     }
   });
-  ch.update('none');
+  ch.draw(); // bypass update() debounce — redraw canvas directly
 }
 G('color-pop-native').addEventListener('input',e=>{
   const hex=e.target.value;
