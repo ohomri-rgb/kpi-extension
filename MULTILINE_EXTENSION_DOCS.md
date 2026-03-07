@@ -10,7 +10,7 @@ Timeframe granularity (month / quarter) is controlled by a Tableau Parameter.
 
 ## File Structure (Production)
 ```
-multiline.html              ← Main extension (all logic) — current v16
+multiline.html              ← Main extension (all logic) — current v19
 multiline_desktop.trex      ← Tableau manifest for Desktop (localhost:8765)
 multiline_cloud.trex        ← Tableau manifest for Tableau Cloud (GitHub Pages)
 tableau.extensions.js       ← Tableau Extensions API (local copy)
@@ -87,21 +87,25 @@ These appear as labelled pill targets on the Marks card (Measure (KPI) / Date / 
 
 Three layers, tried in order per column. Each layer only runs if the previous one returned -1.
 
-### Layer 1: Visual Spec (exact match)
+### Layer 1: Visual Spec (primary — reads A/B/C slots directly)
 Calls `getVisualSpecificationAsync()` and reads `marksSpecificationList[0].encodingList`.
-Matches `fieldList[0].fieldName` exactly against `getSummaryDataAsync` column names.
+Field name is read from `enc.field.name` — the correct property shape returned by Tableau Cloud.
+Matched exactly against `getSummaryDataAsync` column names.
+
+> **Note:** Earlier versions incorrectly read `enc.fieldList[0].fieldName`, which doesn't exist in the Tableau Cloud API response shape. This caused layer 1 to silently return -1 on every load, making the dataType fallback do all the work (unreliably). Fixed in v19.
 
 ### Layer 2: Visual Spec (prefix-stripped match)
 If layer 1 returns -1, retries after stripping the aggregation prefix via `cleanName()`.
-Handles the common mismatch where spec returns `SUM(Sales)` but the data column is named `Sales`.
+Handles the mismatch where spec returns `SUM(Sales)` but the data column is named `Sales`.
+Also keeps `fieldList[0].fieldName` as a secondary read for older API versions.
 
 ### Layer 3: DataType Sniffing
-If `getVisualSpecificationAsync` throws entirely (observed on Tableau Cloud with `he_IL` locale and Hebrew field names), falls back to:
-- **Measure**: first column with dataType `float`/`real`/`number`/`double`
-- **Date**: first date column that isn't the measure
+Safety net only — runs if `getVisualSpecificationAsync` throws entirely.
+- **Measure**: first `float`/`real`/`number`/`double` column; if none, first `integer`/`int` column whose name doesn't match `year|month|quarter|day|week`
+- **Date**: first `date` column that isn't the measure
 - **Group**: any remaining column that is neither measure nor date
 
-This layer is intentionally simple — it works reliably when the sheet follows the standard setup (one measure, one date, one dimension).
+This layer should rarely fire in practice now that layer 1 reads the correct property.
 
 ---
 
@@ -140,7 +144,7 @@ This layer is intentionally simple — it works reliably when the sheet follows 
 ### 5. Version Badge
 - Top-right corner, yellow background, black text
 - Always visible — used to confirm which version is loaded
-- Format: `v16`, etc.
+- Format: `v19`, etc.
 
 ---
 
@@ -184,6 +188,11 @@ HTML          color-pop div (fixed overlay)
 Global vars   G, fmt, cleanName, getParam helpers
               COLORS[10], MONTH_LABELS, QUARTER_LABELS
               parseDate: raw => new Date(raw)  (single line — requires continuous Month date in slot B)
+
+Column resolution
+  Layer 1: enc.field.name → exact match against col.fieldName
+  Layer 2: cleanName() strip + fieldList[0].fieldName fallback
+  Layer 3: dataType sniff (safety net only)
               ch, ws, timer, firstLoad, colorMap{}
 
 Color popover
@@ -201,9 +210,9 @@ load()
   S1: getParametersAsync → timeframe (month/quarter) → xLabels, numBuckets
   S2: getSummaryDataAsync → cols, rows
   S3: getVisualSpecificationAsync → measureIdx, dateIdx, groupIdx
-        Layer 1: exact fieldName match
-        Layer 2: cleanName() prefix-stripped match
-        Layer 3: dataType sniffing if spec throws (he_IL / encoding issues)
+        Layer 1: enc.field.name → exact match (primary — drives A/B/C)
+        Layer 2: cleanName() strip + fieldList fallback
+        Layer 3: dataType sniff if spec throws (safety net)
   S4: aggregate rows → groups[groupLabel][bucketIndex] = sum
   S5: build Chart.js datasets (apply colorMap if available)
   S6: buildLegend, destroy old canvas, create new Chart
@@ -235,7 +244,10 @@ init            poll 50ms for tableau object → initializeAsync → load()
 | v13 | Superseded | Fix: hover dot color not updating. Nulled _options cache on meta.dataset and meta.data elements. Switched to ch.update('none') to trigger cache rebuild. |
 | v14 | Superseded | Refactor: removed MONTHS_MAP, collapsed parseDate to single line, stripped all dataType fallback logic. Strict setup required. 448 → 378 lines. |
 | v15 | Superseded | Fix: measure not resolving when spec field name includes aggregation prefix (e.g. `SUM(מכירות)`). Added cleanName() strip as layer 2 match in pickIdx. |
-| v16 | ✅ Current | Fix: entire spec call silently throwing on Tableau Cloud with `he_IL` locale / Hebrew field names. Restored minimal 3-line dataType fallback (layer 3) that runs only when spec returns -1, not as primary logic. |
+| v16 | Superseded | Fix: entire spec call silently throwing on Tableau Cloud with `he_IL` locale / Hebrew field names. Restored minimal 3-line dataType fallback (layer 3) that runs only when spec returns -1, not as primary logic. |
+| v17 | Superseded | Fix: layer 3 measure fallback missed integer columns (`כמות` / Quantity). Added `integer`/`int` to accepted dataTypes. |
+| v18 | Superseded | Fix: layer 3 integer fallback picking `YEAR(Order Date)` before actual measure. Split into two passes: float first, then integer excluding date-part field names. Added debug build (v18-debug) with `console.log('SPEC:',...)` to capture live API response shape. |
+| v19 | ✅ Current | Root cause fix: layer 1 was reading `enc.fieldList[0].fieldName` which does not exist in Tableau Cloud API response. Correct property is `enc.field.name`. Layer 1 now drives A/B/C slot resolution correctly. Layer 3 retained as safety net only. |
 
 ---
 
@@ -251,6 +263,8 @@ init            poll 50ms for tableau object → initializeAsync → load()
 | Tooltip swatches show old color | Chart.js reads element cache for swatch color | labelColor callback reads ctx.dataset.borderColor live (v12) |
 | Measure not resolving despite slot filled | Spec returns `SUM(Field)`, column named `Field` — prefix mismatch | cleanName() strip as layer 2 match (v15) |
 | All slots returning -1 on Tableau Cloud | `getVisualSpecificationAsync` throws silently on `he_IL` locale with Hebrew field names | 3-line dataType fallback as layer 3 (v16) |
+| Layer 1 always returning -1 despite spec succeeding | Code read `enc.fieldList[0].fieldName` — property doesn't exist in Tableau Cloud API; correct property is `enc.field.name` | Read `enc.field.name` first (v19) |
+| Wrong measure selected when multiple integer columns present | Layer 3 integer fallback picked `YEAR(Order Date)` before actual measure | Float-first pass + exclude date-part field names from integer pass (v18) |
 | .trex parse error: extension-mode | Not a valid attribute in manifest schema 0.1 | Removed extension-mode attribute (v1 trex fix) |
 | .trex parse error: allowed-types | Not declared for encoding element | Removed allowed-types from all encoding elements (v1 trex fix) |
 | GitHub caching | Browser cached old HTML | no-cache meta headers |
@@ -276,7 +290,7 @@ The extension will then fall back to dataType sniffing silently and render norma
 1. Push files to GitHub repo
 2. Whitelist exact HTML URL in Tableau Cloud Settings → Extensions
 3. Load `multiline_cloud.trex` in workbook
-4. Confirm version badge shows **v16**
+4. Confirm version badge shows **v19**
 5. Drag `SUM(measure)` → slot A
 6. Drag a **continuous Month** date → slot B (right-click pill → Continuous → Month)
 7. Drag a dimension → slot C (optional)
