@@ -51,7 +51,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div style="display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v29</div>
+      <div id="version">v30</div>
     </div>
   </div>
   <div id="error"></div>
@@ -72,8 +72,9 @@ const MONTH_LABELS = ['ינואר','פברואר','מרץ','אפריל','מאי'
 const QUARTER_LABELS = ['רבעון 1','רבעון 2','רבעון 3','רבעון 4'];
 
 let ch = null, ws = null, timer = null, firstLoad = true;
-const colorMap = {};
-const bgColorMap = {};  // value → hex background color
+const LS_LINE = 'mlc_colorMap', LS_BG = 'mlc_bgColorMap';
+const colorMap  = JSON.parse(localStorage.getItem(LS_LINE) || '{}');
+const bgColorMap = JSON.parse(localStorage.getItem(LS_BG)  || '{}');
 
 /* ── color popover ── */
 let _popTarget = null; // {label, swatchEl, isBg}
@@ -97,11 +98,13 @@ function applyColor(hex) {
   swatchEl.style.background = hex;
   if (isBg) {
     bgColorMap[label] = hex;
+    localStorage.setItem(LS_BG, JSON.stringify(bgColorMap));
     applyBgFromMap();
     return;
   }
   if (!ch) return;
   colorMap[label] = hex;
+  localStorage.setItem(LS_LINE, JSON.stringify(colorMap));
   ch.data.datasets.forEach((ds, i) => {
     if (ds.label === label) {
       ds.borderColor = ds.pointBackgroundColor = ds.pointHoverBackgroundColor = hex;
@@ -253,8 +256,7 @@ async function load() {
       return {
         label: name, data: Array.from({length:numBuckets}, (_,b) => groups[name][b] ?? null),
         borderColor: color, backgroundColor: color + '22', borderWidth: 2.5,
-        pointRadius: 5, pointBackgroundColor: color, pointBorderColor: '#fff', pointBorderWidth: 1.5,
-        pointHoverRadius: 7, pointHoverBackgroundColor: color, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2,
+        pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: color, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2,
         tension: 0.3, fill: false, spanGaps: false,
       };
     });
