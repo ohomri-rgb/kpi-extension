@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
+  <worksheet-extension id="com.yourname.multilinechart" extension-version="1.0.0">
+    <default-locale>en_US</default-locale>
+    <name resource-id="name"/>
+    <description resource-id="description"/>
+    <author
+      name="Your Name"
+      email="you@example.com"
+      organization="Your Org"
+      website="https://yoursite.com"/>
+    <min-api-version>1.4</min-api-version>
+    <source-location>
+      <url>https://ohomri-rgb.github.io/kpi-extension/multi.html</url>
+    </source-location>
+    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA</icon>
+    <permissions>
+      <permission>full data</permission>
+    </permissions>
+    <encoding id="date">
+      <display-name resource-id="enc_date"/>
+    </encoding>
+    <encoding id="measure">
+      <display-name resource-id="enc_measure"/>
+    </encoding>
+    <encoding id="group">
+      <display-name resource-id="enc_group"/>
+    </encoding>
+  </worksheet-extension>
+  <resources>
+    <resource id="name">
+      <text locale="en_US">Multi-Line Chart</text>
+    </resource>
+    <resource id="description">
+      <text locale="en_US">Time-series line chart with custom grouping. Drag a measure, a date, and a group-by dimension onto the Marks card. Control granularity (month/quarter) via a Tableau Parameter.</text>
+    </resource>
+    <resource id="enc_measure">
+      <text locale="en_US">Measure</text>
+    </resource>
+    <resource id="enc_date">
+      <text locale="en_US">Date</text>
+    </resource>
+    <resource id="enc_group">
+      <text locale="en_US">Group By</text>
+    </resource>
+  </resources>
+</manifest>
