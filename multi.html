@@ -12,7 +12,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM Sans',sans-serif}
 #app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease}
-#header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;direction:rtl}
 #measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;direction:rtl;text-align:right}
 #timeframe-badge{font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;background:#eef2ff;border-radius:4px;padding:2px 7px}
 #error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0}
@@ -51,7 +51,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div style="display:flex;align-items:center;gap:6px">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v25</div>
+      <div id="version">v26</div>
     </div>
   </div>
   <div id="error"></div>
