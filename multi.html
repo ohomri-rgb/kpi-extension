@@ -51,7 +51,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div style="display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v30</div>
+      <div id="version">v31</div>
     </div>
   </div>
   <div id="error"></div>
@@ -308,6 +308,36 @@ function showError(msg) {
 }
 
 const debouncedLoad = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
+
+// Sync colors live when another instance (sheet ↔ dashboard) saves to localStorage
+window.addEventListener('storage', e => {
+  if (e.key === LS_LINE && e.newValue) {
+    const updated = JSON.parse(e.newValue);
+    Object.assign(colorMap, updated);
+    if (ch) {
+      ch.data.datasets.forEach((ds, i) => {
+        if (colorMap[ds.label]) {
+          const hex = colorMap[ds.label];
+          ds.borderColor = ds.pointHoverBackgroundColor = hex;
+          ds.backgroundColor = hex + '22';
+          const meta = ch.getDatasetMeta(i);
+          if (meta?.data) meta.data.forEach(el => { el._options = null; });
+          if (meta?.dataset) meta.dataset._options = null;
+        }
+      });
+      ch.update();
+      // Rebuild legend swatches
+      buildLegend(ch.data.datasets);
+    }
+  }
+  if (e.key === LS_BG && e.newValue) {
+    const updated = JSON.parse(e.newValue);
+    Object.assign(bgColorMap, updated);
+    applyBgFromMap();
+    // Rebuild bg swatches
+    buildBgLegend(Object.keys(bgColorMap));
+  }
+});
 
 async function init() {
   if (typeof tableau === 'undefined') { setTimeout(init, 50); return; }
