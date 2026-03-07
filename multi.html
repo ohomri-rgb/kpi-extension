@@ -78,7 +78,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
       <div id="timeframe-badge"></div>
-      <div id="version">v8</div>
+      <div id="version">v9</div>
     </div>
   </div>
   <div id="error"></div>
@@ -141,24 +141,35 @@ function applyColor(hex){
   // update chart datasets live
   ch.data.datasets.forEach((ds,i)=>{
     if(ds.label===label){
+      // Update dataset-level properties
       ds.borderColor=hex;
       ds.backgroundColor=hex+'22';
       ds.pointBackgroundColor=hex;
       ds.pointBorderColor='#fff';
       ds.pointHoverBackgroundColor=hex;
       ds.pointHoverBorderColor='#fff';
-      // Also patch Chart.js internal element cache so styles apply immediately
+      // Patch Chart.js internal element cache — both line AND points cache separately
       const meta=ch.getDatasetMeta(i);
-      if(meta&&meta.data){
-        meta.data.forEach(el=>{
-          el.options.backgroundColor=hex;
-          el.options.borderColor='#fff';
-          el.options.hoverBackgroundColor=hex;
-        });
+      if(meta){
+        // Line element (the connecting line itself)
+        if(meta.dataset&&meta.dataset.options){
+          meta.dataset.options.borderColor=hex;
+          meta.dataset.options.backgroundColor=hex+'22';
+        }
+        // Point elements
+        if(meta.data){
+          meta.data.forEach(el=>{
+            if(el&&el.options){
+              el.options.backgroundColor=hex;
+              el.options.borderColor='#fff';
+              el.options.hoverBackgroundColor=hex;
+            }
+          });
+        }
       }
     }
   });
-  ch.draw(); // bypass update() debounce — redraw canvas directly
+  ch.draw();
 }
 G('color-pop-native').addEventListener('input',e=>{
   const hex=e.target.value;
