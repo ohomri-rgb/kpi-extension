@@ -225,6 +225,28 @@ init            poll 50ms for tableau object → initializeAsync → load()
 
 ---
 
+## Code Reduction (v19 Refactor)
+
+Applied after v19 to reduce file size without changing behaviour.
+
+| Metric | Before | After | Change |
+|---|---|---|---|
+| Lines | 388 | 257 | −34% |
+| File size | ~14 KB | ~12.4 KB | ~−14% |
+
+### Changes Made
+
+**`applyColor()`** — Removed manual meta-patching block that explicitly set `meta.dataset.options.borderColor`, `meta.dataset.options.backgroundColor`, and looped over all `meta.data` elements to set point colors. This was redundant — updating the dataset-level properties (`ds.borderColor`, `ds.pointBackgroundColor`, etc.) and then nulling `_options` cache is sufficient for Chart.js to rebuild correctly on `ch.update('none')`. The cache-reset loop was consolidated into a single pass already covering all datasets.
+
+**`buildLegend()`** — Replaced the imperative DOM-building loop (`createElement` × 4 per dataset) with a template string + `innerHTML`, followed by a single `querySelectorAll` pass to attach click listeners.
+
+**Minor cleanups:**
+- Collapsed `G('color-pop-native').value = ...; G('color-pop-hex').value = ...;` to one assignment line
+- Removed the one-line `parseDate` wrapper function — inlined as `new Date(...)` directly
+- Tightened Chart.js scale/tick option objects onto fewer lines
+
+---
+
 ## Version History
 
 | Version | Status | Notes |
