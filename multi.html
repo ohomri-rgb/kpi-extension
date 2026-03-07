@@ -198,6 +198,8 @@ async function load() {
         if (!fname) return -1;
         let idx = cols.findIndex(c => c.fieldName === fname);
         if (idx < 0) idx = cols.findIndex(c => c.fieldName === cleanName(fname));
+        if (idx < 0) idx = cols.findIndex(c => c.fieldName.toLowerCase() === fname.toLowerCase());
+        if (idx < 0) idx = cols.findIndex(c => c.fieldName.toLowerCase() === cleanName(fname).toLowerCase());
         return idx;
       };
       measureIdx = pickIdx('measure'); dateIdx = pickIdx('date'); groupIdx = pickIdx('group'); bgIdx = pickIdx('bg');
@@ -206,10 +208,13 @@ async function load() {
     if (measureIdx < 0) measureIdx = cols.findIndex(c => ['float','real','number','double'].some(t => c.dataType.toLowerCase().includes(t)));
     if (measureIdx < 0) measureIdx = cols.findIndex(c => ['integer','int'].some(t => c.dataType.toLowerCase().includes(t)) && !/year|month|quarter|day|week/i.test(c.fieldName));
     if (dateIdx < 0)    dateIdx    = cols.findIndex((c,i) => i !== measureIdx && i !== bgIdx && c.dataType.toLowerCase().includes('date'));
+    // Resolve bgIdx before groupIdx: find first string column not already used
+    if (bgIdx < 0)      bgIdx      = cols.findIndex((c,i) => i !== measureIdx && i !== dateIdx && ['string','str','char','text','bool','boolean'].some(t => c.dataType.toLowerCase().includes(t)));
     if (groupIdx < 0)   groupIdx   = cols.findIndex((_,i) => i !== measureIdx && i !== dateIdx && i !== bgIdx);
 
     if (measureIdx < 0) return showError('No numeric measure found. Drag a measure to the Measure (KPI) slot.');
     if (dateIdx < 0)    return showError('No date column found. Drag a continuous Month date to the Date slot.');
+    console.log('idx resolved → measure:', measureIdx, cols[measureIdx]?.fieldName, '| date:', dateIdx, cols[dateIdx]?.fieldName, '| group:', groupIdx, cols[groupIdx]?.fieldName, '| bg:', bgIdx, cols[bgIdx]?.fieldName);
 
     const measureName = cleanName(cols[measureIdx].fieldName);
     G('measure-name').textContent = measureName;
