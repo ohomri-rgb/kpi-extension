@@ -33,7 +33,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
 #color-pop-close:hover{color:#374151}
 #bg-color-btn{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:#6b7280;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:border-color .15s,color .15s}
 #bg-color-btn:hover{border-color:#6366f1;color:#6366f1}
-#bg-color-swatch{width:12px;height:12px;border-radius:3px;border:1px solid #d1d5db;background:#ffffff;flex-shrink:0}
+#bg-color-swatch{width:14px;height:14px;border-radius:3px;border:1px solid #d1d5db;background:#ffffff;flex-shrink:0}
+#bg-row{display:flex;align-items:center;flex-shrink:0;padding-top:2px}
 </style>
 </head><body>
 <div id="color-pop">
@@ -48,13 +49,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
   <div id="header">
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
-      <button id="bg-color-btn" title="Set background color"><div id="bg-color-swatch"></div>BG</button>
       <div id="timeframe-badge"></div>
       <div id="version">v20</div>
     </div>
   </div>
   <div id="error"></div>
   <div id="chart-wrap"><canvas id="ch"></canvas></div>
+  <div id="bg-row">
+    <button id="bg-color-btn" title="Set sheet background color">
+      <div id="bg-color-swatch"></div>
+      <span>Background Color</span>
+    </button>
+  </div>
   <div id="legend"></div>
 </div>
 <script>

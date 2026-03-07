@@ -26,9 +26,6 @@
     <encoding id="group">
       <display-name resource-id="enc_group"/>
     </encoding>
-    <encoding id="label">
-      <display-name resource-id="enc_label"/>
-    </encoding>
   </worksheet-extension>
   <resources>
     <resource id="name">
@@ -45,9 +42,6 @@
     </resource>
     <resource id="enc_group">
       <text locale="en_US">Group By</text>
-    </resource>
-    <resource id="enc_label">
-      <text locale="en_US">Label</text>
     </resource>
   </resources>
 </manifest>
