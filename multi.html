@@ -51,7 +51,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div style="display:flex;align-items:center;gap:6px">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v21</div>
+      <div id="version">v23</div>
     </div>
   </div>
   <div id="error"></div>
@@ -108,10 +108,10 @@ function applyColor(hex) {
       ds.backgroundColor = hex + '22';
     }
     const meta = ch.getDatasetMeta(i);
-    if (meta?.data) meta.data.forEach(el => { if (el._options) el._options = null; });
-    if (meta?.dataset?._options) meta.dataset._options = null;
+    if (meta?.data) meta.data.forEach(el => { el._options = null; });
+    if (meta?.dataset) meta.dataset._options = null;
   });
-  ch.update('none');
+  ch.update();
 }
 
 function applyBgFromMap() {
@@ -285,8 +285,8 @@ async function load() {
           }
         },
         scales: {
-          x: {grid:{color:'#f3f4f6',drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,weight:'500',family:"'DM Sans',sans-serif"}, padding:6}},
-          y: {grid:{color:'#f3f4f6',drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,family:"'DM Sans',sans-serif"}, callback:v=>fmt(v), maxTicksLimit:6, padding:8}}
+          x: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,weight:'500',family:"'DM Sans',sans-serif"}, padding:6}},
+          y: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,family:"'DM Sans',sans-serif"}, callback:v=>fmt(v), maxTicksLimit:6, padding:8}}
         }
       }
     });
