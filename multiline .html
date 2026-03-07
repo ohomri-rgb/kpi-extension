@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>Multi-Line Chart</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<script src="tableau.extensions.js"></script>
+<script src="chart.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM Sans',sans-serif}
+#app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease}
+#header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase}
+#timeframe-badge{
+  font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;
+  background:#eef2ff;border-radius:4px;padding:2px 7px;
+}
+#error{
+  display:none;font-size:11px;color:#dc2626;background:#fef2f2;
+  border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0;
+}
+#chart-wrap{flex:1;min-height:0;position:relative}
+#legend{
+  display:flex;flex-wrap:wrap;gap:4px 14px;flex-shrink:0;padding-top:2px;
+  min-height:16px;
+}
+.legend-item{
+  display:flex;align-items:center;gap:5px;
+  font-size:10px;color:#6b7280;font-weight:500;
+  cursor:default;
+}
+.legend-swatch{
+  width:20px;height:2.5px;border-radius:2px;flex-shrink:0;
+}
+#version{font-size:9px;color:#e5e7eb;flex-shrink:0;margin-top:1px}
+
+/* ── color popover ── */
+#color-pop{
+  position:fixed;z-index:9999;
+  background:#fff;border:1px solid #e5e7eb;border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);
+  padding:12px 14px 10px;min-width:180px;
+  display:none;flex-direction:column;gap:8px;
+}
+#color-pop.open{display:flex}
+#color-pop-label{font-size:11px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#color-pop-row{display:flex;align-items:center;gap:8px}
+#color-pop-native{width:32px;height:32px;border:none;padding:0;border-radius:6px;cursor:pointer;flex-shrink:0;background:none}
+#color-pop-hex{
+  flex:1;font-size:12px;font-family:'DM Sans',monospace;
+  border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;
+  color:#111;outline:none;
+}
+#color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
+#color-pop-close{
+  position:absolute;top:8px;right:10px;
+  font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;
+  background:none;border:none;padding:2px 4px;
+}
+#color-pop-close:hover{color:#374151}
+.legend-item{cursor:pointer}
+.legend-item:hover .legend-swatch{outline:2px solid #6366f1;outline-offset:2px}
+</style>
+</head><body>
+<div id="color-pop">
+  <button id="color-pop-close">✕</button>
+  <div id="color-pop-label"></div>
+  <div id="color-pop-row">
+    <input type="color" id="color-pop-native"/>
+    <input type="text" id="color-pop-hex" maxlength="7" placeholder="#6366f1"/>
+  </div>
+</div>
+<div id="app">
+  <div id="header">
+    <div id="measure-name"></div>
+    <div id="timeframe-badge"></div>
+  </div>
+  <div id="error"></div>
+  <div id="chart-wrap"><canvas id="ch"></canvas></div>
+  <div id="legend"></div>
+  <div id="version">v2</div>
+</div>
+<script>
+/* ─── helpers ─────────────────────────────────────────────────── */
+const G=id=>document.getElementById(id);
+const fmt=n=>n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';
+const cleanName=s=>s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
+const getParam=(params,name)=>{
+  const p=params.find(p=>p.name.toLowerCase()===name.toLowerCase());
+  return p?String(p.currentValue.value||p.currentValue.formattedValue||'').trim():'';
+};
+
+const COLORS=['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#f97316','#14b8a6','#ec4899','#06b6d4'];
+const MONTH_LABELS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const QUARTER_LABELS=['Q1','Q2','Q3','Q4'];
+const MONTHS_MAP={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+
+function parseDate(raw,fv){
+  let d=new Date(raw),s,m;
+  if(!isNaN(d)&&d.getFullYear()>1990)return d;
+  d=new Date(fv);if(!isNaN(d)&&d.getFullYear()>1990)return d;
+  s=String(fv||raw||'');
+  if((m=s.match(/([A-Za-z]+)\s+(\d{4})$/))&&MONTHS_MAP[m[1].toLowerCase()]!==undefined)return new Date(+m[2],MONTHS_MAP[m[1].toLowerCase()],1);
+  if(m=s.match(/Q(\d)[\/\s\-]?(\d{4})/i))return new Date(+m[2],(+m[1]-1)*3,1);
+  if(m=s.match(/(\d{4})-(\d{2})-(\d{2})/))return new Date(+m[1],+m[2]-1,+m[3]);
+  if(m=s.match(/(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})/))return new Date(+m[3],+m[2]-1,+m[1]);
+  m=s.match(/\d{4}/);return m?new Date(+m[0],0,1):new Date('invalid');
+}
+
+/* ─── state ──────────────────────────────────────────────────── */
+let ch=null,ws=null,timer=null,firstLoad=true;
+const colorMap={}; // groupLabel → hex color, persists across reloads
+
+/* ─── color popover ─────────────────────────────────────────── */
+let _popTarget=null;
+function openColorPop(label,currentColor,swatchEl,e){
+  e.stopPropagation();
+  _popTarget={label,swatchEl};
+  G('color-pop-label').textContent=label;
+  G('color-pop-native').value=currentColor;
+  G('color-pop-hex').value=currentColor;
+  // position near click
+  const pop=G('color-pop');
+  pop.classList.add('open');
+  const vw=window.innerWidth,vh=window.innerHeight;
+  let x=e.clientX+8,y=e.clientY+8;
+  if(x+190>vw)x=e.clientX-190;
+  if(y+90>vh)y=e.clientY-90;
+  pop.style.left=x+'px';pop.style.top=y+'px';
+}
+function applyColor(hex){
+  if(!_popTarget||!ch)return;
+  const {label,swatchEl}=_popTarget;
+  colorMap[label]=hex;
+  swatchEl.style.background=hex;
+  // update chart datasets live
+  ch.data.datasets.forEach(ds=>{
+    if(ds.label===label){
+      ds.borderColor=hex;
+      ds.pointBorderColor=hex;
+      ds.pointHoverBackgroundColor=hex;
+      ds.backgroundColor=hex+'22';
+    }
+  });
+  ch.update('none');
+}
+G('color-pop-native').addEventListener('input',e=>{
+  const hex=e.target.value;
+  G('color-pop-hex').value=hex;
+  applyColor(hex);
+});
+G('color-pop-hex').addEventListener('input',e=>{
+  const hex=e.target.value.trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(hex)){
+    G('color-pop-native').value=hex;
+    applyColor(hex);
+  }
+});
+G('color-pop-hex').addEventListener('keydown',e=>{if(e.key==='Enter')G('color-pop').classList.remove('open');});
+G('color-pop-close').addEventListener('click',()=>G('color-pop').classList.remove('open'));
+document.addEventListener('click',e=>{
+  if(!G('color-pop').contains(e.target))G('color-pop').classList.remove('open');
+});
+
+/* ─── legend ──────────────────────────────────────────────────── */
+function buildLegend(datasets){
+  const el=G('legend');el.innerHTML='';
+  datasets.forEach(ds=>{
+    const item=document.createElement('div');
+    item.className='legend-item';
+    const swatch=document.createElement('div');
+    swatch.className='legend-swatch';
+    swatch.style.background=ds.borderColor;
+    const label=document.createElement('span');
+    label.textContent=ds.label;
+    item.appendChild(swatch);item.appendChild(label);
+    item.title='Click to change color';
+    item.addEventListener('click',e=>openColorPop(ds.label,ds.borderColor,swatch,e));
+    el.appendChild(item);
+  });
+}
+
+/* ─── main load ─────────────────────────────────────────────── */
+async function load(){
+  if(ch){ch.destroy();ch=null;}
+  G('error').style.display='none';
+
+  try{
+    /* 1 ── parameters */
+    const params=await ws.getParametersAsync();
+    const timeframe=(getParam(params,'Parameter 1')||getParam(params,'timeframe')||'month').toLowerCase().trim();
+    const isQuarter=timeframe==='quarter';
+    const xLabels=isQuarter?QUARTER_LABELS:MONTH_LABELS;
+    const numBuckets=xLabels.length;
+    G('timeframe-badge').textContent=isQuarter?'Quarterly':'Monthly';
+
+    /* 2 ── data */
+    const dt=await ws.getSummaryDataAsync({ignoreSelection:true});
+    const cols=dt.columns,rows=dt.data;
+
+    /* 3 ── read encoding slots from visual spec (what user dragged to Marks card) */
+    let measureFieldName=null,dateFieldName=null,groupFieldName=null;
+    try{
+      const spec=await ws.getVisualSpecificationAsync();
+      console.log('[MultiLine] raw spec:', JSON.stringify(spec, null, 2));
+
+      // Try every known shape the Tableau API returns
+      const encList=(
+        spec?.marksSpecificationList?.[0]?.encodingList ||
+        spec?.marksSpecificationList?.[0]?.encoding ||
+        spec?.encoding ||
+        spec?.marksEncoding ||
+        []
+      );
+      console.log('[MultiLine] encList:', JSON.stringify(encList, null, 2));
+
+      const pickField=id=>{
+        if(Array.isArray(encList)){
+          // shape: [{id:'measure', fields:[{fieldName:'...'}]}, ...]
+          for(const e of encList){
+            if((e.id||e.vizEncoding||e.encodingType)===id){
+              return e?.fields?.[0]?.fieldName
+                  ?? e?.field?.fieldName
+                  ?? e?.fieldName
+                  ?? null;
+            }
+          }
+          return null;
+        }
+        // shape: { measure:{...}, date:{...} }
+        const e=encList[id];
+        return e?.fields?.[0]?.fieldName??e?.field?.fieldName??e?.fieldName??null;
+      };
+
+      measureFieldName=pickField('measure');
+      dateFieldName=pickField('date');
+      groupFieldName=pickField('group');
+      console.log('[MultiLine] resolved → measure:',measureFieldName,' date:',dateFieldName,' group:',groupFieldName);
+    }catch(specErr){
+      console.warn('[MultiLine] getVisualSpecificationAsync failed:',specErr);
+    }
+
+    /* 4 ── resolve column indices
+       Primary: by field name from visual spec
+       Fallback: by column position — slot A=measure, B=date, C=group
+       (Tableau sends columns in Marks card order: A first, B second, C third) */
+    const findCol=name=>cols.findIndex(c=>c.fieldName===name);
+
+    let measureIdx = measureFieldName ? findCol(measureFieldName) : -1;
+    let dateIdx    = dateFieldName    ? findCol(dateFieldName)    : -1;
+    let groupIdx   = groupFieldName   ? findCol(groupFieldName)   : -1;
+
+    // positional fallback when spec didn't resolve
+    if(measureIdx<0 && cols.length>=1) measureIdx=0;  // slot A
+    if(dateIdx<0    && cols.length>=2) dateIdx=1;     // slot B
+    if(groupIdx<0   && cols.length>=3) groupIdx=2;    // slot C
+
+    if(measureIdx<0) return showError('Drag a measure to the "Measure (KPI)" slot on the Marks card.');
+    if(dateIdx<0)    return showError('Drag a date field to the "Date" slot on the Marks card.');
+
+    const measureName=cleanName(cols[measureIdx].fieldName);
+    G('measure-name').textContent=measureName;
+
+    /* 5 ── aggregate: groups[groupValue][bucketIndex] = sum */
+    const groups={};
+    rows.forEach(r=>{
+      const d=parseDate(r[dateIdx].value,r[dateIdx].formattedValue);
+      if(isNaN(d)||d.getFullYear()<1990)return;
+      const val=parseFloat(r[measureIdx].value)||0;
+      const grp=groupIdx>=0?(r[groupIdx].formattedValue||r[groupIdx].value||'(blank)'):measureName;
+      const bucket=isQuarter?Math.floor(d.getMonth()/3):d.getMonth();
+      if(!groups[grp])groups[grp]={};
+      groups[grp][bucket]=(groups[grp][bucket]||0)+val;
+    });
+
+    const groupNames=Object.keys(groups);
+    if(!groupNames.length){showError('No data returned. Check filters and field configuration.');return;}
+
+    /* 6 ── build chart datasets */
+    const datasets=groupNames.map((name,i)=>{
+      const color=colorMap[name]||COLORS[i%COLORS.length];
+      return{
+        label:name,
+        data:Array.from({length:numBuckets},(_,b)=>groups[name][b]??null),
+        borderColor:color,
+        backgroundColor:color+'22',
+        borderWidth:2.5,
+        pointRadius:5,
+        pointBackgroundColor:'#fff',
+        pointBorderColor:color,
+        pointBorderWidth:2,
+        pointHoverRadius:7,
+        pointHoverBackgroundColor:color,
+        pointHoverBorderColor:'#fff',
+        pointHoverBorderWidth:2,
+        tension:0.3,
+        fill:false,
+        spanGaps:false,
+      };
+    });
+
+    buildLegend(datasets);
+
+    /* 7 ── render chart */
+    G('chart-wrap').innerHTML='<canvas id="ch"></canvas>';
+    const canvas=G('ch');
+
+    ch=new Chart(canvas,{
+      type:'line',
+      data:{labels:xLabels,datasets},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        animation:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#fff',
+            borderColor:'#e5e7eb',
+            borderWidth:1,
+            titleColor:'#374151',
+            titleFont:{size:12,weight:'600',family:"'DM Sans',sans-serif"},
+            bodyColor:'#374151',
+            bodyFont:{size:12,family:"'DM Sans',sans-serif"},
+            padding:10,
+            boxPadding:5,
+            callbacks:{
+              label:ctx=>ctx.raw==null?null:` ${ctx.dataset.label}: ${fmt(ctx.raw)}`
+            }
+          }
+        },
+        scales:{
+          x:{
+            grid:{color:'#f3f4f6',drawBorder:false,lineWidth:1},
+            border:{display:false},
+            ticks:{
+              color:'#9ca3af',
+              font:{size:11,weight:'500',family:"'DM Sans',sans-serif"},
+              padding:6,
+            }
+          },
+          y:{
+            grid:{color:'#f3f4f6',drawBorder:false,lineWidth:1},
+            border:{display:false},
+            ticks:{
+              color:'#9ca3af',
+              font:{size:11,family:"'DM Sans',sans-serif"},
+              callback:v=>fmt(v),
+              maxTicksLimit:6,
+              padding:8,
+            }
+          }
+        }
+      }
+    });
+
+    if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
+
+  }catch(e){
+    console.error('MultiLine v1 error:',e);
+    showError(e.message||'Unknown error — check the browser console.');
+  }
+}
+
+function showError(msg){
+  G('error').textContent=msg;G('error').style.display='block';
+  if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
+}
+
+/* ─── debounce ───────────────────────────────────────────────── */
+const debouncedLoad=()=>{clearTimeout(timer);timer=setTimeout(load,150);};
+
+/* ─── init ───────────────────────────────────────────────────── */
+async function init(){
+  if(typeof tableau==='undefined'){setTimeout(init,50);return;}
+  await tableau.extensions.initializeAsync();
+  ws=tableau.extensions.worksheetContent.worksheet;
+  load();
+  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
+  try{
+    const params=await ws.getParametersAsync();
+    params.forEach(p=>p.addEventListener(tableau.TableauEventType.ParameterChanged,debouncedLoad));
+  }catch(e){console.warn('Param listener failed:',e);}
+}
+window.onload=init;
+</script>
+</body></html>
