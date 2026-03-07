@@ -119,10 +119,12 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
 ### 1. Multi-Line Chart
 - One line per unique value in the Group By field
 - Up to 10 lines (COLORS palette); cycles if more
-- X axis: fixed Jan–Dec (monthly) or Q1–Q4 (quarterly) — not a continuous date axis
+- X axis: fixed Hebrew month names (ינואר–דצמבר) or quarters (רבעון 1–4) — not a continuous date axis
 - Each data point plotted in the correct bucket for its month/quarter
 - Multiple rows with the same group+bucket are summed
 - Months/quarters with no data show as gaps (`spanGaps: false`)
+- **No dots** — lines only; dots appear on hover only (`pointRadius: 0`, `pointHoverRadius: 5`)
+- **No grid lines** on either axis
 
 ### 2. Color Editor
 - **Legend swatches** at bottom of chart are clickable
@@ -130,38 +132,52 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
   - Native browser color picker (color wheel)
   - Hex code input field (`#RRGGBB`)
 - Both inputs stay in sync
-- Line color, fill, dots, hover dots, and tooltip swatches all update **live** on pick
-- Colors persist in `colorMap{}` across data reloads (parameter changes, filter changes)
-- Colors reset only on full page reload (Tableau refresh/re-open)
+- Line color, fill, hover dots, and tooltip swatches all update **live** on pick
+- Colors persist in `colorMap{}` in memory and in `localStorage` (`mlc_colorMap`) across sessions
+- Colors sync **live across all open instances** (sheet ↔ dashboard) via `window.storage` event
 
 ### 3. Timeframe Switching
-- `Parameter 1 = 'month'` → X axis shows Jan, Feb, ..., Dec (12 buckets)
-- `Parameter 1 = 'quarter'` → X axis shows Q1, Q2, Q3, Q4 (4 buckets)
-- Badge top-right shows current mode: **Monthly** or **Quarterly**
+- `Parameter 1 = 'month'` → X axis shows ינואר, פברואר, ..., דצמבר (12 buckets)
+- `Parameter 1 = 'quarter'` → X axis shows רבעון 1, רבעון 2, רבעון 3, רבעון 4 (4 buckets)
+- Badge top-right shows current mode: **חודשי** or **רבעוני**
 - Chart re-renders immediately on parameter change
 
 ### 4. Tooltip
 - Mode: `index` (vertical crosshair, all lines shown at hovered X)
-- Title: bucket label (e.g. `Jul` or `Q3`)
-- Body: one row per line — `GroupLabel: value`
+- Title: Hebrew bucket label (e.g. `נובמבר` or `רבעון 3`), right-aligned
+- Body: one row per line — `value :GroupLabel` (RTL order), right-aligned
 - Swatch color: always reads live `dataset.borderColor` — updates with color picker
+- `titleAlign: 'right'`, `bodyAlign: 'right'` — fully RTL layout
 
 ### 5. Version Badge
 - Top-right corner, yellow background, black text
 - Always visible — used to confirm which version is loaded
-- Format: `v21`, etc.
+- Format: `v31`, etc.
 
 ### 6. BG Color Slot (v20+)
 - **Slot D** in the Marks card, labelled "BG Color"
 - Drag any string/dimension field into slot D
-- One **swatch pill per unique value** appears in the top-right header (next to Monthly badge)
+- One **swatch pill per unique value** appears in the top-right header (next to חודשי badge)
 - Clicking a swatch opens the color picker popover labelled `BG: <value>`
 - Picking a color immediately applies it as the extension background
-- Colors persist in `bgColorMap{}` across data reloads
+- Colors persist in `bgColorMap{}` in memory and in `localStorage` (`mlc_bgColorMap`) across sessions
+- Colors sync **live across all open instances** (sheet ↔ dashboard) via `window.storage` event
 - If slot D is empty, no swatches appear and background stays white
-- Uses the same color picker popover as the line color editor (`isBg` flag distinguishes the two modes)
 
 > **Note:** Tableau's native color picker cannot be triggered from within an extension. The BG color picker is the extension's own popover — the same one used for line colors.
+
+### 7. RTL Layout (v25+)
+- KPI name in header is right-aligned (`direction: rtl`)
+- Header flex direction is RTL — KPI name on right, badges on left
+- Tooltip title and body are right-aligned (`titleAlign: 'right'`, `bodyAlign: 'right'`)
+- Month and quarter labels are in Hebrew
+- Timeframe badge shows Hebrew text (חודשי / רבעוני)
+
+### 8. Cross-Instance Color Sync (v31+)
+- `colorMap` and `bgColorMap` are saved to `localStorage` on every color change
+- All open browser instances (sheet tab + dashboard tab) share the same `localStorage` origin
+- A `window.storage` event listener fires in every other instance when one saves a color
+- The receiving instance applies the new colors to the chart and legend swatches immediately — no reload needed
 
 ---
 
@@ -288,7 +304,17 @@ Applied after v19 to reduce file size without changing behaviour.
 | v18 | Superseded | Fix: layer 3 integer fallback picking `YEAR(Order Date)` before actual measure. Split into two passes: float first, then integer excluding date-part field names. Added debug build (v18-debug) with `console.log('SPEC:',...)` to capture live API response shape. |
 | v19 | Superseded | Root cause fix: layer 1 was reading `enc.fieldList[0].fieldName` which does not exist in Tableau Cloud API response. Correct property is `enc.field.name`. Layer 1 now drives A/B/C slot resolution correctly. Layer 3 retained as safety net only. |
 | v20 | Superseded | New feature: BG Color slot (D) added to `.trex`. Drag any string field to slot D — unique values appear as swatch pills in the header. Clicking a swatch opens the color picker to assign a background color per value. `bgColorMap{}` persists colors across reloads. `isBg` flag added to `openColorPop()` to distinguish line vs background color mode. |
-| v21 | ✅ Current | Bug fix: `bgIdx` was not being excluded from `groupIdx` fallback resolution, causing the BG Color field to overwrite the Group By slot. Fixed by resolving `bgIdx` before `groupIdx` in layer 3 fallback. Added case-insensitive name matching in `pickIdx` (layer 1/2). Fixed color picker not opening — `document click` listener was closing the popover immediately; now ignores clicks on `.bg-swatch-item` and `.legend-item`. Added `console.log` for resolved column indices (debug aid). |
+| v21 | Superseded | Bug fix: `bgIdx` not excluded from `groupIdx` fallback. Case-insensitive name matching in `pickIdx`. Fixed color picker closing immediately. Added column index debug log. |
+| v22 | Superseded | Fix: dot colors not updating on color pick. `el._options` now nulled unconditionally (removed `if` guard). Switched from `ch.update('none')` to `ch.update()` to force full style re-render. |
+| v23 | Superseded | Removed grid lines from both X and Y axes (`display: false`). |
+| v24 | Superseded | Hebrew month labels (ינואר–דצמבר) and quarter labels (רבעון 1–4). Timeframe badge now shows חודשי / רבעוני. |
+| v25 | Superseded | Full Hebrew month names. Tooltip RTL (`rtl: true`, `textDirection: 'rtl'`). KPI name RTL (`direction: rtl`). |
+| v26 | Superseded | Header `direction: rtl` so KPI name sits on the right side. Badges group explicitly set `direction: ltr` to prevent flip. |
+| v27 | Superseded | Tooltip label order flipped to RTL (`value :label`). BG swatch container set `direction: ltr` to fix visibility after header RTL change. |
+| v28 | Superseded | Added `titleAlign: 'right'` and `bodyAlign: 'right'` to tooltip. Added `title` callback. |
+| v29 | Superseded | Removed `rtl: true` / `textDirection: 'rtl'` which conflicted with `titleAlign` in Chart.js v4 — `titleAlign: 'right'` now takes full effect. |
+| v30 | Superseded | Removed dots (`pointRadius: 0`). Hover dots retained (`pointHoverRadius: 5`). `colorMap` and `bgColorMap` now persisted to `localStorage` (`mlc_colorMap`, `mlc_bgColorMap`) and loaded on startup. |
+| v31 | ✅ Current | Live cross-instance color sync via `window.storage` event listener. When colors change in one instance (sheet/dashboard), all other open instances update immediately without reload. |
 
 ---
 
@@ -306,7 +332,9 @@ Applied after v19 to reduce file size without changing behaviour.
 | All slots returning -1 on Tableau Cloud | `getVisualSpecificationAsync` throws silently on `he_IL` locale with Hebrew field names | 3-line dataType fallback as layer 3 (v16) |
 | Layer 1 always returning -1 despite spec succeeding | Code read `enc.fieldList[0].fieldName` — property doesn't exist in Tableau Cloud API; correct property is `enc.field.name` | Read `enc.field.name` first (v19) |
 | Wrong measure selected when multiple integer columns present | Layer 3 integer fallback picked `YEAR(Order Date)` before actual measure | Float-first pass + exclude date-part field names from integer pass (v18) |
-| BGcolor field overwriting Group By | `bgIdx` not excluded from `groupIdx` fallback — both resolved to same string column | Resolve `bgIdx` before `groupIdx` in layer 3; exclude `bgIdx` from group fallback (v21) |
+| Colors not syncing between sheet and dashboard | Each iframe loads independently with empty in-memory maps | `localStorage` persistence + `window.storage` event listener for live sync (v30/v31) |
+| Tooltip title not right-aligned despite `titleAlign: 'right'` | `rtl: true` overrides `titleAlign` in Chart.js v4 | Removed `rtl: true`; use `titleAlign`/`bodyAlign` only (v29) |
+| Dot colors not updating on color pick | `el._options` guard skipped nulling when value was `undefined` | Null unconditionally; use `ch.update()` not `ch.update('none')` (v22) |
 | BG color picker not opening | `document click` listener fired immediately after swatch click, closing popover before it opened | Ignore clicks on `.bg-swatch-item` and `.legend-item` in outside-click handler (v21) |
 | .trex parse error: allowed-types | Not declared for encoding element | Removed allowed-types from all encoding elements (v1 trex fix) |
 | GitHub caching | Browser cached old HTML | no-cache meta headers |
@@ -332,12 +360,12 @@ The extension will then fall back to dataType sniffing silently and render norma
 1. Push files to GitHub repo
 2. Whitelist exact HTML URL in Tableau Cloud Settings → Extensions
 3. Load `multiline_cloud.trex` in workbook
-4. Confirm version badge shows **v21**
+4. Confirm version badge shows **v31**
 5. Drag `SUM(measure)` → slot B
 6. Drag a **continuous Month** date → slot A (right-click pill → Continuous → Month)
 7. Drag a dimension → slot C (optional — one line per value)
 8. Drag a string/dimension field → slot D (optional — enables BG color picker swatches in header)
 9. Set Parameter 1 to `month` or `quarter`
 10. Verify correct number of lines matches distinct group values
-11. Test line color picker: click legend swatch → line + dots + tooltip swatch should all update
-12. Test BG color picker: click swatch pill in header → background color updates live
+11. Test line color picker: click legend swatch → line + tooltip swatch should update, and sync to dashboard
+12. Test BG color picker: click swatch pill in header → background color updates live and syncs to dashboard
