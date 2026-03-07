@@ -35,7 +35,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
 .legend-swatch{
   width:20px;height:2.5px;border-radius:2px;flex-shrink:0;
 }
-#version{font-size:9px;color:#e5e7eb;flex-shrink:0;margin-top:1px}
+#version{font-size:11px;font-weight:700;color:#111;background:#facc15;border-radius:4px;padding:2px 7px;flex-shrink:0;letter-spacing:.03em}
 
 /* ── color popover ── */
 #color-pop{
@@ -76,12 +76,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
 <div id="app">
   <div id="header">
     <div id="measure-name"></div>
-    <div id="timeframe-badge"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div id="timeframe-badge"></div>
+      <div id="version">v4</div>
+    </div>
   </div>
   <div id="error"></div>
   <div id="chart-wrap"><canvas id="ch"></canvas></div>
   <div id="legend"></div>
-  <div id="version">v3</div>
 </div>
 <script>
 /* ─── helpers ─────────────────────────────────────────────────── */
@@ -214,8 +216,8 @@ async function load(){
         spec?.marksEncoding ||
         [];
       // Log column names so we can debug
-      console.log('[MultiLine v3] cols:', cols.map((c,i)=>`[${i}] ${c.fieldName} (${c.dataType})`).join(' | '));
-      console.log('[MultiLine v3] encList:', JSON.stringify(encList));
+      console.log('[MultiLine v4] cols:', cols.map((c,i)=>`[${i}] ${c.fieldName} (${c.dataType})`).join(' | '));
+      console.log('[MultiLine v4] encList:', JSON.stringify(encList));
 
       const pickField=id=>{
         if(Array.isArray(encList)){
@@ -237,7 +239,7 @@ async function load(){
       groupFieldName  =pickField('group');
       console.log('[MultiLine v3] resolved → measure:',measureFieldName,'| date:',dateFieldName,'| group:',groupFieldName);
     }catch(specErr){
-      console.warn('[MultiLine v3] spec error:',specErr);
+      console.warn('[MultiLine v4] spec error:',specErr);
     }
 
     /* 4 ── resolve column indices
@@ -253,7 +255,6 @@ async function load(){
     let groupIdx   = groupFieldName   ? findCol(groupFieldName)   : -1;
 
     if(measureIdx<0){
-      // pick the numeric col with the largest values
       let best=-1,bestVal=-Infinity;
       cols.forEach((c,i)=>{
         if(!['float','int','real','integer','number','double'].some(t=>c.dataType.toLowerCase().includes(t)))return;
@@ -263,7 +264,7 @@ async function load(){
       measureIdx=best;
     }
     if(dateIdx<0){
-      // pick date col with most distinct months (filters out DATETRUNC year cols)
+      // Pick date col with MOST distinct months → real date field (not DATETRUNC year)
       let best=-1,bestScore=-1;
       cols.forEach((c,i)=>{
         if(i===measureIdx)return;
@@ -275,11 +276,32 @@ async function load(){
       dateIdx=best;
     }
     if(groupIdx<0){
-      // any remaining col that isn't measure or date
-      groupIdx=cols.findIndex((_,i)=>i!==measureIdx&&i!==dateIdx);
+      // Prefer: integer col (YEAR() returns int) OR date col with LOW month variance (DATETRUNC year)
+      // Avoid: the date col already chosen as dateIdx, and the measure col
+      let best=-1;
+      // pass 1: integer dim (YEAR([Date]) → int)
+      best=cols.findIndex((c,i)=>i!==measureIdx&&i!==dateIdx&&['int','integer'].some(t=>c.dataType.toLowerCase()===t));
+      if(best<0){
+        // pass 2: string/bool dim (Segment, Category)
+        best=cols.findIndex((c,i)=>i!==measureIdx&&i!==dateIdx&&
+          ['string','bool','boolean','wstring','unicode_string'].some(t=>c.dataType.toLowerCase().includes(t)));
+      }
+      if(best<0){
+        // pass 3: date col with lowest month variance (year-truncated grouper)
+        let lowScore=Infinity;
+        cols.forEach((c,i)=>{
+          if(i===measureIdx||i===dateIdx)return;
+          if(!c.dataType.toLowerCase().includes('date'))return;
+          const months=new Set();
+          rows.forEach(r=>{const d=parseDate(r[i].value,r[i].formattedValue);if(!isNaN(d)&&d.getFullYear()>1990)months.add(d.getMonth());});
+          if(months.size<lowScore){lowScore=months.size;best=i;}
+        });
+      }
+      groupIdx=best; // -1 = no group → single line
     }
 
-    console.log('[MultiLine v3] final idx → measure:',measureIdx,'date:',dateIdx,'group:',groupIdx);
+    console.log('[MultiLine v4] cols:',cols.map((c,i)=>`[${i}]${c.fieldName}(${c.dataType})`).join(' '));
+    console.log('[MultiLine v4] final idx → measure:',measureIdx,'date:',dateIdx,'group:',groupIdx);
 
     if(measureIdx<0) return showError('Drag a measure to the "Measure (KPI)" slot on the Marks card.');
     if(dateIdx<0)    return showError('Drag a date field to the "Date" slot on the Marks card.');
