@@ -13,7 +13,7 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM Sans',sans-serif}
 #app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease}
 #header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-#measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase}
+#measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;direction:rtl;text-align:right}
 #timeframe-badge{font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;background:#eef2ff;border-radius:4px;padding:2px 7px}
 #error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0}
 #chart-wrap{flex:1;min-height:0;position:relative}
@@ -51,7 +51,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div style="display:flex;align-items:center;gap:6px">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v24</div>
+      <div id="version">v25</div>
     </div>
   </div>
   <div id="error"></div>
@@ -68,7 +68,7 @@ const getParam = (params, name) => {
 };
 
 const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#f97316','#14b8a6','#ec4899','#06b6d4'];
-const MONTH_LABELS = ['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
+const MONTH_LABELS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const QUARTER_LABELS = ['רבעון 1','רבעון 2','רבעון 3','רבעון 4'];
 
 let ch = null, ws = null, timer = null, firstLoad = true;
@@ -271,6 +271,7 @@ async function load() {
         plugins: {
           legend: {display:false},
           tooltip: {
+            rtl: true, textDirection: 'rtl',
             backgroundColor: '#fff', borderColor: '#e5e7eb', borderWidth: 1,
             titleColor: '#374151', titleFont: {size:12, weight:'600', family:"'DM Sans',sans-serif"},
             bodyColor: '#374151', bodyFont: {size:12, family:"'DM Sans',sans-serif"},
