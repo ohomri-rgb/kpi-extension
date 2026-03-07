@@ -14,55 +14,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
 #app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease}
 #header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 #measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase}
-#timeframe-badge{
-  font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;
-  background:#eef2ff;border-radius:4px;padding:2px 7px;
-}
-#error{
-  display:none;font-size:11px;color:#dc2626;background:#fef2f2;
-  border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0;
-}
+#timeframe-badge{font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;background:#eef2ff;border-radius:4px;padding:2px 7px}
+#error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0}
 #chart-wrap{flex:1;min-height:0;position:relative}
-#legend{
-  display:flex;flex-wrap:wrap;gap:4px 14px;flex-shrink:0;padding-top:2px;
-  min-height:16px;
-}
-.legend-item{
-  display:flex;align-items:center;gap:5px;
-  font-size:10px;color:#6b7280;font-weight:500;
-  cursor:default;
-}
-.legend-swatch{
-  width:20px;height:2.5px;border-radius:2px;flex-shrink:0;
-}
+#legend{display:flex;flex-wrap:wrap;gap:4px 14px;flex-shrink:0;padding-top:2px;min-height:16px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer}
+.legend-swatch{width:20px;height:2.5px;border-radius:2px;flex-shrink:0}
+.legend-item:hover .legend-swatch{outline:2px solid #6366f1;outline-offset:2px}
 #version{font-size:11px;font-weight:700;color:#111;background:#facc15;border-radius:4px;padding:2px 7px;flex-shrink:0;letter-spacing:.03em}
-
-/* ── color popover ── */
-#color-pop{
-  position:fixed;z-index:9999;
-  background:#fff;border:1px solid #e5e7eb;border-radius:10px;
-  box-shadow:0 8px 24px rgba(0,0,0,.12);
-  padding:12px 14px 10px;min-width:180px;
-  display:none;flex-direction:column;gap:8px;
-}
+#color-pop{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:12px 14px 10px;min-width:180px;display:none;flex-direction:column;gap:8px}
 #color-pop.open{display:flex}
 #color-pop-label{font-size:11px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #color-pop-row{display:flex;align-items:center;gap:8px}
 #color-pop-native{width:32px;height:32px;border:none;padding:0;border-radius:6px;cursor:pointer;flex-shrink:0;background:none}
-#color-pop-hex{
-  flex:1;font-size:12px;font-family:'DM Sans',monospace;
-  border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;
-  color:#111;outline:none;
-}
+#color-pop-hex{flex:1;font-size:12px;font-family:'DM Sans',monospace;border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;color:#111;outline:none}
 #color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
-#color-pop-close{
-  position:absolute;top:8px;right:10px;
-  font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;
-  background:none;border:none;padding:2px 4px;
-}
+#color-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
 #color-pop-close:hover{color:#374151}
-.legend-item{cursor:pointer}
-.legend-item:hover .legend-swatch{outline:2px solid #6366f1;outline-offset:2px}
 </style>
 </head><body>
 <div id="color-pop">
@@ -86,303 +54,204 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
   <div id="legend"></div>
 </div>
 <script>
-/* ─── helpers ─────────────────────────────────────────────────── */
-const G=id=>document.getElementById(id);
-const fmt=n=>n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';
-const cleanName=s=>s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
-const getParam=(params,name)=>{
-  const p=params.find(p=>p.name.toLowerCase()===name.toLowerCase());
-  return p?String(p.currentValue.value||p.currentValue.formattedValue||'').trim():'';
+const G = id => document.getElementById(id);
+const fmt = n => n != null ? n.toLocaleString('en-US', {notation:'compact', maximumFractionDigits:1}) : '—';
+const cleanName = s => s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
+const getParam = (params, name) => {
+  const p = params.find(p => p.name.toLowerCase() === name.toLowerCase());
+  return p ? String(p.currentValue.value || p.currentValue.formattedValue || '').trim() : '';
 };
 
-const COLORS=['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#f97316','#14b8a6','#ec4899','#06b6d4'];
-const MONTH_LABELS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const QUARTER_LABELS=['Q1','Q2','Q3','Q4'];
-const parseDate = raw => new Date(raw);
+const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#f97316','#14b8a6','#ec4899','#06b6d4'];
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const QUARTER_LABELS = ['Q1','Q2','Q3','Q4'];
 
-/* ─── state ──────────────────────────────────────────────────── */
-let ch=null,ws=null,timer=null,firstLoad=true;
-const colorMap={}; // groupLabel → hex color, persists across reloads
+let ch = null, ws = null, timer = null, firstLoad = true;
+const colorMap = {};
 
-/* ─── color popover ─────────────────────────────────────────── */
-let _popTarget=null;
-function openColorPop(label,currentColor,swatchEl,e){
+/* ── color popover ── */
+let _popTarget = null;
+function openColorPop(label, currentColor, swatchEl, e) {
   e.stopPropagation();
-  _popTarget={label,swatchEl};
-  G('color-pop-label').textContent=label;
-  G('color-pop-native').value=currentColor;
-  G('color-pop-hex').value=currentColor;
-  // position near click
-  const pop=G('color-pop');
+  _popTarget = {label, swatchEl};
+  G('color-pop-label').textContent = label;
+  G('color-pop-native').value = G('color-pop-hex').value = currentColor;
+  const pop = G('color-pop'), vw = window.innerWidth, vh = window.innerHeight;
+  let x = e.clientX + 8, y = e.clientY + 8;
+  if (x + 190 > vw) x = e.clientX - 190;
+  if (y + 90 > vh) y = e.clientY - 90;
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
   pop.classList.add('open');
-  const vw=window.innerWidth,vh=window.innerHeight;
-  let x=e.clientX+8,y=e.clientY+8;
-  if(x+190>vw)x=e.clientX-190;
-  if(y+90>vh)y=e.clientY-90;
-  pop.style.left=x+'px';pop.style.top=y+'px';
 }
-function applyColor(hex){
-  if(!_popTarget||!ch)return;
-  const {label,swatchEl}=_popTarget;
-  colorMap[label]=hex;
-  swatchEl.style.background=hex;
-  // update chart datasets live
-  ch.data.datasets.forEach((ds,i)=>{
-    if(ds.label===label){
-      // Update dataset-level properties
-      ds.borderColor=hex;
-      ds.backgroundColor=hex+'22';
-      ds.pointBackgroundColor=hex;
-      ds.pointBorderColor='#fff';
-      ds.pointHoverBackgroundColor=hex;
-      ds.pointHoverBorderColor='#fff';
-      // Patch Chart.js internal element cache — both line AND points cache separately
-      const meta=ch.getDatasetMeta(i);
-      if(meta){
-        // Line element (the connecting line itself)
-        if(meta.dataset&&meta.dataset.options){
-          meta.dataset.options.borderColor=hex;
-          meta.dataset.options.backgroundColor=hex+'22';
-          meta.dataset.options.hoverBorderColor=hex;
-        }
-        // Point elements — patch all cached style properties
-        if(meta.data){
-          meta.data.forEach(el=>{
-            if(el&&el.options){
-              el.options.backgroundColor=hex;
-              el.options.borderColor='#fff';
-              el.options.hoverBackgroundColor=hex;
-              el.options.hoverBorderColor='#fff';
-              // Chart.js v4 stores hover styles here too
-              if(el.$context) el.$context.raw; // force context refresh
-            }
-          });
-        }
-      }
+
+function applyColor(hex) {
+  if (!_popTarget || !ch) return;
+  const {label, swatchEl} = _popTarget;
+  colorMap[label] = hex;
+  swatchEl.style.background = hex;
+  ch.data.datasets.forEach((ds, i) => {
+    if (ds.label === label) {
+      ds.borderColor = ds.pointBackgroundColor = ds.pointHoverBackgroundColor = hex;
+      ds.backgroundColor = hex + '22';
     }
-  });
-  // Reset Chart.js element option cache so hover states also pick up new colors
-  ch.data.datasets.forEach((_,i)=>{
-    const meta=ch.getDatasetMeta(i);
-    if(meta&&meta.data) meta.data.forEach(el=>{if(el._options)el._options=null;});
-    if(meta&&meta.dataset&&meta.dataset._options) meta.dataset._options=null;
+    // Reset Chart.js element cache so hover states pick up new colors
+    const meta = ch.getDatasetMeta(i);
+    if (meta?.data) meta.data.forEach(el => { if (el._options) el._options = null; });
+    if (meta?.dataset?._options) meta.dataset._options = null;
   });
   ch.update('none');
 }
-G('color-pop-native').addEventListener('input',e=>{
-  const hex=e.target.value;
-  G('color-pop-hex').value=hex;
-  applyColor(hex);
-});
-G('color-pop-hex').addEventListener('input',e=>{
-  const hex=e.target.value.trim();
-  if(/^#[0-9a-fA-F]{6}$/.test(hex)){
-    G('color-pop-native').value=hex;
-    applyColor(hex);
-  }
-});
-G('color-pop-hex').addEventListener('keydown',e=>{if(e.key==='Enter')G('color-pop').classList.remove('open');});
-G('color-pop-close').addEventListener('click',()=>G('color-pop').classList.remove('open'));
-document.addEventListener('click',e=>{
-  if(!G('color-pop').contains(e.target))G('color-pop').classList.remove('open');
-});
 
-/* ─── legend ──────────────────────────────────────────────────── */
-function buildLegend(datasets){
-  const el=G('legend');el.innerHTML='';
-  datasets.forEach(ds=>{
-    const item=document.createElement('div');
-    item.className='legend-item';
-    const swatch=document.createElement('div');
-    swatch.className='legend-swatch';
-    swatch.style.background=ds.borderColor;
-    const label=document.createElement('span');
-    label.textContent=ds.label;
-    item.appendChild(swatch);item.appendChild(label);
-    item.title='Click to change color';
-    item.addEventListener('click',e=>openColorPop(ds.label,ds.borderColor,swatch,e));
-    el.appendChild(item);
+G('color-pop-native').addEventListener('input', e => {
+  G('color-pop-hex').value = e.target.value;
+  applyColor(e.target.value);
+});
+G('color-pop-hex').addEventListener('input', e => {
+  const hex = e.target.value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) { G('color-pop-native').value = hex; applyColor(hex); }
+});
+G('color-pop-hex').addEventListener('keydown', e => { if (e.key === 'Enter') G('color-pop').classList.remove('open'); });
+G('color-pop-close').addEventListener('click', () => G('color-pop').classList.remove('open'));
+document.addEventListener('click', e => { if (!G('color-pop').contains(e.target)) G('color-pop').classList.remove('open'); });
+
+/* ── legend ── */
+function buildLegend(datasets) {
+  G('legend').innerHTML = datasets.map(ds =>
+    `<div class="legend-item" title="Click to change color">
+      <div class="legend-swatch" style="background:${ds.borderColor}"></div>
+      <span>${ds.label}</span>
+    </div>`
+  ).join('');
+  G('legend').querySelectorAll('.legend-item').forEach((item, i) => {
+    item.addEventListener('click', e =>
+      openColorPop(datasets[i].label, datasets[i].borderColor, item.querySelector('.legend-swatch'), e)
+    );
   });
 }
 
-/* ─── main load ─────────────────────────────────────────────── */
-async function load(){
-  if(ch){ch.destroy();ch=null;}
-  G('error').style.display='none';
+/* ── main load ── */
+async function load() {
+  if (ch) { ch.destroy(); ch = null; }
+  G('error').style.display = 'none';
+  try {
+    const params = await ws.getParametersAsync();
+    const timeframe = (getParam(params,'Parameter 1') || getParam(params,'timeframe') || 'month').toLowerCase().trim();
+    const isQuarter = timeframe === 'quarter';
+    const xLabels = isQuarter ? QUARTER_LABELS : MONTH_LABELS;
+    const numBuckets = xLabels.length;
+    G('timeframe-badge').textContent = isQuarter ? 'Quarterly' : 'Monthly';
 
-  try{
-    /* 1 ── parameters */
-    const params=await ws.getParametersAsync();
-    const timeframe=(getParam(params,'Parameter 1')||getParam(params,'timeframe')||'month').toLowerCase().trim();
-    const isQuarter=timeframe==='quarter';
-    const xLabels=isQuarter?QUARTER_LABELS:MONTH_LABELS;
-    const numBuckets=xLabels.length;
-    G('timeframe-badge').textContent=isQuarter?'Quarterly':'Monthly';
+    const dt = await ws.getSummaryDataAsync({ignoreSelection:true});
+    const cols = dt.columns, rows = dt.data;
 
-    /* 2 ── data */
-    const dt=await ws.getSummaryDataAsync({ignoreSelection:true});
-    const cols=dt.columns,rows=dt.data;
-
-    /* 3+4 ── resolve columns from visual spec encoding slots
-       The .trex declares encodings with ids: "measure", "date", "group"
-       getVisualSpecificationAsync returns these with fieldList per encoding.
-       We match fieldList[0].fieldName against cols[].fieldName.            */
-    let measureIdx=-1, dateIdx=-1, groupIdx=-1;
-    try{
+    let measureIdx = -1, dateIdx = -1, groupIdx = -1;
+    try {
       const spec = await ws.getVisualSpecificationAsync();
       const encList = spec?.marksSpecificationList?.[0]?.encodingList || [];
       const pickIdx = id => {
-        const enc = encList.find(e=>e.id===id);
+        const enc = encList.find(e => e.id === id);
         const fname = enc?.field?.name ?? enc?.fieldList?.[0]?.fieldName ?? null;
-        if(!fname) return -1;
-        let idx = cols.findIndex(c=>c.fieldName===fname);
-        if(idx<0) idx = cols.findIndex(c=>c.fieldName===cleanName(fname));
+        if (!fname) return -1;
+        let idx = cols.findIndex(c => c.fieldName === fname);
+        if (idx < 0) idx = cols.findIndex(c => c.fieldName === cleanName(fname));
         return idx;
       };
-      measureIdx = pickIdx('measure');
-      dateIdx    = pickIdx('date');
-      groupIdx   = pickIdx('group');
-    } catch(e){ console.warn('spec failed:', e); }
+      measureIdx = pickIdx('measure'); dateIdx = pickIdx('date'); groupIdx = pickIdx('group');
+    } catch(e) { console.warn('spec failed:', e); }
 
-    // Simple fallback: if spec didn't resolve, sniff by dataType
-    if(measureIdx<0) measureIdx = cols.findIndex(c=>['float','real','number','double'].some(t=>c.dataType.toLowerCase().includes(t)));
-    if(measureIdx<0) measureIdx = cols.findIndex(c=>['integer','int'].some(t=>c.dataType.toLowerCase().includes(t))&&!/year|month|quarter|day|week/i.test(c.fieldName));
-    if(dateIdx<0)    dateIdx    = cols.findIndex((c,i)=>i!==measureIdx && c.dataType.toLowerCase().includes('date'));
-    if(groupIdx<0)   groupIdx   = cols.findIndex((_,i)=>i!==measureIdx && i!==dateIdx);
+    if (measureIdx < 0) measureIdx = cols.findIndex(c => ['float','real','number','double'].some(t => c.dataType.toLowerCase().includes(t)));
+    if (measureIdx < 0) measureIdx = cols.findIndex(c => ['integer','int'].some(t => c.dataType.toLowerCase().includes(t)) && !/year|month|quarter|day|week/i.test(c.fieldName));
+    if (dateIdx < 0)    dateIdx    = cols.findIndex((c,i) => i !== measureIdx && c.dataType.toLowerCase().includes('date'));
+    if (groupIdx < 0)   groupIdx   = cols.findIndex((_,i) => i !== measureIdx && i !== dateIdx);
 
-    if(measureIdx<0) return showError('No numeric measure found. Drag a measure to the Measure (KPI) slot.');
-    if(dateIdx<0)    return showError('No date column found. Drag a continuous Month date to the Date slot.');
+    if (measureIdx < 0) return showError('No numeric measure found. Drag a measure to the Measure (KPI) slot.');
+    if (dateIdx < 0)    return showError('No date column found. Drag a continuous Month date to the Date slot.');
 
-    const measureName=cleanName(cols[measureIdx].fieldName);
-    G('measure-name').textContent=measureName;
+    const measureName = cleanName(cols[measureIdx].fieldName);
+    G('measure-name').textContent = measureName;
 
-    /* 5 ── aggregate: groups[groupValue][bucketIndex] = sum */
-    const groups={};
-    rows.forEach(r=>{
-      const d=parseDate(r[dateIdx].value);
-      if(isNaN(d)||d.getFullYear()<1990)return;
-      const val=parseFloat(r[measureIdx].value)||0;
-      const grp=groupIdx>=0?(r[groupIdx].formattedValue||r[groupIdx].value||'(blank)'):measureName;
-      const bucket=isQuarter?Math.floor(d.getMonth()/3):d.getMonth();
-      if(!groups[grp])groups[grp]={};
-      groups[grp][bucket]=(groups[grp][bucket]||0)+val;
+    const groups = {};
+    rows.forEach(r => {
+      const d = new Date(r[dateIdx].value);
+      if (isNaN(d) || d.getFullYear() < 1990) return;
+      const val = parseFloat(r[measureIdx].value) || 0;
+      const grp = groupIdx >= 0 ? (r[groupIdx].formattedValue || r[groupIdx].value || '(blank)') : measureName;
+      const bucket = isQuarter ? Math.floor(d.getMonth() / 3) : d.getMonth();
+      if (!groups[grp]) groups[grp] = {};
+      groups[grp][bucket] = (groups[grp][bucket] || 0) + val;
     });
 
-    const groupNames=Object.keys(groups);
-    if(!groupNames.length){showError('No data returned. Check filters and field configuration.');return;}
+    const groupNames = Object.keys(groups);
+    if (!groupNames.length) return showError('No data returned. Check filters and field configuration.');
 
-    /* 6 ── build chart datasets */
-    const datasets=groupNames.map((name,i)=>{
-      const color=colorMap[name]||COLORS[i%COLORS.length];
-      return{
-        label:name,
-        data:Array.from({length:numBuckets},(_,b)=>groups[name][b]??null),
-        borderColor:color,
-        backgroundColor:color+'22',
-        borderWidth:2.5,
-        pointRadius:5,
-        pointBackgroundColor:color,
-        pointBorderColor:'#fff',
-        pointBorderWidth:1.5,
-        pointHoverRadius:7,
-        pointHoverBackgroundColor:color,
-        pointHoverBorderColor:'#fff',
-        pointHoverBorderWidth:2,
-        tension:0.3,
-        fill:false,
-        spanGaps:false,
+    const datasets = groupNames.map((name, i) => {
+      const color = colorMap[name] || COLORS[i % COLORS.length];
+      return {
+        label: name, data: Array.from({length:numBuckets}, (_,b) => groups[name][b] ?? null),
+        borderColor: color, backgroundColor: color + '22', borderWidth: 2.5,
+        pointRadius: 5, pointBackgroundColor: color, pointBorderColor: '#fff', pointBorderWidth: 1.5,
+        pointHoverRadius: 7, pointHoverBackgroundColor: color, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2,
+        tension: 0.3, fill: false, spanGaps: false,
       };
     });
 
     buildLegend(datasets);
 
-    /* 7 ── render chart */
-    G('chart-wrap').innerHTML='<canvas id="ch"></canvas>';
-    const canvas=G('ch');
-
-    ch=new Chart(canvas,{
-      type:'line',
-      data:{labels:xLabels,datasets},
-      options:{
-        responsive:true,
-        maintainAspectRatio:false,
-        animation:false,
-        interaction:{mode:'index',intersect:false},
-        plugins:{
-          legend:{display:false},
-          tooltip:{
-            backgroundColor:'#fff',
-            borderColor:'#e5e7eb',
-            borderWidth:1,
-            titleColor:'#374151',
-            titleFont:{size:12,weight:'600',family:"'DM Sans',sans-serif"},
-            bodyColor:'#374151',
-            bodyFont:{size:12,family:"'DM Sans',sans-serif"},
-            padding:10,
-            boxPadding:5,
-            callbacks:{
-              label:ctx=>ctx.raw==null?null:` ${ctx.dataset.label}: ${fmt(ctx.raw)}`,
-              // Always read live dataset color so tooltip swatches update with color picker
-              labelColor:ctx=>{
-                const color=ctx.dataset.borderColor||COLORS[ctx.datasetIndex%COLORS.length];
-                return{borderColor:color,backgroundColor:color,borderWidth:2,borderRadius:2};
+    G('chart-wrap').innerHTML = '<canvas id="ch"></canvas>';
+    ch = new Chart(G('ch'), {
+      type: 'line',
+      data: {labels: xLabels, datasets},
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {mode:'index', intersect:false},
+        plugins: {
+          legend: {display:false},
+          tooltip: {
+            backgroundColor: '#fff', borderColor: '#e5e7eb', borderWidth: 1,
+            titleColor: '#374151', titleFont: {size:12, weight:'600', family:"'DM Sans',sans-serif"},
+            bodyColor: '#374151', bodyFont: {size:12, family:"'DM Sans',sans-serif"},
+            padding: 10, boxPadding: 5,
+            callbacks: {
+              label: ctx => ctx.raw == null ? null : ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`,
+              labelColor: ctx => {
+                const c = ctx.dataset.borderColor || COLORS[ctx.datasetIndex % COLORS.length];
+                return {borderColor:c, backgroundColor:c, borderWidth:2, borderRadius:2};
               }
             }
           }
         },
-        scales:{
-          x:{
-            grid:{color:'#f3f4f6',drawBorder:false,lineWidth:1},
-            border:{display:false},
-            ticks:{
-              color:'#9ca3af',
-              font:{size:11,weight:'500',family:"'DM Sans',sans-serif"},
-              padding:6,
-            }
-          },
-          y:{
-            grid:{color:'#f3f4f6',drawBorder:false,lineWidth:1},
-            border:{display:false},
-            ticks:{
-              color:'#9ca3af',
-              font:{size:11,family:"'DM Sans',sans-serif"},
-              callback:v=>fmt(v),
-              maxTicksLimit:6,
-              padding:8,
-            }
-          }
+        scales: {
+          x: {grid:{color:'#f3f4f6',drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,weight:'500',family:"'DM Sans',sans-serif"}, padding:6}},
+          y: {grid:{color:'#f3f4f6',drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,family:"'DM Sans',sans-serif"}, callback:v=>fmt(v), maxTicksLimit:6, padding:8}}
         }
       }
     });
 
-    if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
-
-  }catch(e){
-    console.error('MultiLine v1 error:',e);
-    showError(e.message||'Unknown error — check the browser console.');
+    if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
+  } catch(e) {
+    console.error('MultiLine error:', e);
+    showError(e.message || 'Unknown error — check the browser console.');
   }
 }
 
-function showError(msg){
-  G('error').textContent=msg;G('error').style.display='block';
-  if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
+function showError(msg) {
+  G('error').textContent = msg; G('error').style.display = 'block';
+  if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
 }
 
-/* ─── debounce ───────────────────────────────────────────────── */
-const debouncedLoad=()=>{clearTimeout(timer);timer=setTimeout(load,150);};
+const debouncedLoad = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
 
-/* ─── init ───────────────────────────────────────────────────── */
-async function init(){
-  if(typeof tableau==='undefined'){setTimeout(init,50);return;}
+async function init() {
+  if (typeof tableau === 'undefined') { setTimeout(init, 50); return; }
   await tableau.extensions.initializeAsync();
-  ws=tableau.extensions.worksheetContent.worksheet;
+  ws = tableau.extensions.worksheetContent.worksheet;
   load();
-  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
-  try{
-    const params=await ws.getParametersAsync();
-    params.forEach(p=>p.addEventListener(tableau.TableauEventType.ParameterChanged,debouncedLoad));
-  }catch(e){console.warn('Param listener failed:',e);}
+  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, debouncedLoad);
+  try {
+    const params = await ws.getParametersAsync();
+    params.forEach(p => p.addEventListener(tableau.TableauEventType.ParameterChanged, debouncedLoad));
+  } catch(e) { console.warn('Param listener failed:', e); }
 }
-window.onload=init;
+window.onload = init;
 </script>
 </body></html>
