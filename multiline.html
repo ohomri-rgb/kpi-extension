@@ -36,8 +36,43 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
   width:20px;height:2.5px;border-radius:2px;flex-shrink:0;
 }
 #version{font-size:9px;color:#e5e7eb;flex-shrink:0;margin-top:1px}
+
+/* ── color popover ── */
+#color-pop{
+  position:fixed;z-index:9999;
+  background:#fff;border:1px solid #e5e7eb;border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);
+  padding:12px 14px 10px;min-width:180px;
+  display:none;flex-direction:column;gap:8px;
+}
+#color-pop.open{display:flex}
+#color-pop-label{font-size:11px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#color-pop-row{display:flex;align-items:center;gap:8px}
+#color-pop-native{width:32px;height:32px;border:none;padding:0;border-radius:6px;cursor:pointer;flex-shrink:0;background:none}
+#color-pop-hex{
+  flex:1;font-size:12px;font-family:'DM Sans',monospace;
+  border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;
+  color:#111;outline:none;
+}
+#color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
+#color-pop-close{
+  position:absolute;top:8px;right:10px;
+  font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;
+  background:none;border:none;padding:2px 4px;
+}
+#color-pop-close:hover{color:#374151}
+.legend-item{cursor:pointer}
+.legend-item:hover .legend-swatch{outline:2px solid #6366f1;outline-offset:2px}
 </style>
 </head><body>
+<div id="color-pop">
+  <button id="color-pop-close">✕</button>
+  <div id="color-pop-label"></div>
+  <div id="color-pop-row">
+    <input type="color" id="color-pop-native"/>
+    <input type="text" id="color-pop-hex" maxlength="7" placeholder="#6366f1"/>
+  </div>
+</div>
 <div id="app">
   <div id="header">
     <div id="measure-name"></div>
@@ -77,6 +112,58 @@ function parseDate(raw,fv){
 
 /* ─── state ──────────────────────────────────────────────────── */
 let ch=null,ws=null,timer=null,firstLoad=true;
+const colorMap={}; // groupLabel → hex color, persists across reloads
+
+/* ─── color popover ─────────────────────────────────────────── */
+let _popTarget=null;
+function openColorPop(label,currentColor,swatchEl,e){
+  e.stopPropagation();
+  _popTarget={label,swatchEl};
+  G('color-pop-label').textContent=label;
+  G('color-pop-native').value=currentColor;
+  G('color-pop-hex').value=currentColor;
+  // position near click
+  const pop=G('color-pop');
+  pop.classList.add('open');
+  const vw=window.innerWidth,vh=window.innerHeight;
+  let x=e.clientX+8,y=e.clientY+8;
+  if(x+190>vw)x=e.clientX-190;
+  if(y+90>vh)y=e.clientY-90;
+  pop.style.left=x+'px';pop.style.top=y+'px';
+}
+function applyColor(hex){
+  if(!_popTarget||!ch)return;
+  const {label,swatchEl}=_popTarget;
+  colorMap[label]=hex;
+  swatchEl.style.background=hex;
+  // update chart datasets live
+  ch.data.datasets.forEach(ds=>{
+    if(ds.label===label){
+      ds.borderColor=hex;
+      ds.pointBorderColor=hex;
+      ds.pointHoverBackgroundColor=hex;
+      ds.backgroundColor=hex+'22';
+    }
+  });
+  ch.update('none');
+}
+G('color-pop-native').addEventListener('input',e=>{
+  const hex=e.target.value;
+  G('color-pop-hex').value=hex;
+  applyColor(hex);
+});
+G('color-pop-hex').addEventListener('input',e=>{
+  const hex=e.target.value.trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(hex)){
+    G('color-pop-native').value=hex;
+    applyColor(hex);
+  }
+});
+G('color-pop-hex').addEventListener('keydown',e=>{if(e.key==='Enter')G('color-pop').classList.remove('open');});
+G('color-pop-close').addEventListener('click',()=>G('color-pop').classList.remove('open'));
+document.addEventListener('click',e=>{
+  if(!G('color-pop').contains(e.target))G('color-pop').classList.remove('open');
+});
 
 /* ─── legend ──────────────────────────────────────────────────── */
 function buildLegend(datasets){
@@ -84,7 +171,14 @@ function buildLegend(datasets){
   datasets.forEach(ds=>{
     const item=document.createElement('div');
     item.className='legend-item';
-    item.innerHTML=`<div class="legend-swatch" style="background:${ds.borderColor}"></div><span>${ds.label}</span>`;
+    const swatch=document.createElement('div');
+    swatch.className='legend-swatch';
+    swatch.style.background=ds.borderColor;
+    const label=document.createElement('span');
+    label.textContent=ds.label;
+    item.appendChild(swatch);item.appendChild(label);
+    item.title='Click to change color';
+    item.addEventListener('click',e=>openColorPop(ds.label,ds.borderColor,swatch,e));
     el.appendChild(item);
   });
 }
@@ -154,7 +248,7 @@ async function load(){
 
     /* 6 ── build chart datasets */
     const datasets=groupNames.map((name,i)=>{
-      const color=COLORS[i%COLORS.length];
+      const color=colorMap[name]||COLORS[i%COLORS.length];
       return{
         label:name,
         data:Array.from({length:numBuckets},(_,b)=>groups[name][b]??null),
