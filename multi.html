@@ -78,7 +78,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
       <div id="timeframe-badge"></div>
-      <div id="version">v9</div>
+      <div id="version">v10</div>
     </div>
   </div>
   <div id="error"></div>
@@ -225,23 +225,74 @@ async function load(){
     const dt=await ws.getSummaryDataAsync({ignoreSelection:true});
     const cols=dt.columns,rows=dt.data;
 
-    /* 3+4 ── column assignment
-       Tableau sends getSummaryDataAsync columns in EXACTLY the Marks card slot order:
-         col[0] = slot A = Measure (KPI)
-         col[1] = slot B = Date
-         col[2] = slot C = Group By  (optional)
-       This is the only reliable source — visual spec API shape varies too much.      */
-    console.log('[MultiLine v8] cols:', cols.map((c,i)=>`[${i}] ${c.fieldName} (${c.dataType})`).join(' | '));
+    /* 3+4 ── resolve columns from visual spec encoding slots
+       The .trex declares encodings with ids: "measure", "date", "group"
+       getVisualSpecificationAsync returns these with fieldList per encoding.
+       We match fieldList[0].fieldName against cols[].fieldName.            */
+    console.log('[MultiLine v10] cols:', cols.map((c,i)=>`[${i}] "${c.fieldName}" (${c.dataType})`).join(' | '));
 
-    if(cols.length<2) return showError('Drag a measure (slot A) and a date (slot B) onto the Marks card.');
+    let measureIdx=-1, dateIdx=-1, groupIdx=-1;
 
-    const measureIdx = 0;           // slot A — always the measure
-    const dateIdx    = 1;           // slot B — always the date
-    const groupIdx   = cols.length>=3 ? 2 : -1;  // slot C — optional group
+    try{
+      const spec = await ws.getVisualSpecificationAsync();
+      console.log('[MultiLine v10] raw spec keys:', Object.keys(spec||{}));
+      const msList = spec?.marksSpecificationList || [];
+      console.log('[MultiLine v10] marksSpecificationList length:', msList.length);
+      if(msList.length>0) console.log('[MultiLine v10] msList[0] keys:', Object.keys(msList[0]||{}));
+
+      const encList = msList[0]?.encodingList || msList[0]?.encodings || [];
+      console.log('[MultiLine v10] encodingList:', JSON.stringify(encList));
+
+      const pickIdx = id => {
+        const enc = encList.find(e => e.id === id);
+        if(!enc) return -1;
+        // Tableau uses fieldList (plural) in viz extensions
+        const fname = enc?.fieldList?.[0]?.fieldName
+                   ?? enc?.fields?.[0]?.fieldName
+                   ?? enc?.field?.fieldName
+                   ?? enc?.fieldName
+                   ?? null;
+        if(!fname) return -1;
+        const idx = cols.findIndex(c => c.fieldName === fname);
+        console.log(`[MultiLine v10] slot "${id}" → fieldName="${fname}" → colIdx=${idx}`);
+        return idx;
+      };
+
+      measureIdx = pickIdx('measure');
+      dateIdx    = pickIdx('date');
+      groupIdx   = pickIdx('group');
+    } catch(e){
+      console.warn('[MultiLine v10] spec failed:', e);
+    }
+
+    // Hard fallback if spec didn't resolve: use dataType
+    if(measureIdx<0){
+      // largest numeric col
+      let best=-1,bestVal=-Infinity;
+      cols.forEach((c,i)=>{
+        if(!['float','real','number','double'].some(t=>c.dataType.toLowerCase().includes(t)))return;
+        let mv=0;rows.forEach(r=>{mv=Math.max(mv,Math.abs(parseFloat(r[i].value)||0));});
+        if(mv>bestVal){bestVal=mv;best=i;}
+      });
+      measureIdx=best;
+      console.warn('[MultiLine v10] measure fallback → col',measureIdx);
+    }
+    if(dateIdx<0){
+      // date col with most distinct months
+      let best=-1,score=-1;
+      cols.forEach((c,i)=>{
+        if(i===measureIdx||!c.dataType.toLowerCase().includes('date'))return;
+        const m=new Set();rows.forEach(r=>{const d=parseDate(r[i].value,r[i].formattedValue);if(!isNaN(d)&&d.getFullYear()>1990)m.add(d.getMonth());});
+        if(m.size>score){score=m.size;best=i;}
+      });
+      dateIdx=best;
+      console.warn('[MultiLine v10] date fallback → col',dateIdx);
+    }
+    // groupIdx stays -1 if not found → single line, that's fine
 
     if(measureIdx<0) return showError('Drag a measure to the "Measure (KPI)" slot on the Marks card.');
     if(dateIdx<0)    return showError('Drag a date field to the "Date" slot on the Marks card.');
-    console.log('[MultiLine v8] → measure:',cols[measureIdx]?.fieldName,' date:',cols[dateIdx]?.fieldName,' group:',cols[groupIdx]?.fieldName);
+    console.log('[MultiLine v10] FINAL → measure:',measureIdx, 'date:',dateIdx, 'group:',groupIdx);
 
     const measureName=cleanName(cols[measureIdx].fieldName);
     G('measure-name').textContent=measureName;
