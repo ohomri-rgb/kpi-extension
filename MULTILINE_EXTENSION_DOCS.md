@@ -53,9 +53,10 @@ Drag fields to the custom encoding slots on the Marks card:
 
 | Slot | Label | What to drag | Notes |
 |---|---|---|---|
-| A | Measure (KPI) | `SUM(Sales)`, any numeric measure | Y axis values |
-| B | Date | Continuous Month date — right-click field → Continuous → Month | X axis bucketing. Must be continuous Month, not discrete, not YEAR() |
+| A | Date | Continuous Month date — right-click field → Continuous → Month | X axis bucketing. Must be continuous Month, not discrete, not YEAR() |
+| B | Measure (KPI) | `SUM(Sales)`, any numeric measure | Y axis values |
 | C | Group By | `Segment`, `YEAR([Order Date])`, any dimension | One line per value. Optional — leave empty for single line |
+| D | BG Color | Any string/dimension field | One swatch per unique value in header — click to assign background color |
 
 ### Parameter
 | Parameter | Type | Values | Purpose |
@@ -71,15 +72,16 @@ Parameter name is case-insensitive. Extension also accepts `timeframe` as an alt
 ---
 
 ## Marks Card — Custom Encodings (`.trex`)
-The `.trex` manifest declares three named encoding slots:
+The `.trex` manifest declares four named encoding slots:
 
 ```xml
-<encoding id="measure">  <!-- Slot A -->
-<encoding id="date">     <!-- Slot B -->
+<encoding id="date">     <!-- Slot A -->
+<encoding id="measure">  <!-- Slot B -->
 <encoding id="group">    <!-- Slot C -->
+<encoding id="bg">       <!-- Slot D -->
 ```
 
-These appear as labelled pill targets on the Marks card (Measure (KPI) / Date / Group By).
+These appear as labelled pill targets on the Marks card (Date / Measure / Group By / BG Color).
 
 ---
 
@@ -87,10 +89,12 @@ These appear as labelled pill targets on the Marks card (Measure (KPI) / Date / 
 
 Three layers, tried in order per column. Each layer only runs if the previous one returned -1.
 
-### Layer 1: Visual Spec (primary — reads A/B/C slots directly)
+Resolution order: **bgIdx is resolved before groupIdx** to prevent the BG Color field from being mistakenly picked as the group.
+
+### Layer 1: Visual Spec (primary — reads A/B/C/D slots directly)
 Calls `getVisualSpecificationAsync()` and reads `marksSpecificationList[0].encodingList`.
 Field name is read from `enc.field.name` — the correct property shape returned by Tableau Cloud.
-Matched exactly against `getSummaryDataAsync` column names.
+Matched exactly against `getSummaryDataAsync` column names. Also tries case-insensitive match as fallback within layer 1.
 
 > **Note:** Earlier versions incorrectly read `enc.fieldList[0].fieldName`, which doesn't exist in the Tableau Cloud API response shape. This caused layer 1 to silently return -1 on every load, making the dataType fallback do all the work (unreliably). Fixed in v19.
 
@@ -102,8 +106,9 @@ Also keeps `fieldList[0].fieldName` as a secondary read for older API versions.
 ### Layer 3: DataType Sniffing
 Safety net only — runs if `getVisualSpecificationAsync` throws entirely.
 - **Measure**: first `float`/`real`/`number`/`double` column; if none, first `integer`/`int` column whose name doesn't match `year|month|quarter|day|week`
-- **Date**: first `date` column that isn't the measure
-- **Group**: any remaining column that is neither measure nor date
+- **Date**: first `date` column that isn't the measure or bgIdx
+- **BG**: first `string`/`text`/`bool` column that isn't measure or date
+- **Group**: any remaining column that is neither measure, date, nor bgIdx
 
 This layer should rarely fire in practice now that layer 1 reads the correct property.
 
@@ -144,7 +149,19 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
 ### 5. Version Badge
 - Top-right corner, yellow background, black text
 - Always visible — used to confirm which version is loaded
-- Format: `v19`, etc.
+- Format: `v21`, etc.
+
+### 6. BG Color Slot (v20+)
+- **Slot D** in the Marks card, labelled "BG Color"
+- Drag any string/dimension field into slot D
+- One **swatch pill per unique value** appears in the top-right header (next to Monthly badge)
+- Clicking a swatch opens the color picker popover labelled `BG: <value>`
+- Picking a color immediately applies it as the extension background
+- Colors persist in `bgColorMap{}` across data reloads
+- If slot D is empty, no swatches appear and background stays white
+- Uses the same color picker popover as the line color editor (`isBg` flag distinguishes the two modes)
+
+> **Note:** Tableau's native color picker cannot be triggered from within an extension. The BG color picker is the extension's own popover — the same one used for line colors.
 
 ---
 
@@ -269,7 +286,9 @@ Applied after v19 to reduce file size without changing behaviour.
 | v16 | Superseded | Fix: entire spec call silently throwing on Tableau Cloud with `he_IL` locale / Hebrew field names. Restored minimal 3-line dataType fallback (layer 3) that runs only when spec returns -1, not as primary logic. |
 | v17 | Superseded | Fix: layer 3 measure fallback missed integer columns (`כמות` / Quantity). Added `integer`/`int` to accepted dataTypes. |
 | v18 | Superseded | Fix: layer 3 integer fallback picking `YEAR(Order Date)` before actual measure. Split into two passes: float first, then integer excluding date-part field names. Added debug build (v18-debug) with `console.log('SPEC:',...)` to capture live API response shape. |
-| v19 | ✅ Current | Root cause fix: layer 1 was reading `enc.fieldList[0].fieldName` which does not exist in Tableau Cloud API response. Correct property is `enc.field.name`. Layer 1 now drives A/B/C slot resolution correctly. Layer 3 retained as safety net only. |
+| v19 | Superseded | Root cause fix: layer 1 was reading `enc.fieldList[0].fieldName` which does not exist in Tableau Cloud API response. Correct property is `enc.field.name`. Layer 1 now drives A/B/C slot resolution correctly. Layer 3 retained as safety net only. |
+| v20 | Superseded | New feature: BG Color slot (D) added to `.trex`. Drag any string field to slot D — unique values appear as swatch pills in the header. Clicking a swatch opens the color picker to assign a background color per value. `bgColorMap{}` persists colors across reloads. `isBg` flag added to `openColorPop()` to distinguish line vs background color mode. |
+| v21 | ✅ Current | Bug fix: `bgIdx` was not being excluded from `groupIdx` fallback resolution, causing the BG Color field to overwrite the Group By slot. Fixed by resolving `bgIdx` before `groupIdx` in layer 3 fallback. Added case-insensitive name matching in `pickIdx` (layer 1/2). Fixed color picker not opening — `document click` listener was closing the popover immediately; now ignores clicks on `.bg-swatch-item` and `.legend-item`. Added `console.log` for resolved column indices (debug aid). |
 
 ---
 
@@ -287,7 +306,8 @@ Applied after v19 to reduce file size without changing behaviour.
 | All slots returning -1 on Tableau Cloud | `getVisualSpecificationAsync` throws silently on `he_IL` locale with Hebrew field names | 3-line dataType fallback as layer 3 (v16) |
 | Layer 1 always returning -1 despite spec succeeding | Code read `enc.fieldList[0].fieldName` — property doesn't exist in Tableau Cloud API; correct property is `enc.field.name` | Read `enc.field.name` first (v19) |
 | Wrong measure selected when multiple integer columns present | Layer 3 integer fallback picked `YEAR(Order Date)` before actual measure | Float-first pass + exclude date-part field names from integer pass (v18) |
-| .trex parse error: extension-mode | Not a valid attribute in manifest schema 0.1 | Removed extension-mode attribute (v1 trex fix) |
+| BGcolor field overwriting Group By | `bgIdx` not excluded from `groupIdx` fallback — both resolved to same string column | Resolve `bgIdx` before `groupIdx` in layer 3; exclude `bgIdx` from group fallback (v21) |
+| BG color picker not opening | `document click` listener fired immediately after swatch click, closing popover before it opened | Ignore clicks on `.bg-swatch-item` and `.legend-item` in outside-click handler (v21) |
 | .trex parse error: allowed-types | Not declared for encoding element | Removed allowed-types from all encoding elements (v1 trex fix) |
 | GitHub caching | Browser cached old HTML | no-cache meta headers |
 
@@ -312,10 +332,12 @@ The extension will then fall back to dataType sniffing silently and render norma
 1. Push files to GitHub repo
 2. Whitelist exact HTML URL in Tableau Cloud Settings → Extensions
 3. Load `multiline_cloud.trex` in workbook
-4. Confirm version badge shows **v19**
-5. Drag `SUM(measure)` → slot A
-6. Drag a **continuous Month** date → slot B (right-click pill → Continuous → Month)
-7. Drag a dimension → slot C (optional)
-8. Set Parameter 1 to `month` or `quarter`
-9. Verify correct number of lines matches distinct group values
-10. Test color picker: click legend swatch → line + dots + tooltip swatch should all update
+4. Confirm version badge shows **v21**
+5. Drag `SUM(measure)` → slot B
+6. Drag a **continuous Month** date → slot A (right-click pill → Continuous → Month)
+7. Drag a dimension → slot C (optional — one line per value)
+8. Drag a string/dimension field → slot D (optional — enables BG color picker swatches in header)
+9. Set Parameter 1 to `month` or `quarter`
+10. Verify correct number of lines matches distinct group values
+11. Test line color picker: click legend swatch → line + dots + tooltip swatch should all update
+12. Test BG color picker: click swatch pill in header → background color updates live
