@@ -51,7 +51,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div style="display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v28</div>
+      <div id="version">v29</div>
     </div>
   </div>
   <div id="error"></div>
@@ -271,13 +271,13 @@ async function load() {
         plugins: {
           legend: {display:false},
           tooltip: {
-            rtl: true, textDirection: 'rtl',
             titleAlign: 'right', bodyAlign: 'right',
             backgroundColor: '#fff', borderColor: '#e5e7eb', borderWidth: 1,
             titleColor: '#374151', titleFont: {size:12, weight:'600', family:"'DM Sans',sans-serif"},
             bodyColor: '#374151', bodyFont: {size:12, family:"'DM Sans',sans-serif"},
             padding: 10, boxPadding: 5,
             callbacks: {
+              title: items => items.length ? items[0].label : '',
               label: ctx => ctx.raw == null ? null : `${fmt(ctx.raw)} :${ctx.dataset.label}`,
               labelColor: ctx => {
                 const c = ctx.dataset.borderColor || COLORS[ctx.datasetIndex % COLORS.length];
