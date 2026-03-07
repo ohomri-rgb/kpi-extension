@@ -134,7 +134,10 @@ G('color-pop-hex').addEventListener('input', e => {
 });
 G('color-pop-hex').addEventListener('keydown', e => { if (e.key === 'Enter') G('color-pop').classList.remove('open'); });
 G('color-pop-close').addEventListener('click', () => G('color-pop').classList.remove('open'));
-document.addEventListener('click', e => { if (!G('color-pop').contains(e.target)) G('color-pop').classList.remove('open'); });
+document.addEventListener('click', e => { 
+  if (!G('color-pop').contains(e.target) && !e.target.closest('.bg-swatch-item') && !e.target.closest('.legend-item')) 
+    G('color-pop').classList.remove('open'); 
+});
 
 /* ── bg legend (header swatches for BG slot values) ── */
 function buildBgLegend(bgValues) {
@@ -202,8 +205,8 @@ async function load() {
 
     if (measureIdx < 0) measureIdx = cols.findIndex(c => ['float','real','number','double'].some(t => c.dataType.toLowerCase().includes(t)));
     if (measureIdx < 0) measureIdx = cols.findIndex(c => ['integer','int'].some(t => c.dataType.toLowerCase().includes(t)) && !/year|month|quarter|day|week/i.test(c.fieldName));
-    if (dateIdx < 0)    dateIdx    = cols.findIndex((c,i) => i !== measureIdx && c.dataType.toLowerCase().includes('date'));
-    if (groupIdx < 0)   groupIdx   = cols.findIndex((_,i) => i !== measureIdx && i !== dateIdx);
+    if (dateIdx < 0)    dateIdx    = cols.findIndex((c,i) => i !== measureIdx && i !== bgIdx && c.dataType.toLowerCase().includes('date'));
+    if (groupIdx < 0)   groupIdx   = cols.findIndex((_,i) => i !== measureIdx && i !== dateIdx && i !== bgIdx);
 
     if (measureIdx < 0) return showError('No numeric measure found. Drag a measure to the Measure (KPI) slot.');
     if (dateIdx < 0)    return showError('No date column found. Drag a continuous Month date to the Date slot.');
