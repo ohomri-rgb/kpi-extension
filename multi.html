@@ -78,7 +78,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px">
       <div id="timeframe-badge"></div>
-      <div id="version">v12</div>
+      <div id="version">v13</div>
     </div>
   </div>
   <div id="error"></div>
@@ -155,21 +155,31 @@ function applyColor(hex){
         if(meta.dataset&&meta.dataset.options){
           meta.dataset.options.borderColor=hex;
           meta.dataset.options.backgroundColor=hex+'22';
+          meta.dataset.options.hoverBorderColor=hex;
         }
-        // Point elements
+        // Point elements — patch all cached style properties
         if(meta.data){
           meta.data.forEach(el=>{
             if(el&&el.options){
               el.options.backgroundColor=hex;
               el.options.borderColor='#fff';
               el.options.hoverBackgroundColor=hex;
+              el.options.hoverBorderColor='#fff';
+              // Chart.js v4 stores hover styles here too
+              if(el.$context) el.$context.raw; // force context refresh
             }
           });
         }
       }
     }
   });
-  ch.draw();
+  // Reset Chart.js element option cache so hover states also pick up new colors
+  ch.data.datasets.forEach((_,i)=>{
+    const meta=ch.getDatasetMeta(i);
+    if(meta&&meta.data) meta.data.forEach(el=>{if(el._options)el._options=null;});
+    if(meta&&meta.dataset&&meta.dataset._options) meta.dataset._options=null;
+  });
+  ch.update('none');
 }
 G('color-pop-native').addEventListener('input',e=>{
   const hex=e.target.value;
