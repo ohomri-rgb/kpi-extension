@@ -107,64 +107,32 @@ async function load(){
     const dt=await ws.getSummaryDataAsync({ignoreSelection:true});
     const cols=dt.columns,rows=dt.data;
 
-    /* 3 ── try visual spec for encoding→field mapping */
-    let measureFieldName=null,dateFieldName=null,groupFieldName=null;
-    try{
-      const spec=await ws.getVisualSpecificationAsync();
-      if(spec&&spec.marksEncoding){
-        const enc=spec.marksEncoding;
-        const pick=id=>{
-          // handles both array and object-style marksEncoding
-          if(Array.isArray(enc)){const e=enc.find(e=>e.id===id);return e?.fields?.[0]?.fieldName||e?.field?.fieldName||null;}
-          if(enc[id]){const e=enc[id];return e?.fields?.[0]?.fieldName||e?.field?.fieldName||null;}
-          return null;
-        };
-        measureFieldName=pick('measure');
-        dateFieldName=pick('date');
-        groupFieldName=pick('group');
+    /* 3 ── read encoding slots from visual spec (what user dragged to Marks card) */
+    const spec=await ws.getVisualSpecificationAsync();
+    const enc=spec?.marksSpecificationList?.[0]?.encodingList||spec?.marksEncoding||[];
+    const pickField=id=>{
+      if(Array.isArray(enc)){
+        const e=enc.find(e=>(e.id||e.vizEncoding)===id);
+        return e?.fields?.[0]?.fieldName??e?.field?.fieldName??null;
       }
-    }catch(specErr){
-      console.warn('getVisualSpecificationAsync unavailable, falling back to auto-detect:',specErr);
-    }
-
-    /* 4 ── column index resolution (encoding → fallback auto-detect) */
-    const colIdx=(fieldName,fallbackFn)=>{
-      if(fieldName){const i=cols.findIndex(c=>c.fieldName===fieldName);if(i>=0)return i;}
-      return fallbackFn();
+      return enc[id]?.fields?.[0]?.fieldName??enc[id]?.field?.fieldName??null;
     };
+    const measureFieldName=pickField('measure');
+    const dateFieldName=pickField('date');
+    const groupFieldName=pickField('group');
 
-    const dateIdx=colIdx(dateFieldName,()=>{
-      let i=cols.findIndex(c=>c.fieldName.toLowerCase()==='truncated');
-      if(i<0)i=cols.findIndex(c=>c.dataType.toLowerCase().includes('date'));
-      return i;
-    });
+    // Require measure + date; group is optional (single line if omitted)
+    if(!measureFieldName) return showError('Drag a measure to the "Measure (KPI)" slot on the Marks card.');
+    if(!dateFieldName)    return showError('Drag a date field to the "Date" slot on the Marks card.');
 
-    const measureIdx=colIdx(measureFieldName,()=>{
-      let best=-1,maxVal=-Infinity;
-      cols.forEach((c,i)=>{
-        if(i===dateIdx)return;
-        if(!['float','int','real','integer','number'].some(t=>c.dataType.toLowerCase().includes(t)))return;
-        let mv=0;rows.forEach(r=>{mv=Math.max(mv,Math.abs(parseFloat(r[i].value)||0));});
-        if(mv>maxVal){maxVal=mv;best=i;}
-      });
-      return best;
-    });
+    /* 4 ── resolve column indices by exact field name */
+    const findCol=name=>cols.findIndex(c=>c.fieldName===name);
+    const dateIdx=findCol(dateFieldName);
+    const measureIdx=findCol(measureFieldName);
+    const groupIdx=groupFieldName?findCol(groupFieldName):-1;
 
-    const groupIdx=colIdx(groupFieldName,()=>{
-      // Prefer string/bool dims (Segment, Category), but also accept integer dims like YEAR()
-      const strIdx=cols.findIndex((c,i)=>
-        i!==dateIdx&&i!==measureIdx&&
-        ['string','bool','boolean','wstring','unicode_string','date_string'].some(t=>c.dataType.toLowerCase().includes(t))
-      );
-      if(strIdx>=0)return strIdx;
-      // fallback: any remaining col that isn't date or measure (catches YEAR() = integer)
-      return cols.findIndex((_,i)=>i!==dateIdx&&i!==measureIdx);
-    });
-
-    if(dateIdx<0||measureIdx<0){
-      showError('Cannot identify date or measure columns. Place a date field and a measure on the Marks card.');
-      return;
-    }
+    if(dateIdx<0)    return showError(`Date column "${dateFieldName}" not found in query results.`);
+    if(measureIdx<0) return showError(`Measure column "${measureFieldName}" not found in query results.`);
 
     const measureName=cleanName(cols[measureIdx].fieldName);
     G('measure-name').textContent=measureName;
