@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>Year-over-Year Chart</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<script src="tableau.extensions.js"></script>
+<script src="chart.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM Sans',sans-serif}
+#app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease}
+#header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;direction:rtl}
+#measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;direction:rtl;text-align:right}
+#badges{display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0}
+#timeframe-badge{font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;background:#eef2ff;border-radius:4px;padding:2px 7px}
+#error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0}
+#chart-wrap{flex:1;min-height:0;position:relative}
+#legend-wrap{display:flex;flex-shrink:0;gap:10px;flex-direction:column;padding-top:2px}
+#legend-lines{display:flex;flex-wrap:wrap;gap:4px 14px;min-height:16px}
+#legend-years{display:flex;flex-wrap:wrap;gap:4px 12px;min-height:0}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer}
+.legend-swatch{width:20px;height:2.5px;border-radius:2px;flex-shrink:0}
+.legend-swatch.dashed{background:repeating-linear-gradient(to right,currentColor 0,currentColor 5px,transparent 5px,transparent 9px);height:2px}
+.legend-item:hover .legend-swatch{outline:2px solid #6366f1;outline-offset:2px}
+.legend-year-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#9ca3af;font-weight:400}
+.year-line-demo{width:22px;height:2px;background:#9ca3af;flex-shrink:0}
+.year-line-demo.y1{background:#374151}
+.year-line-demo.y2{background:repeating-linear-gradient(to right,#374151 0,#374151 6px,transparent 6px,transparent 10px)}
+.year-line-demo.y3{background:repeating-linear-gradient(to right,#374151 0,#374151 3px,transparent 3px,transparent 6px)}
+#version{font-size:11px;font-weight:700;color:#111;background:#facc15;border-radius:4px;padding:2px 7px;flex-shrink:0;letter-spacing:.03em}
+#color-pop{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:12px 14px 10px;min-width:180px;display:none;flex-direction:column;gap:8px}
+#color-pop.open{display:flex}
+#color-pop-label{font-size:11px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#color-pop-row{display:flex;align-items:center;gap:8px}
+#color-pop-native{width:32px;height:32px;border:none;padding:0;border-radius:6px;cursor:pointer;flex-shrink:0;background:none}
+#color-pop-hex{flex:1;font-size:12px;font-family:'DM Sans',monospace;border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;color:#111;outline:none}
+#color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
+#color-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
+#color-pop-close:hover{color:#374151}
+#bg-legend{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.bg-swatch-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:2px 7px;transition:border-color .15s}
+.bg-swatch-item:hover{border-color:#6366f1;color:#6366f1}
+.bg-swatch-dot{width:12px;height:12px;border-radius:3px;border:1px solid #d1d5db;flex-shrink:0}
+</style>
+</head><body>
+<div id="color-pop">
+  <button id="color-pop-close">✕</button>
+  <div id="color-pop-label"></div>
+  <div id="color-pop-row">
+    <input type="color" id="color-pop-native"/>
+    <input type="text" id="color-pop-hex" maxlength="7" placeholder="#6366f1"/>
+  </div>
+</div>
+<div id="app">
+  <div id="header">
+    <div id="measure-name"></div>
+    <div id="badges">
+      <div id="bg-legend"></div>
+      <div id="timeframe-badge"></div>
+      <div id="version">v1</div>
+    </div>
+  </div>
+  <div id="error"></div>
+  <div id="chart-wrap"><canvas id="ch"></canvas></div>
+  <div id="legend-wrap">
+    <div id="legend-lines"></div>
+    <div id="legend-years"></div>
+  </div>
+</div>
+<script>
+const G = id => document.getElementById(id);
+const fmt = n => n != null ? n.toLocaleString('en-US', {notation:'compact', maximumFractionDigits:1}) : '—';
+const cleanName = s => s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
+const getParam = (params, name) => {
+  const p = params.find(p => p.name.toLowerCase() === name.toLowerCase());
+  return p ? String(p.currentValue.value || p.currentValue.formattedValue || '').trim() : '';
+};
+
+const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#f97316','#14b8a6','#ec4899','#06b6d4'];
+// Dash patterns: solid, long-dash, short-dot, dash-dot
+const YEAR_DASHES = [[], [8,4], [3,3], [8,4,3,4], [12,3,3,3]];
+const MONTH_LABELS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const QUARTER_LABELS = ['רבעון 1','רבעון 2','רבעון 3','רבעון 4'];
+
+let ch = null, ws = null, timer = null, firstLoad = true;
+const LS_LINE = 'yoy_colorMap', LS_BG = 'yoy_bgColorMap';
+const colorMap   = JSON.parse(localStorage.getItem(LS_LINE) || '{}');
+const bgColorMap = JSON.parse(localStorage.getItem(LS_BG)  || '{}');
+let _activeBgValue = null;
+
+/* ── color popover ── */
+let _popTarget = null;
+
+function openColorPop(label, currentColor, swatchEl, isBg, e) {
+  e.stopPropagation();
+  _popTarget = {label, swatchEl, isBg};
+  G('color-pop-label').textContent = isBg ? `BG: ${label}` : label;
+  G('color-pop-native').value = G('color-pop-hex').value = currentColor;
+  const pop = G('color-pop'), vw = window.innerWidth, vh = window.innerHeight;
+  let x = e.clientX + 8, y = e.clientY + 8;
+  if (x + 190 > vw) x = e.clientX - 190;
+  if (y + 90 > vh) y = e.clientY - 90;
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  pop.classList.add('open');
+}
+
+function applyColor(hex) {
+  if (!_popTarget) return;
+  const {label, swatchEl, isBg} = _popTarget;
+  swatchEl.style.background = hex;
+  if (isBg) {
+    bgColorMap[label] = hex;
+    localStorage.setItem(LS_BG, JSON.stringify(bgColorMap));
+    applyBgFromMap();
+    return;
+  }
+  if (!ch) return;
+  colorMap[label] = hex;
+  localStorage.setItem(LS_LINE, JSON.stringify(colorMap));
+  ch.data.datasets.forEach((ds, i) => {
+    if (ds.label === label) {
+      ds.borderColor = ds.pointBackgroundColor = ds.pointHoverBackgroundColor = hex;
+      ds.backgroundColor = hex + '22';
+    }
+    const meta = ch.getDatasetMeta(i);
+    if (meta?.data) meta.data.forEach(el => { el._options = null; });
+    if (meta?.dataset) meta.dataset._options = null;
+  });
+  ch.update();
+}
+
+function applyBgFromMap() {
+  const keys = Object.keys(bgColorMap);
+  const color = keys.length ? (bgColorMap[_activeBgValue] || bgColorMap[keys[0]] || '#ffffff') : '#ffffff';
+  document.body.style.background = color;
+  G('app').style.background = color;
+}
+
+G('color-pop-native').addEventListener('input', e => {
+  G('color-pop-hex').value = e.target.value;
+  applyColor(e.target.value);
+});
+G('color-pop-hex').addEventListener('input', e => {
+  const hex = e.target.value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) { G('color-pop-native').value = hex; applyColor(hex); }
+});
+G('color-pop-hex').addEventListener('keydown', e => { if (e.key === 'Enter') G('color-pop').classList.remove('open'); });
+G('color-pop-close').addEventListener('click', () => G('color-pop').classList.remove('open'));
+document.addEventListener('click', e => {
+  if (!G('color-pop').contains(e.target) && !e.target.closest('.bg-swatch-item') && !e.target.closest('.legend-item'))
+    G('color-pop').classList.remove('open');
+});
+
+/* ── bg legend ── */
+function buildBgLegend(bgValues) {
+  const el = G('bg-legend');
+  if (!bgValues.length) { el.innerHTML = ''; return; }
+  el.innerHTML = bgValues.map(v => {
+    const color = bgColorMap[v] || '#ffffff';
+    return `<div class="bg-swatch-item" data-val="${v}" title="Set background color for: ${v}">
+      <div class="bg-swatch-dot" style="background:${color}"></div>
+      <span>${v}</span>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.bg-swatch-item').forEach(item => {
+    const val = item.dataset.val;
+    item.addEventListener('click', e =>
+      openColorPop(val, bgColorMap[val] || '#ffffff', item.querySelector('.bg-swatch-dot'), true, e)
+    );
+  });
+}
+
+/* ── legend: dimension lines + year dash guide ── */
+function buildLegend(datasets, years, hasDimension) {
+  // Line color legend (by dimension or by year if no dimension)
+  const seen = new Set();
+  const dimDatasets = datasets.filter(ds => {
+    const key = hasDimension ? ds._dimKey : ds.label;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  G('legend-lines').innerHTML = dimDatasets.map(ds => {
+    const label = hasDimension ? ds._dimKey : ds.label;
+    return `<div class="legend-item" data-label="${label}" title="Click to change color">
+      <div class="legend-swatch" style="background:${ds.borderColor}"></div>
+      <span>${label}</span>
+    </div>`;
+  }).join('');
+  G('legend-lines').querySelectorAll('.legend-item').forEach(item => {
+    const label = item.dataset.label;
+    const ds = dimDatasets.find(d => (hasDimension ? d._dimKey : d.label) === label);
+    item.addEventListener('click', e =>
+      openColorPop(label, ds.borderColor, item.querySelector('.legend-swatch'), false, e)
+    );
+  });
+
+  // Year dash-pattern guide (only shown when dimension is used)
+  if (hasDimension && years.length > 1) {
+    const sortedYears = [...years].sort((a,b) => b - a); // newest first
+    G('legend-years').innerHTML = sortedYears.map((yr, i) => {
+      const dash = YEAR_DASHES[i] || YEAR_DASHES[YEAR_DASHES.length - 1];
+      const demoStyle = dash.length === 0
+        ? 'background:#374151'
+        : `background:repeating-linear-gradient(to right,#374151 0,#374151 ${dash[0]}px,transparent ${dash[0]}px,transparent ${dash[0]+dash[1]}px)`;
+      return `<div class="legend-year-item">
+        <div class="year-line-demo" style="${demoStyle}"></div>
+        <span>${yr}</span>
+      </div>`;
+    }).join('');
+  } else {
+    G('legend-years').innerHTML = '';
+  }
+}
+
+/* ── main load ── */
+async function load() {
+  if (ch) { ch.destroy(); ch = null; }
+  G('error').style.display = 'none';
+  try {
+    const params = await ws.getParametersAsync();
+    const timeframe = (getParam(params,'Parameter 1') || getParam(params,'timeframe') || 'month').toLowerCase().trim();
+    const isQuarter = timeframe === 'quarter';
+    const xLabels = isQuarter ? QUARTER_LABELS : MONTH_LABELS;
+    const numBuckets = xLabels.length;
+    G('timeframe-badge').textContent = isQuarter ? 'רבעוני' : 'חודשי';
+
+    const dt = await ws.getSummaryDataAsync({ignoreSelection:true});
+    const cols = dt.columns, rows = dt.data;
+
+    let measureIdx = -1, dateIdx = -1, dimensionIdx = -1, bgIdx = -1;
+    try {
+      const spec = await ws.getVisualSpecificationAsync();
+      const encList = spec?.marksSpecificationList?.[0]?.encodingList || [];
+      const pickIdx = id => {
+        const enc = encList.find(e => e.id === id);
+        const fname = enc?.field?.name ?? enc?.fieldList?.[0]?.fieldName ?? null;
+        if (!fname) return -1;
+        let idx = cols.findIndex(c => c.fieldName === fname);
+        if (idx < 0) idx = cols.findIndex(c => c.fieldName === cleanName(fname));
+        if (idx < 0) idx = cols.findIndex(c => c.fieldName.toLowerCase() === fname.toLowerCase());
+        if (idx < 0) idx = cols.findIndex(c => c.fieldName.toLowerCase() === cleanName(fname).toLowerCase());
+        return idx;
+      };
+      measureIdx = pickIdx('measure');
+      dateIdx    = pickIdx('date');
+      dimensionIdx = pickIdx('dimension');
+      bgIdx      = pickIdx('bg');
+    } catch(e) { console.warn('spec failed:', e); }
+
+    // Fallback: dataType sniffing
+    if (measureIdx < 0) measureIdx = cols.findIndex(c => ['float','real','number','double'].some(t => c.dataType.toLowerCase().includes(t)));
+    if (measureIdx < 0) measureIdx = cols.findIndex(c => ['integer','int'].some(t => c.dataType.toLowerCase().includes(t)) && !/year|month|quarter|day|week/i.test(c.fieldName));
+    if (dateIdx < 0)    dateIdx    = cols.findIndex((c,i) => i !== measureIdx && i !== bgIdx && c.dataType.toLowerCase().includes('date'));
+    if (bgIdx < 0)      bgIdx      = cols.findIndex((c,i) => i !== measureIdx && i !== dateIdx && ['string','str','char','text','bool','boolean'].some(t => c.dataType.toLowerCase().includes(t)));
+    if (dimensionIdx < 0) dimensionIdx = cols.findIndex((_,i) => i !== measureIdx && i !== dateIdx && i !== bgIdx);
+
+    if (measureIdx < 0) return showError('לא נמצא מדד. גרור מדד מספרי לחריץ Measure.');
+    if (dateIdx < 0)    return showError('לא נמצאה עמודת תאריך. גרור שדה תאריך רציף (Month) לחריץ Date.');
+    console.log('YoY idx → measure:', measureIdx, cols[measureIdx]?.fieldName, '| date:', dateIdx, cols[dateIdx]?.fieldName, '| dimension:', dimensionIdx, cols[dimensionIdx]?.fieldName, '| bg:', bgIdx, cols[bgIdx]?.fieldName);
+
+    const measureName = cleanName(cols[measureIdx].fieldName);
+    G('measure-name').textContent = measureName;
+
+    // ── Aggregate: group by {dimension}×{year}, bucket by month/quarter ──
+    const groups = {};   // key → {bucket: sumValue}
+    const yearSet = new Set();
+    const dimSet  = new Set();
+
+    rows.forEach(r => {
+      const d = new Date(r[dateIdx].value);
+      if (isNaN(d) || d.getFullYear() < 1990) return;
+      const year   = d.getFullYear();
+      const bucket = isQuarter ? Math.floor(d.getMonth() / 3) : d.getMonth();
+      const val    = parseFloat(r[measureIdx].value) || 0;
+      yearSet.add(year);
+
+      let key, dimLabel;
+      if (dimensionIdx >= 0) {
+        dimLabel = r[dimensionIdx].formattedValue || r[dimensionIdx].value || '(blank)';
+        dimSet.add(dimLabel);
+        key = `${dimLabel} • ${year}`;
+      } else {
+        key = String(year);
+      }
+
+      if (!groups[key]) groups[key] = {};
+      groups[key][bucket] = (groups[key][bucket] || 0) + val;
+    });
+
+    const years = [...yearSet].sort((a,b) => a - b);
+    const dims  = [...dimSet];
+    const hasDimension = dims.length > 0;
+
+    // ── BG slot ──
+    const bgValues = [];
+    if (bgIdx >= 0) {
+      rows.forEach(r => {
+        const v = r[bgIdx].formattedValue || r[bgIdx].value || '(blank)';
+        if (!bgValues.includes(v)) bgValues.push(v);
+      });
+      _activeBgValue = bgValues[0] || null;
+      applyBgFromMap();
+    } else {
+      _activeBgValue = null;
+    }
+    buildBgLegend(bgValues);
+
+    if (!Object.keys(groups).length) return showError('אין נתונים. בדוק פילטרים וקונפיגורציה.');
+
+    // ── Build Chart.js datasets ──
+    // Sort keys: by dimension name first, then year ascending
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      if (hasDimension) {
+        const [dimA, yrA] = a.split(' • ');
+        const [dimB, yrB] = b.split(' • ');
+        if (dimA !== dimB) return dimA.localeCompare(dimB);
+        return parseInt(yrA) - parseInt(yrB);
+      }
+      return parseInt(a) - parseInt(b);
+    });
+
+    // Newest year = solid line, older years = dashed (in reverse order)
+    const sortedYearsDesc = [...years].sort((a,b) => b - a);
+
+    const datasets = sortedKeys.map(key => {
+      let color, dash, dimKey;
+      if (hasDimension) {
+        const lastDot = key.lastIndexOf(' • ');
+        dimKey = key.slice(0, lastDot);
+        const yr = parseInt(key.slice(lastDot + 3));
+        const dimIdx  = dims.indexOf(dimKey);
+        const yearRank = sortedYearsDesc.indexOf(yr); // 0=newest=solid
+        color = colorMap[dimKey] || COLORS[dimIdx % COLORS.length];
+        dash  = YEAR_DASHES[yearRank] || YEAR_DASHES[YEAR_DASHES.length - 1];
+      } else {
+        const yr = parseInt(key);
+        const yearRank = sortedYearsDesc.indexOf(yr);
+        color = colorMap[key] || COLORS[yearRank % COLORS.length];
+        dash  = [];
+        dimKey = key;
+      }
+      return {
+        label: key,
+        _dimKey: dimKey,
+        data: Array.from({length: numBuckets}, (_, b) => groups[key][b] ?? null),
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2.5,
+        borderDash: dash,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+        tension: 0.3,
+        fill: false,
+        spanGaps: false,
+      };
+    });
+
+    buildLegend(datasets, years, hasDimension);
+
+    G('chart-wrap').innerHTML = '<canvas id="ch"></canvas>';
+    ch = new Chart(G('ch'), {
+      type: 'line',
+      data: {labels: xLabels, datasets},
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {mode:'index', intersect:false},
+        plugins: {
+          legend: {display:false},
+          tooltip: {
+            titleAlign: 'right', bodyAlign: 'right',
+            backgroundColor: '#fff', borderColor: '#e5e7eb', borderWidth: 1,
+            titleColor: '#374151', titleFont: {size:12, weight:'600', family:"'DM Sans',sans-serif"},
+            bodyColor: '#374151', bodyFont: {size:12, family:"'DM Sans',sans-serif"},
+            padding: 10, boxPadding: 5,
+            callbacks: {
+              title: items => items.length ? items[0].label : '',
+              label: ctx => ctx.raw == null ? null : `${fmt(ctx.raw)}  ${ctx.dataset.label}`,
+              labelColor: ctx => {
+                const c = ctx.dataset.borderColor || COLORS[ctx.datasetIndex % COLORS.length];
+                return {borderColor:c, backgroundColor:c, borderWidth:2, borderRadius:2};
+              }
+            }
+          }
+        },
+        scales: {
+          x: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,weight:'500',family:"'DM Sans',sans-serif"}, padding:6}},
+          y: {grid:{color:'#f3f4f6',drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,family:"'DM Sans',sans-serif"}, callback:v=>fmt(v), maxTicksLimit:6, padding:8}}
+        }
+      }
+    });
+
+    if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
+  } catch(e) {
+    console.error('YoY error:', e);
+    showError(e.message || 'Unknown error — check the browser console.');
+  }
+}
+
+function showError(msg) {
+  G('error').textContent = msg; G('error').style.display = 'block';
+  if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
+}
+
+const debouncedLoad = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
+
+window.addEventListener('storage', e => {
+  if (e.key === LS_LINE && e.newValue) {
+    const updated = JSON.parse(e.newValue);
+    Object.assign(colorMap, updated);
+    if (ch) {
+      ch.data.datasets.forEach((ds, i) => {
+        const key = ds._dimKey || ds.label;
+        if (colorMap[key]) {
+          const hex = colorMap[key];
+          ds.borderColor = ds.pointHoverBackgroundColor = hex;
+          ds.backgroundColor = hex + '22';
+          const meta = ch.getDatasetMeta(i);
+          if (meta?.data) meta.data.forEach(el => { el._options = null; });
+          if (meta?.dataset) meta.dataset._options = null;
+        }
+      });
+      ch.update();
+    }
+  }
+  if (e.key === LS_BG && e.newValue) {
+    Object.assign(bgColorMap, JSON.parse(e.newValue));
+    applyBgFromMap();
+  }
+});
+
+async function init() {
+  if (typeof tableau === 'undefined') { setTimeout(init, 50); return; }
+  await tableau.extensions.initializeAsync();
+  ws = tableau.extensions.worksheetContent.worksheet;
+  load();
+  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, debouncedLoad);
+  try {
+    const params = await ws.getParametersAsync();
+    params.forEach(p => p.addEventListener(tableau.TableauEventType.ParameterChanged, debouncedLoad));
+  } catch(e) { console.warn('Param listener failed:', e); }
+}
+window.onload = init;
+</script>
+</body></html>
