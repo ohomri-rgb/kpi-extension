@@ -1,22 +1,18 @@
 tableau.extensions.initializeAsync().then(() => {
     const worksheet = tableau.extensions.worksheetContent.worksheet;
 
-    // פונקציית ציור מחדש
     const render = () => {
         worksheet.getSummaryDataAsync().then(dataTable => {
-            const fieldMap = {};
-            dataTable.columns.forEach((col, i) => fieldMap[col.fieldName] = i);
-
-            // עיבוד נתונים דינמי
-            const rawData = dataTable.data.map(row => ({
+            // עיבוד נתונים דינמי לפי עמודות
+            const data = dataTable.data.map(row => ({
                 date: new Date(row[0].value), // תאריך
                 key: row[1].value,           // קטגוריה (למשל Country)
-                value: parseFloat(row[2].value) || 0 // ערך מספרי
+                value: parseFloat(row[2].value) || 0 // ערך
             }));
 
-            // מיון חובה לציר זמן תקין
-            rawData.sort((a, b) => a.date - b.date);
-            buildStreamgraph(rawData);
+            // מיון כרונולוגי חובה למניעת ה"משולש"
+            data.sort((a, b) => a.date - b.date);
+            buildChart(data);
         });
     };
 
@@ -24,14 +20,15 @@ tableau.extensions.initializeAsync().then(() => {
     worksheet.addEventListener(tableau.TableauEventType.FilterChanged, render);
 });
 
-function buildStreamgraph(data) {
-    d3.select("#chart").selectAll("*").remove();
+function buildChart(data) {
+    const container = d3.select("#chart");
+    container.selectAll("*").remove();
 
     const margin = {top: 20, right: 30, bottom: 40, left: 30};
     const width = window.innerWidth - margin.left - margin.right;
     const height = window.innerHeight - margin.top - margin.bottom;
 
-    const svg = d3.select("#chart").append("svg")
+    const svg = container.append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
         .append("g")
@@ -40,18 +37,17 @@ function buildStreamgraph(data) {
     const keys = Array.from(new Set(data.map(d => d.key)));
     const dates = Array.from(new Set(data.map(d => d.date.getTime()))).sort().map(t => new Date(t));
 
-    // יצירת מבנה הנתונים ל-D3 Stack
+    // הכנת הנתונים למבנה Stacked
     const stackedData = dates.map(d => {
         const obj = { date: d };
         keys.forEach(k => {
-            const found = data.find(item => item.date.getTime() === d.getTime() && item.key === k);
-            obj[k] = found ? found.value : 0;
+            const entry = data.find(i => i.date.getTime() === d.getTime() && i.key === k);
+            obj[k] = entry ? entry.value : 0;
         });
         return obj;
     });
 
-    const stack = d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut);
-    const layers = stack(stackedData);
+    const layers = d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut)(stackedData);
 
     const x = d3.scaleTime().domain(d3.extent(dates)).range([0, width]);
     const y = d3.scaleLinear()
@@ -64,19 +60,19 @@ function buildStreamgraph(data) {
         .x(d => x(d.data.date))
         .y0(d => y(d[0]))
         .y1(d => y(d[1]))
-        .curve(d3.curveBasis);
+        .curve(d3.curveBasis); // מייצר את המראה הגלי החלק
 
     svg.selectAll("path")
         .data(layers)
         .join("path")
         .attr("d", area)
         .attr("fill", d => color(d.key))
-        .attr("opacity", 0.8)
+        .attr("opacity", 0.9)
         .append("title").text(d => d.key);
 
-    // הוספת ציר זמן בסיסי
+    // הוספת ציר זמן
     svg.append("g")
         .attr("transform", `translate(0,${height})`)
         .call(d3.axisBottom(x).ticks(5))
-        .attr("class", "axis-text");
+        .attr("class", "axis-label");
 }
