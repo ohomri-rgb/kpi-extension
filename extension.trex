@@ -2,16 +2,20 @@
 <manifest xmlns="http://www.tableau.com/xml/extension_manifest" manifest-version="1.0">
   <worksheet-extension id="com.example.streamgraph.viz" extension-version="1.0.0">
     <default-locale>en-US</default-locale>
-    <name>D3 Streamgraph</name>
-    <description>Custom Streamgraph for Tableau</description>
+    <name resource-id="name"/>
+    <description resource-id="description"/>
     <author name="Gemini" email="support@example.com" organization="AI" website="https://example.com"/>
     <min-api-version>2.0</min-api-version>
     <source-location>
-    <url>https://ohomri-rgb.github.io/kpi-extension/index.html</url>
+       <url>https://ohomri-rgb.github.io/kpi-extension/index.html</url>
     </source-location>
     <icon></icon>
-    <capabilities>
-      <visual-extension/>
-    </capabilities>
+    <permissions>
+      <permission>full data</permission>
+    </permissions>
   </worksheet-extension>
+  <resources>
+    <resource id="name"><text locale="en-US">Streamgraph Viz</text></resource>
+    <resource id="description"><text locale="en-US">Custom D3 Streamgraph for Tableau</text></resource>
+  </resources>
 </manifest>
