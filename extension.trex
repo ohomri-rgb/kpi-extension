@@ -1,19 +1,18 @@
+
 <?xml version="1.0" encoding="utf-8"?>
-<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
-  <worksheet-extension id="com.dataviz.kpi-38" extension-version="1.0.0">
+<manifest xmlns="http://www.tableau.com/xml/extension_manifest" manifest-version="1.0">
+  <worksheet-extension id="com.example.streamgraph.viz" extension-version="1.0.0">
     <default-locale>en-US</default-locale>
-    <name resource-id="name"/>
-    <description resource-id="description"/>
-    <author name="TESTViz" email="info@TEST.com" organization="TESTViz" website="https://testviz.com"/>
-    <min-api-version>1.7</min-api-version>
+    <name>D3 Streamgraph</name>
+    <description>Custom Streamgraph for Tableau</description>
+    <author name="Gemini" email="support@example.com" organization="AI" website="https://example.com"/>
+    <min-api-version>2.0</min-api-version>
     <source-location>
-      <url>https://ohomri-rgb.github.io/kpi-extension/index.html</url>
+    <url>https://ohomri-rgb.github.io/kpi-extension/index.html</url>
     </source-location>
-    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAANklEQVQ4y2NgGAWDDPz//x8nJSMDAwMDIyMDAwMDIyMDIwMDAwMDIwMDAwMDIwMDAwMDgx8AEqQB/p8BWWYAAAAASUVORK5CYII=</icon>
-    <permissions><permission>full data</permission></permissions>
+    <icon></icon>
+    <capabilities>
+      <visual-extension/>
+    </capabilities>
   </worksheet-extension>
-  <resources>
-    <resource id="name"><text locale="en-US">KPI Card</text></resource>
-    <resource id="description"><text locale="en-US">Minimal KPI card. Auto-detects date and measure. No setup needed.</text></resource>
-  </resources>
 </manifest>
