@@ -2,37 +2,20 @@ tableau.extensions.initializeAsync().then(() => {
     const worksheet = tableau.extensions.worksheetContent.worksheet;
 
     const render = () => {
-        worksheet.getSummaryDataAsync().then(dataTable => {
-            // זיהוי עמודות לפי שם (גמיש יותר מאינדקסים)
-            const fieldMap = {};
-            dataTable.columns.forEach((col, i) => fieldMap[col.fieldName.toLowerCase()] = i);
+        // שימוש ב-maxRows כדי להבטיח שכל 59 המדינות יכנסו
+        worksheet.getSummaryDataAsync({ ignoreSelection: true, maxRows: 0 }).then(dataTable => {
+            
+            const rawData = dataTable.data.map(row => ({
+                date: new Date(row[0].value),
+                key: row[1].formattedValue || "Unknown",
+                value: parseFloat(row[2].nativeValue) || 0
+            })).filter(d => !isNaN(d.date.getTime()));
 
-            const findIdx = (names) => {
-                for (let name of names) {
-                    for (let key in fieldMap) {
-                        if (key.includes(name)) return fieldMap[key];
-                    }
-                }
-                return -1;
-            };
-
-            const dateIdx = findIdx(['date', 'month', 'year']);
-            const catIdx = findIdx(['country', 'category', 'segment', 'region']);
-            const valIdx = findIdx(['sales', 'profit', 'sum', 'value']);
-
-            const data = dataTable.data.map(row => {
-                const d = row[dateIdx >= 0 ? dateIdx : 0].value;
-                const v = parseFloat(row[valIdx >= 0 ? valIdx : 2].nativeValue);
-                
-                return {
-                    date: new Date(d),
-                    key: row[catIdx >= 0 ? catIdx : 1].formattedValue || "Other",
-                    value: isNaN(v) ? 0 : v // הגנה מפני NaN
-                };
-            }).filter(d => !isNaN(d.date.getTime())); // הסרת תאריכים לא תקינים
-
-            data.sort((a, b) => a.date - b.date);
-            if (data.length > 0) buildStreamgraph(data);
+            rawData.sort((a, b) => a.date - b.date);
+            
+            if (rawData.length > 0) {
+                draw(rawData);
+            }
         });
     };
 
@@ -40,14 +23,15 @@ tableau.extensions.initializeAsync().then(() => {
     worksheet.addEventListener(tableau.TableauEventType.FilterChanged, render);
 });
 
-function buildStreamgraph(data) {
-    d3.select("#chart").selectAll("*").remove();
-    
-    const margin = {top: 20, right: 30, bottom: 40, left: 30};
+function draw(data) {
+    const container = d3.select("#chart");
+    container.selectAll("*").remove();
+
+    const margin = {top: 20, right: 20, bottom: 40, left: 20};
     const width = window.innerWidth - margin.left - margin.right;
     const height = window.innerHeight - margin.top - margin.bottom;
 
-    const svg = d3.select("#chart").append("svg")
+    const svg = container.append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
         .append("g")
@@ -65,15 +49,16 @@ function buildStreamgraph(data) {
         return obj;
     });
 
-    const stack = d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut);
-    const layers = stack(stackedData);
+    // שימוש ב-Wiggle למראה גלי
+    const layers = d3.stack().keys(keys).offset(d3.stackOffsetWiggle).order(d3.stackOrderInsideOut)(stackedData);
 
     const x = d3.scaleTime().domain(d3.extent(dates)).range([0, width]);
     const y = d3.scaleLinear()
         .domain([d3.min(layers, l => d3.min(l, d => d[0])), d3.max(layers, l => d3.max(l, d => d[1]))])
         .range([height, 0]);
 
-    const color = d3.scaleOrdinal().domain(keys).range(d3.schemeTableau10);
+    // פלטת צבעים מורחבת (Rainbow) כדי להבדיל בין 59 מדינות
+    const color = d3.scaleSequential(d3.interpolateRainbow).domain([0, keys.length]);
 
     const area = d3.area()
         .x(d => x(d.data.date))
@@ -85,11 +70,7 @@ function buildStreamgraph(data) {
         .data(layers)
         .join("path")
         .attr("d", area)
-        .attr("fill", d => color(d.key))
-        .attr("opacity", 0.85);
-
-    svg.append("g")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat("%b %Y")))
-        .selectAll("text").style("fill", "#666").style("font-size", "10px");
+        .attr("fill", (d, i) => color(i)) // צבע ייחודי לכל מדינה
+        .attr("opacity", 0.8)
+        .append("title").text(d => d.key); // Tooltip בסיסי בציפה
 }
