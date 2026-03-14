@@ -2,8 +2,8 @@ tableau.extensions.initializeAsync().then(() => {
     const worksheet = tableau.extensions.worksheetContent.worksheet;
 
     const render = () => {
-        worksheet.getSummaryDataAsync().then(dataTable => {
-            // זיהוי עמודות לפי שם (גמיש יותר מאינדקסים)
+        // Fetching with maxRows: 0 to ensure all 50+ dimensions are captured 
+        worksheet.getSummaryDataAsync({ maxRows: 0 }).then(dataTable => {
             const fieldMap = {};
             dataTable.columns.forEach((col, i) => fieldMap[col.fieldName.toLowerCase()] = i);
 
@@ -27,9 +27,9 @@ tableau.extensions.initializeAsync().then(() => {
                 return {
                     date: new Date(d),
                     key: row[catIdx >= 0 ? catIdx : 1].formattedValue || "Other",
-                    value: isNaN(v) ? 0 : v // הגנה מפני NaN
+                    value: isNaN(v) ? 0 : v
                 };
-            }).filter(d => !isNaN(d.date.getTime())); // הסרת תאריכים לא תקינים
+            }).filter(d => !isNaN(d.date.getTime()));
 
             data.sort((a, b) => a.date - b.date);
             if (data.length > 0) buildStreamgraph(data);
@@ -53,14 +53,19 @@ function buildStreamgraph(data) {
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // --- OPTIMIZED DATA TRANSFORMATION ---
     const keys = Array.from(new Set(data.map(d => d.key)));
     const dates = Array.from(new Set(data.map(d => d.date.getTime()))).sort().map(t => new Date(t));
 
+    // Create a Map for O(1) lookup speed
+    const dataMap = new Map();
+    data.forEach(d => dataMap.set(`${d.date.getTime()}_${d.key}`, d.value));
+
     const stackedData = dates.map(d => {
+        const time = d.getTime();
         const obj = { date: d };
         keys.forEach(k => {
-            const match = data.find(i => i.date.getTime() === d.getTime() && i.key === k);
-            obj[k] = match ? match.value : 0;
+            obj[k] = dataMap.get(`${time}_${k}`) || 0; // Fill missing gaps with 0
         });
         return obj;
     });
@@ -73,7 +78,8 @@ function buildStreamgraph(data) {
         .domain([d3.min(layers, l => d3.min(l, d => d[0])), d3.max(layers, l => d3.max(l, d => d[1]))])
         .range([height, 0]);
 
-    const color = d3.scaleOrdinal().domain(keys).range(d3.schemeTableau10);
+    // Use a Turbo scale for better visibility across 50+ items
+    const color = d3.scaleSequential(d3.interpolateTurbo).domain([0, keys.length]);
 
     const area = d3.area()
         .x(d => x(d.data.date))
@@ -81,12 +87,23 @@ function buildStreamgraph(data) {
         .y1(d => y(d[1]))
         .curve(d3.curveBasis);
 
-    svg.selectAll("path")
+    // --- DRAWING & INTERACTION ---
+    const paths = svg.selectAll("path")
         .data(layers)
         .join("path")
         .attr("d", area)
-        .attr("fill", d => color(d.key))
-        .attr("opacity", 0.85);
+        .attr("fill", (d, i) => color(i))
+        .attr("opacity", 0.8)
+        .on("mouseover", function(event, d) {
+            d3.selectAll("path").style("opacity", 0.2);
+            d3.select(this).style("opacity", 1);
+        })
+        .on("mouseleave", function() {
+            d3.selectAll("path").style("opacity", 0.8);
+        });
+
+    // Simple Tooltip (Title tag)
+    paths.append("title").text(d => d.key);
 
     svg.append("g")
         .attr("transform", `translate(0,${height})`)
