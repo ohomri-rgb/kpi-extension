@@ -1,4 +1,3 @@
-
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns="http://www.tableau.com/xml/extension_manifest" manifest-version="1.0">
   <worksheet-extension id="com.example.streamgraph.viz" extension-version="1.0.0">
