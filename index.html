@@ -1,17 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="he">
 <head>
     <meta charset="UTF-8">
-    <title>Tableau Streamgraph Extension</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Tableau Streamgraph</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/tableau/extensions-api@main/lib/tableau.extensions.1.latest.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        #chart { width: 100vw; height: 100vh; }
+        .axis path, .axis line { display: none; }
+        .axis text { font-size: 10px; fill: #666; }
+    </style>
 </head>
-
 <body>
-
-<div id="chart"></div>
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/tableau/extensions-api@main/lib/tableau.extensions.1.latest.js"></script>
-<script src="app.js"></script>
-
+    <div id="chart"></div>
+    <script src="app.js"></script>
 </body>
 </html>
