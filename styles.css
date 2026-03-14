@@ -1,0 +1,10 @@
+body{
+    font-family: Arial;
+    background:white;
+    margin:0;
+}
+
+#chart{
+    width:100%;
+    height:100%;
+}
