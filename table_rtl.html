@@ -47,8 +47,9 @@ thead tr:nth-child(2) th{top:34px;padding:3px 6px 4px;border-bottom-color:#c7d2f
 .btn-apply{background:#6366f1;border-color:#6366f1;color:#fff;font-weight:600}
 .btn-apply:hover{background:#4338ca}
 
-td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:normal;word-break:break-word;max-width:200px;min-width:60px;vertical-align:top;line-height:1.6}
-td.num{text-align:right;white-space:nowrap;max-width:none;min-width:unset;width:1%}
+td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap;vertical-align:top}
+td.num{text-align:right}
+td.wrap{white-space:normal;word-break:break-word;max-width:220px;min-width:120px;line-height:1.6}
 tbody tr:nth-child(even){background:#f9fafb}
 tbody tr:hover{background:#eef2ff}
 tbody tr.hidden-row{display:none}
@@ -233,8 +234,10 @@ async function load() {
       cols.forEach((_,ci)=>{
         const cell=r[colIdxMap[ci]], td=document.createElement('td');
         const fmt=fmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
+        const t=(cols[ci].dataType||'').toLowerCase();
+        const isStr=!fmt.num&&!t.includes('date')&&!t.includes('bool');
         if(fmt.num){td.className='num';td.innerHTML=`<span style="direction:ltr;unicode-bidi:embed">${fmt.text}</span>`;}
-        else td.textContent=fmt.text;
+        else{td.textContent=fmt.text;if(isStr)td.classList.add('wrap');}
         tr.appendChild(td);
       });
       frag.appendChild(tr);
