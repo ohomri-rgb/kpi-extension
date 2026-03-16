@@ -1,5 +1,5 @@
 # RTL Table — Tableau Extension
-### Full Project Documentation | v7
+### Full Project Documentation | v9
 
 ---
 
@@ -19,7 +19,7 @@ A Tableau Viz Extension (worksheet extension) that renders a scrollable RTL data
 
 | File | Purpose |
 |---|---|
-| `table_rtl.html` | Main extension — all logic, 257 lines (v7) |
+| `table_rtl.html` | Main extension — all logic, ~290 lines (v9) |
 | `table_rtl.trex` | Tableau manifest — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
 
@@ -41,7 +41,7 @@ A Tableau Viz Extension (worksheet extension) that renders a scrollable RTL data
 - Live debug: open workbook in browser → F12 → Console
 
 ### Updating the Extension
-- Edit `table_rtl.html`, bump version in footer (`v7`, `v8`, …) on every change
+- Edit `table_rtl.html`, bump version in footer (`v7`, `v8`, `v9`, …) on every change
 - Push to GitHub — no-cache meta headers ensure fresh load
 - No need to update `.trex`
 
@@ -202,6 +202,7 @@ applyFilters()
 | Filters were single-select dropdowns | Used `<select>` element | v3 |
 | Columns in alphabetical order | `getSummaryDataAsync` always returns alphabetical | v4 |
 | Unlisted Detail fields appearing in table | Unmatched rawCols were appended at end | v7 |
+| Long free-text columns expanding row height excessively | `table-layout:auto` ignores `max-width`; string columns sized by content | v9 |
 | Negative numbers rendering as `1,234-` instead of `-1,234` | RTL bidi reordering of weak minus character | v6 |
 | Code bloat — 385 lines | Redundant loops, verbose helpers | v5 (refactor) |
 
@@ -215,7 +216,7 @@ applyFilters()
 4. Load `table_rtl.trex` in workbook
 5. Drag all desired fields to **Detail** on the Marks card
 6. Create a `Columns` String parameter (List type) with one entry — comma-separated ordered field names
-7. Confirm version footer shows **v7**
+7. Confirm version footer shows **v9**
 8. Open F12 console — verify `Final col order` matches expected sequence and no unexpected `Dropped` fields
 9. Test filter dropdowns — multi-select, search, clear
 10. Verify RTL layout and Hebrew font render correctly
@@ -233,4 +234,6 @@ applyFilters()
 | v4 | Superseded | Column order driven by `Columns` String parameter. `norm()` strips aggregation wrappers on both sides. Parameter listener added. Cloud fix: tries all `currentValue` fields + allowable values fallback. |
 | v5 | Superseded | Refactor: 385 → 257 lines (−33%). Merged CSS rules, regex type checks, `Object.fromEntries` normMap, delegated dropdown listeners, `DocumentFragment` for tbody. |
 | v6 | Superseded | Negative number fix: numeric cells wrapped in `direction:ltr; unicode-bidi:embed` `<span>` so minus sign renders correctly in RTL layout. `<td>` stays right-aligned. |
-| v7 | ✅ Current | Unlisted columns dropped: fields on Detail but not in `Columns` param are now silently excluded (logged as `Dropped`) instead of appended. `Columns` param is now the single source of truth for both order and visibility. |
+| v7 | Superseded | Unlisted columns dropped: fields on Detail but not in `Columns` param are now silently excluded (logged as `Dropped`) instead of appended. `Columns` param is now the single source of truth for both order and visibility. |
+| v8 | Superseded | Intermediate attempts at fixing long-text column width (various approaches). |
+| v9 | ✅ Current | Long-text column fix: `table-layout:fixed` with JS-injected `<colgroup>` — string columns fixed at 220px (wrap), number/date columns sized by header length (nowrap). Total table width calculated for correct horizontal scroll. |
