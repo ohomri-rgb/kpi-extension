@@ -5,7 +5,11 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>RTL Table</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'Noto Sans Hebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
+@font-face{font-family:'Noto Sans Hebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal}
+@font-face{font-family:'Noto Sans Hebrew';src:url('NotoSansHebrew-ExtraBold.ttf') format('truetype');font-weight:800;font-style:normal}
+</style>
 <script src="tableau.extensions.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -55,7 +59,7 @@ tbody tr.hidden-row{display:none}
   <div id="table-wrap">
     <table><thead><tr id="hrow"></tr><tr id="frow"></tr></thead><tbody id="tbody"></tbody></table>
   </div>
-  <div id="footer">v7</div>
+  <div id="footer">v8</div>
 </div>
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
