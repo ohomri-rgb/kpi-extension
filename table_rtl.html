@@ -12,100 +12,49 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'Noto Sans Hebrew',sans-serif;direction:rtl}
 #app{width:100%;height:100%;display:flex;flex-direction:column;opacity:0;transition:opacity .25s ease}
 #error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;margin:8px;flex-shrink:0}
-#table-wrap{flex:1;min-height:0;overflow:auto;position:relative}
-
+#table-wrap{flex:1;min-height:0;overflow:auto}
 table{width:100%;border-collapse:collapse;direction:rtl}
 
-thead tr:first-child th{
-  position:sticky;top:0;z-index:3;
-  background:#f3f4f6;
-  padding:8px 12px 7px;
-  font-size:12px;font-weight:600;color:#374151;
-  text-align:right;
-  border-bottom:1px solid #e5e7eb;
-  white-space:nowrap;
-  user-select:none;
-}
-thead tr:nth-child(2) th{
-  position:sticky;top:34px;z-index:3;
-  background:#f3f4f6;
-  padding:3px 6px 4px;
-  border-bottom:2px solid #c7d2fe;
-}
+thead tr:first-child th,
+thead tr:nth-child(2) th{position:sticky;z-index:3;background:#f3f4f6;text-align:right;white-space:nowrap;border-bottom:1px solid #e5e7eb}
+thead tr:first-child th{top:0;padding:8px 12px 7px;font-size:12px;font-weight:600;color:#374151;user-select:none}
+thead tr:nth-child(2) th{top:34px;padding:3px 6px 4px;border-bottom-color:#c7d2fe;border-bottom-width:2px}
 
-.filter-btn{
-  display:flex;align-items:center;gap:4px;
-  font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
-  border:1px solid #d1d5db;border-radius:5px;
-  padding:2px 7px 2px 5px;
-  background:#fff;color:#374151;
-  direction:rtl;cursor:pointer;
-  white-space:nowrap;width:100%;
-  transition:border-color .15s;
-}
+.filter-btn{display:flex;align-items:center;gap:4px;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;border:1px solid #d1d5db;border-radius:5px;padding:2px 7px 2px 5px;background:#fff;color:#374151;direction:rtl;cursor:pointer;white-space:nowrap;width:100%;transition:border-color .15s}
 .filter-btn:hover{border-color:#6366f1;color:#6366f1}
 .filter-btn.active{border-color:#6366f1;background:#eef2ff;color:#4338ca;font-weight:600}
 .filter-btn .arrow{font-size:9px;opacity:.6;flex-shrink:0;margin-right:auto}
 .filter-btn .btn-label{flex:1;overflow:hidden;text-overflow:ellipsis;text-align:right}
 
-.dd-panel{
-  position:fixed;z-index:9999;
-  background:#fff;border:1px solid #e5e7eb;border-radius:8px;
-  box-shadow:0 8px 24px rgba(0,0,0,.13);
-  min-width:160px;max-width:220px;
-  display:none;flex-direction:column;overflow:hidden;
-}
+.dd-panel{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.13);min-width:160px;max-width:220px;display:none;flex-direction:column;overflow:hidden}
 .dd-panel.open{display:flex}
-.dd-search{padding:6px 8px;border-bottom:1px solid #f3f4f6;flex-shrink:0}
-.dd-search input{
-  width:100%;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
-  border:1px solid #e5e7eb;border-radius:4px;
-  padding:3px 7px;direction:rtl;outline:none;
-}
+.dd-search{padding:6px 8px;border-bottom:1px solid #f3f4f6}
+.dd-search input{width:100%;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;border:1px solid #e5e7eb;border-radius:4px;padding:3px 7px;direction:rtl;outline:none}
 .dd-search input:focus{border-color:#6366f1}
 .dd-list{max-height:200px;overflow-y:auto;padding:4px 0}
-.dd-item{
-  display:flex;align-items:center;gap:7px;
-  padding:5px 10px;font-size:12px;color:#374151;
-  cursor:pointer;direction:rtl;user-select:none;
-}
+.dd-item{display:flex;align-items:center;gap:7px;padding:5px 10px;font-size:12px;color:#374151;cursor:pointer;direction:rtl;user-select:none}
 .dd-item:hover{background:#f5f3ff}
 .dd-item input[type=checkbox]{accent-color:#6366f1;width:13px;height:13px;flex-shrink:0;cursor:pointer}
 .dd-item label{cursor:pointer;flex:1;text-align:right}
-.dd-footer{display:flex;gap:6px;padding:6px 8px;border-top:1px solid #f3f4f6;flex-shrink:0}
-.dd-footer button{
-  flex:1;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
-  border-radius:5px;padding:3px 0;cursor:pointer;border:1px solid;
-  transition:background .12s;
-}
+.dd-footer{display:flex;gap:6px;padding:6px 8px;border-top:1px solid #f3f4f6}
+.dd-footer button{flex:1;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;border-radius:5px;padding:3px 0;cursor:pointer;border:1px solid;transition:background .12s}
 .btn-all{background:#fff;border-color:#d1d5db;color:#374151}
 .btn-all:hover{background:#f9fafb}
 .btn-apply{background:#6366f1;border-color:#6366f1;color:#fff;font-weight:600}
 .btn-apply:hover{background:#4338ca}
 
-td{
-  padding:7px 12px;font-size:12px;color:#111;
-  text-align:right;border-bottom:1px solid #f3f4f6;
-  white-space:nowrap;
-}
+td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap}
 tbody tr:nth-child(even){background:#f9fafb}
 tbody tr:hover{background:#eef2ff}
 tbody tr.hidden-row{display:none}
-
 #footer{font-size:10px;color:#d1d5db;text-align:left;direction:ltr;padding:3px 8px;flex-shrink:0}
 </style></head><body>
 <div id="app">
   <div id="error"></div>
   <div id="table-wrap">
-    <table>
-      <thead>
-        <tr id="hrow"></tr>
-        <tr id="frow"></tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
+    <table><thead><tr id="hrow"></tr><tr id="frow"></tr></thead><tbody id="tbody"></tbody></table>
   </div>
-  <div id="footer">v4</div>
+  <div id="footer">v5</div>
 </div>
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
@@ -118,181 +67,117 @@ tbody tr.hidden-row{display:none}
 
 <script>
 const G = id => document.getElementById(id);
-
-// Strip aggregation wrappers for display: SUM(Sales) → Sales
 const cleanName = s => s.replace(/^(sum|avg|count|min|max|attr|median|year|month|day|quarter|week)\s*\(/i,'').replace(/\)$/,'').trim();
-
-// Normalise for matching: lowercase, strip all spaces, strip aggregation wrappers recursively
 const norm = s => {
   let r = String(s||'');
   for(let i=0;i<6;i++) r = r.replace(/^(sum|avg|count|min|max|attr|median|year|month|day|quarter|week|cnt|truncated)\s*\(/i,'').replace(/\)$/,'').trim();
   return r.toLowerCase().replace(/[\s_]/g,'');
 };
 
-let ws = null, timer = null, firstLoad = true;
-let activeFilters = {}; // {colIndex: Set of selected values}
-
-// ── helpers ───────────────────────────────────────────────────────────────
-function showError(msg) {
-  G('error').textContent = msg;
-  G('error').style.display = 'block';
-  if (firstLoad) { G('app').style.opacity='1'; firstLoad=false; }
-}
-
-function fmtCell(val, fval, dataType) {
+const fmtCell = (val, fval, dataType) => {
   if (val==null||val===''||val==='%null%') return '—';
-  const t=(dataType||'').toLowerCase();
+  const t = (dataType||'').toLowerCase();
   if (t.includes('date')) return fval||String(val);
-  if (['float','real','double','number'].some(x=>t.includes(x))) {
-    const n=parseFloat(val); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US');
-  }
-  if (['int','integer'].some(x=>t.includes(x))) {
-    const n=parseInt(val,10); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US');
-  }
+  if (/float|real|double|number/.test(t)) { const n=parseFloat(val); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'); }
+  if (/int/.test(t)) { const n=parseInt(val,10); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'); }
   return fval||String(val);
-}
+};
 
-// ── column ordering from "Columns" parameter ──────────────────────────────
-// Parameter value: "YEAR(Order Date), YEAR(Ship Date), Category, Customer Name, ..."
-// We split by comma, trim each, then match against rawCols by normalised name.
-// Unmatched rawCols are appended at the end.
-function applyParamOrder(rawCols, paramValue) {
-  if (!paramValue || !paramValue.trim()) return rawCols;
-
-  const ordered = paramValue.split(',').map(s => s.trim()).filter(Boolean);
+const applyParamOrder = (rawCols, paramValue) => {
+  if (!paramValue?.trim()) return rawCols;
+  const ordered = paramValue.split(',').map(s=>s.trim()).filter(Boolean);
   console.log('[RTL Table] Columns param order:', ordered);
-
-  // Build norm → rawCol lookup
-  const normMap = {};
-  rawCols.forEach(c => { normMap[norm(c.fieldName)] = c; });
-
-  const used = new Set();
-  const mapped = [];
-
+  const normMap = Object.fromEntries(rawCols.map(c=>[norm(c.fieldName),c]));
+  const used = new Set(), mapped = [];
   ordered.forEach(name => {
-    const key = norm(name);
-    const col = normMap[key];
-    if (col && !used.has(col.fieldName)) {
-      mapped.push(col);
-      used.add(col.fieldName);
-    } else {
-      console.warn('[RTL Table] No match for param entry:', name, '→ norm:', key);
-    }
+    const col = normMap[norm(name)];
+    if (col && !used.has(col.fieldName)) { mapped.push(col); used.add(col.fieldName); }
+    else console.warn('[RTL Table] No match for param entry:', name, '→ norm:', norm(name));
   });
-
-  // Append any rawCols not covered by the param (show at end, don't lose data)
   rawCols.forEach(c => { if (!used.has(c.fieldName)) mapped.push(c); });
-
   console.log('[RTL Table] Final col order:', mapped.map(c=>c.fieldName));
   return mapped;
-}
+};
 
-// ── dropdown ──────────────────────────────────────────────────────────────
+let ws=null, timer=null, firstLoad=true, activeFilters={};
 let _ddCi=-1, _ddVals=[], _ddSelected=null, _ddBtnEl=null;
 
-function openDropdown(ci, vals, btnEl) {
-  _ddCi=ci; _ddVals=vals;
-  _ddSelected=new Set(activeFilters[ci]||[]);
-  _ddBtnEl=btnEl;
-  renderDdList(vals,'');
+const closeDropdown = () => { G('dd-panel').classList.remove('open'); _ddCi=-1; };
+
+const updateFilterBtn = ci => {
+  const btn = document.querySelector(`.filter-btn[data-ci="${ci}"]`);
+  if (!btn) return;
+  const sel = activeFilters[ci], active = sel?.size>0;
+  btn.classList.toggle('active', active);
+  btn.querySelector('.btn-label').textContent = active
+    ? (sel.size===1?[...sel][0]:`${sel.size} נבחרו`) : 'הכל';
+};
+
+const applyFilters = () => {
+  G('tbody').querySelectorAll('tr').forEach(tr => {
+    const hide = Object.entries(activeFilters).some(([ci,sel]) => {
+      if (!sel?.size) return false;
+      const td = tr.children[parseInt(ci)];
+      return td && !sel.has(td.textContent);
+    });
+    tr.classList.toggle('hidden-row', hide);
+  });
+};
+
+const renderDdList = (vals, search) => {
+  const q = search.toLowerCase();
+  G('dd-list').innerHTML = vals.filter(v=>v.toLowerCase().includes(q)).map((v,i) => {
+    const esc = v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    return `<div class="dd-item" data-v="${esc}"><input type="checkbox" ${_ddSelected.has(v)?'checked':''} id="chk_${i}"/><label for="chk_${i}">${esc}</label></div>`;
+  }).join('');
+  G('dd-list').addEventListener('change', e => {
+    if (e.target.type!=='checkbox') return;
+    const v = e.target.closest('.dd-item').dataset.v;
+    e.target.checked ? _ddSelected.add(v) : _ddSelected.delete(v);
+  }, {once:true});
+};
+
+const openDropdown = (ci, vals, btnEl) => {
+  _ddCi=ci; _ddVals=vals; _ddSelected=new Set(activeFilters[ci]||[]); _ddBtnEl=btnEl;
   G('dd-search-input').value='';
-  const panel=G('dd-panel');
+  renderDdList(vals,'');
+  const panel=G('dd-panel'), rect=btnEl.getBoundingClientRect();
   panel.classList.add('open');
-  const rect=btnEl.getBoundingClientRect();
   let top=rect.bottom+2, left=rect.left;
   if(left+220>window.innerWidth) left=window.innerWidth-224;
   if(top+250>window.innerHeight) top=rect.top-254;
   panel.style.top=top+'px'; panel.style.left=left+'px';
-}
-function closeDropdown(){G('dd-panel').classList.remove('open');_ddCi=-1;}
+};
 
-function renderDdList(vals, search) {
-  const q=search.toLowerCase();
-  const filtered=vals.filter(v=>v.toLowerCase().includes(q));
-  G('dd-list').innerHTML=filtered.map((v,i)=>{
-    const checked=_ddSelected.has(v)?'checked':'';
-    const esc=v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-    return `<div class="dd-item" data-v="${esc}">
-      <input type="checkbox" ${checked} id="chk_${i}"/>
-      <label for="chk_${i}">${esc}</label>
-    </div>`;
-  }).join('');
-  G('dd-list').querySelectorAll('.dd-item').forEach(item=>{
-    const chk=item.querySelector('input');
-    const v=item.dataset.v;
-    chk.addEventListener('change',e=>{ if(e.target.checked) _ddSelected.add(v); else _ddSelected.delete(v); });
-    item.querySelector('label').addEventListener('click',()=>{ chk.checked=!chk.checked; if(chk.checked) _ddSelected.add(v); else _ddSelected.delete(v); });
-  });
-}
+G('dd-search-input').addEventListener('input', e => renderDdList(_ddVals, e.target.value));
 
-G('dd-search-input').addEventListener('input',e=>renderDdList(_ddVals,e.target.value));
-
-G('btn-all').addEventListener('click',()=>{
+G('btn-all').addEventListener('click', () => {
   if(_ddCi<0) return;
-  activeFilters[_ddCi]=new Set();
-  updateFilterBtn(_ddCi);
-  applyFilters();
-  closeDropdown();
+  activeFilters[_ddCi]=new Set(); updateFilterBtn(_ddCi); applyFilters(); closeDropdown();
 });
-G('btn-apply').addEventListener('click',()=>{
+G('btn-apply').addEventListener('click', () => {
   if(_ddCi<0) return;
-  activeFilters[_ddCi]=new Set(_ddSelected);
-  updateFilterBtn(_ddCi);
-  applyFilters();
-  closeDropdown();
+  activeFilters[_ddCi]=new Set(_ddSelected); updateFilterBtn(_ddCi); applyFilters(); closeDropdown();
 });
-document.addEventListener('click',e=>{
+document.addEventListener('click', e => {
   if(!G('dd-panel').classList.contains('open')) return;
-  if(G('dd-panel').contains(e.target)) return;
-  if(_ddBtnEl&&_ddBtnEl.contains(e.target)) return;
-  closeDropdown();
+  if(!G('dd-panel').contains(e.target)&&!_ddBtnEl?.contains(e.target)) closeDropdown();
 });
 
-function updateFilterBtn(ci) {
-  const btn=document.querySelector(`.filter-btn[data-ci="${ci}"]`);
-  if(!btn) return;
-  const sel=activeFilters[ci];
-  const active=sel&&sel.size>0;
-  btn.classList.toggle('active',active);
-  btn.querySelector('.btn-label').textContent=active
-    ?(sel.size===1?[...sel][0]:`${sel.size} נבחרו`)
-    :'הכל';
-}
-
-function applyFilters() {
-  G('tbody').querySelectorAll('tr').forEach(tr=>{
-    let show=true;
-    Object.entries(activeFilters).forEach(([ci,sel])=>{
-      if(!sel||sel.size===0) return;
-      const td=tr.children[parseInt(ci)];
-      if(td&&!sel.has(td.textContent)) show=false;
-    });
-    tr.classList.toggle('hidden-row',!show);
-  });
-}
-
-// ── main load ─────────────────────────────────────────────────────────────
 async function load() {
   G('error').style.display='none';
-  activeFilters={};
-  closeDropdown();
+  activeFilters={}; closeDropdown();
   try {
-    // Read "Columns" parameter for ordering
-    let paramValue = '';
+    let paramValue='';
     try {
       const params = await ws.getParametersAsync();
       console.log('[RTL Table] All params:', params.map(p=>({name:p.name,val:p.currentValue})));
-      const p = params.find(p => p.name.toLowerCase() === 'columns');
+      const p = params.find(p=>p.name.toLowerCase()==='columns');
       if (p) {
-        const cv = p.currentValue;
-        // Try every possible field Tableau Cloud may use
-        paramValue = String(
-          cv.value ?? cv.formattedValue ?? cv.nativeValue ?? ''
-        ).trim();
-        // If still empty, try allowable values — pick the first one (the ordered string)
-        if (!paramValue && p.allowableValues?.list?.length) {
-          paramValue = String(p.allowableValues.list[0].value || p.allowableValues.list[0].formattedValue || '').trim();
-        }
+        const cv=p.currentValue;
+        paramValue=String(cv.value??cv.formattedValue??cv.nativeValue??'').trim();
+        if (!paramValue && p.allowableValues?.list?.length)
+          paramValue=String(p.allowableValues.list[0].value||p.allowableValues.list[0].formattedValue||'').trim();
         console.log('[RTL Table] Columns param full object:', JSON.stringify(cv));
         console.log('[RTL Table] Columns param raw value:', paramValue);
       } else {
@@ -300,25 +185,16 @@ async function load() {
       }
     } catch(e) { console.warn('[RTL Table] Could not read parameters:', e); }
 
-    const dt = await ws.getSummaryDataAsync({ ignoreSelection: true });
-    const rawCols = dt.columns, rows = dt.data;
-    if (!rawCols.length) return showError('No fields found. Drag fields to the Detail marks card.');
+    const dt = await ws.getSummaryDataAsync({ignoreSelection:true});
+    const rawCols=dt.columns, rows=dt.data;
+    if (!rawCols.length) { G('error').textContent='No fields found. Drag fields to the Detail marks card.'; G('error').style.display='block'; if(firstLoad){G('app').style.opacity='1';firstLoad=false;} return; }
 
-    // Apply parameter-driven column order
-    const cols = applyParamOrder(rawCols, paramValue);
-    // Map each ordered col back to its index in rawCols for data access
-    const colIdxMap = cols.map(c => rawCols.findIndex(rc => rc.fieldName === c.fieldName));
+    const cols=applyParamOrder(rawCols,paramValue);
+    const colIdxMap=cols.map(c=>rawCols.findIndex(rc=>rc.fieldName===c.fieldName));
 
-    // Collect unique formatted values per column for filters
-    const uniqueVals = cols.map(()=>new Set());
-    rows.forEach(r=>{
-      cols.forEach((c,ci)=>{
-        const cell=r[colIdxMap[ci]];
-        uniqueVals[ci].add(fmtCell(cell.value,cell.formattedValue,c.dataType));
-      });
-    });
+    const uniqueVals=cols.map(()=>new Set());
+    rows.forEach(r=>cols.forEach((_,ci)=>uniqueVals[ci].add(fmtCell(r[colIdxMap[ci]].value,r[colIdxMap[ci]].formattedValue,cols[ci].dataType))));
 
-    // Build header rows
     const hrow=G('hrow'), frow=G('frow');
     hrow.innerHTML=''; frow.innerHTML='';
 
@@ -327,57 +203,53 @@ async function load() {
       th.textContent=cleanName(c.fieldName);
       hrow.appendChild(th);
 
-      const fth=document.createElement('th');
       const vals=Array.from(uniqueVals[ci]).sort((a,b)=>{
         const na=parseFloat(a.replace(/,/g,'')), nb=parseFloat(b.replace(/,/g,''));
-        if(!isNaN(na)&&!isNaN(nb)) return na-nb;
-        return String(a).localeCompare(String(b),'he');
+        return (!isNaN(na)&&!isNaN(nb)) ? na-nb : String(a).localeCompare(String(b),'he');
       });
       const btn=document.createElement('button');
-      btn.className='filter-btn';
-      btn.dataset.ci=ci;
+      btn.className='filter-btn'; btn.dataset.ci=ci;
       btn.innerHTML=`<span class="arrow">▼</span><span class="btn-label">הכל</span>`;
       btn.addEventListener('click',e=>{
         e.stopPropagation();
-        if(G('dd-panel').classList.contains('open')&&_ddCi===ci){ closeDropdown(); }
-        else { openDropdown(ci,vals,btn); }
+        (G('dd-panel').classList.contains('open')&&_ddCi===ci) ? closeDropdown() : openDropdown(ci,vals,btn);
       });
-      fth.appendChild(btn);
-      frow.appendChild(fth);
+      const fth=document.createElement('th');
+      fth.appendChild(btn); frow.appendChild(fth);
     });
 
-    // Build data rows
     const tbody=G('tbody');
     tbody.innerHTML='';
+    const frag=document.createDocumentFragment();
     rows.forEach(r=>{
       const tr=document.createElement('tr');
-      cols.forEach((c,ci)=>{
-        const cell=r[colIdxMap[ci]];
-        const td=document.createElement('td');
-        td.textContent=fmtCell(cell.value,cell.formattedValue,c.dataType);
+      cols.forEach((_,ci)=>{
+        const cell=r[colIdxMap[ci]], td=document.createElement('td');
+        td.textContent=fmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
         tr.appendChild(td);
       });
-      tbody.appendChild(tr);
+      frag.appendChild(tr);
     });
+    tbody.appendChild(frag);
 
     if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   } catch(e) {
     console.error('[RTL Table] error:',e);
-    showError(e.message||'Unknown error — check the browser console.');
+    G('error').textContent=e.message||'Unknown error — check the browser console.';
+    G('error').style.display='block';
+    if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   }
 }
-
-const debouncedLoad=()=>{clearTimeout(timer);timer=setTimeout(load,150);};
 
 async function init() {
   if(typeof tableau==='undefined'){setTimeout(init,50);return;}
   await tableau.extensions.initializeAsync();
   ws=tableau.extensions.worksheetContent.worksheet;
   load();
-  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
+  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,()=>{clearTimeout(timer);timer=setTimeout(load,150);});
   try {
     const params=await ws.getParametersAsync();
-    params.forEach(p=>p.addEventListener(tableau.TableauEventType.ParameterChanged,debouncedLoad));
+    params.forEach(p=>p.addEventListener(tableau.TableauEventType.ParameterChanged,()=>{clearTimeout(timer);timer=setTimeout(load,150);}));
   } catch(e){console.warn('Param listener failed:',e);}
 }
 window.onload=init;
