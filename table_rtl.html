@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>RTL Table</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Hebrew:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="tableau.extensions.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'Noto Sans Hebrew',sans-serif;direction:rtl}
+#app{width:100%;height:100%;display:flex;flex-direction:column;opacity:0;transition:opacity .25s ease}
+#error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;margin:8px;flex-shrink:0}
+#table-wrap{flex:1;min-height:0;overflow:auto}
+table{width:100%;border-collapse:collapse;direction:rtl}
+thead tr{background:#f3f4f6;position:sticky;top:0;z-index:1}
+th{padding:8px 12px;font-size:12px;font-weight:600;color:#374151;text-align:right;border-bottom:2px solid #e5e7eb;white-space:nowrap}
+td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap}
+tbody tr:nth-child(even){background:#f9fafb}
+tbody tr:hover{background:#eef2ff}
+#footer{font-size:10px;color:#d1d5db;text-align:left;direction:ltr;padding:3px 8px;flex-shrink:0}
+</style></head><body>
+<div id="app">
+  <div id="error"></div>
+  <div id="table-wrap"><table><thead id="thead"><tr id="hrow"></tr></thead><tbody id="tbody"></tbody></table></div>
+  <div id="footer">v1</div>
+</div>
+<script>
+const G = id => document.getElementById(id);
+const cleanName = s => s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
+
+let ws = null, timer = null, firstLoad = true;
+
+function showError(msg) {
+  G('error').textContent = msg;
+  G('error').style.display = 'block';
+  if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
+}
+
+function fmtCell(val, fval, dataType) {
+  if (val == null || val === '' || val === '%null%') return '—';
+  const t = (dataType || '').toLowerCase();
+  if (t.includes('date')) return fval || String(val);
+  if (['float','real','double','number'].some(x => t.includes(x))) {
+    const n = parseFloat(val);
+    return isNaN(n) ? (fval || String(val)) : n.toLocaleString('en-US');
+  }
+  if (['int','integer'].some(x => t.includes(x))) {
+    const n = parseInt(val, 10);
+    return isNaN(n) ? (fval || String(val)) : n.toLocaleString('en-US');
+  }
+  return fval || String(val);
+}
+
+async function load() {
+  G('error').style.display = 'none';
+  try {
+    const dt = await ws.getSummaryDataAsync({ ignoreSelection: true });
+    const cols = dt.columns, rows = dt.data;
+    if (!cols.length) return showError('No fields found. Drag fields to the Detail marks card.');
+
+    // Column order = order they appear in Detail marks card (cols array preserves it)
+    const hrow = G('hrow'), tbody = G('tbody');
+    hrow.innerHTML = '';
+    tbody.innerHTML = '';
+
+    cols.forEach(c => {
+      const th = document.createElement('th');
+      th.textContent = cleanName(c.fieldName);
+      hrow.appendChild(th);
+    });
+
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      cols.forEach((c, i) => {
+        const td = document.createElement('td');
+        td.textContent = fmtCell(r[i].value, r[i].formattedValue, c.dataType);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
+  } catch(e) {
+    console.error('RTL Table error:', e);
+    showError(e.message || 'Unknown error — check the browser console.');
+  }
+}
+
+const debouncedLoad = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
+
+async function init() {
+  if (typeof tableau === 'undefined') { setTimeout(init, 50); return; }
+  await tableau.extensions.initializeAsync();
+  ws = tableau.extensions.worksheetContent.worksheet;
+  load();
+  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, debouncedLoad);
+}
+window.onload = init;
+</script>
+</body></html>
