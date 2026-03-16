@@ -44,6 +44,7 @@ thead tr:nth-child(2) th{top:34px;padding:3px 6px 4px;border-bottom-color:#c7d2f
 .btn-apply:hover{background:#4338ca}
 
 td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap}
+td.num{direction:ltr;unicode-bidi:embed;text-align:left}
 tbody tr:nth-child(even){background:#f9fafb}
 tbody tr:hover{background:#eef2ff}
 tbody tr.hidden-row{display:none}
@@ -54,7 +55,7 @@ tbody tr.hidden-row{display:none}
   <div id="table-wrap">
     <table><thead><tr id="hrow"></tr><tr id="frow"></tr></thead><tbody id="tbody"></tbody></table>
   </div>
-  <div id="footer">v5</div>
+  <div id="footer">v6</div>
 </div>
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
@@ -74,13 +75,14 @@ const norm = s => {
   return r.toLowerCase().replace(/[\s_]/g,'');
 };
 
+// Returns {text, num} — num=true for numeric types so caller can force LTR
 const fmtCell = (val, fval, dataType) => {
-  if (val==null||val===''||val==='%null%') return '—';
+  if (val==null||val===''||val==='%null%') return {text:'—',num:false};
   const t = (dataType||'').toLowerCase();
-  if (t.includes('date')) return fval||String(val);
-  if (/float|real|double|number/.test(t)) { const n=parseFloat(val); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'); }
-  if (/int/.test(t)) { const n=parseInt(val,10); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'); }
-  return fval||String(val);
+  if (t.includes('date')) return {text:fval||String(val),num:false};
+  if (/float|real|double|number/.test(t)) { const n=parseFloat(val); return {text:isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'),num:true}; }
+  if (/int/.test(t)) { const n=parseInt(val,10); return {text:isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'),num:true}; }
+  return {text:fval||String(val),num:false};
 };
 
 const applyParamOrder = (rawCols, paramValue) => {
@@ -193,7 +195,7 @@ async function load() {
     const colIdxMap=cols.map(c=>rawCols.findIndex(rc=>rc.fieldName===c.fieldName));
 
     const uniqueVals=cols.map(()=>new Set());
-    rows.forEach(r=>cols.forEach((_,ci)=>uniqueVals[ci].add(fmtCell(r[colIdxMap[ci]].value,r[colIdxMap[ci]].formattedValue,cols[ci].dataType))));
+    rows.forEach(r=>cols.forEach((_,ci)=>uniqueVals[ci].add(fmtCell(r[colIdxMap[ci]].value,r[colIdxMap[ci]].formattedValue,cols[ci].dataType).text)));
 
     const hrow=G('hrow'), frow=G('frow');
     hrow.innerHTML=''; frow.innerHTML='';
@@ -225,7 +227,9 @@ async function load() {
       const tr=document.createElement('tr');
       cols.forEach((_,ci)=>{
         const cell=r[colIdxMap[ci]], td=document.createElement('td');
-        td.textContent=fmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
+        const fmt=fmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
+        td.textContent=fmt.text;
+        if(fmt.num) td.className='num';
         tr.appendChild(td);
       });
       frag.appendChild(tr);
