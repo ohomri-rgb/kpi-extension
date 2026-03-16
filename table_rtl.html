@@ -44,7 +44,7 @@ thead tr:nth-child(2) th{top:34px;padding:3px 6px 4px;border-bottom-color:#c7d2f
 .btn-apply:hover{background:#4338ca}
 
 td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap}
-td.num{direction:ltr;unicode-bidi:embed;text-align:left}
+td.num{text-align:right}
 tbody tr:nth-child(even){background:#f9fafb}
 tbody tr:hover{background:#eef2ff}
 tbody tr.hidden-row{display:none}
@@ -55,7 +55,7 @@ tbody tr.hidden-row{display:none}
   <div id="table-wrap">
     <table><thead><tr id="hrow"></tr><tr id="frow"></tr></thead><tbody id="tbody"></tbody></table>
   </div>
-  <div id="footer">v6</div>
+  <div id="footer">v7</div>
 </div>
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
@@ -96,7 +96,8 @@ const applyParamOrder = (rawCols, paramValue) => {
     if (col && !used.has(col.fieldName)) { mapped.push(col); used.add(col.fieldName); }
     else console.warn('[RTL Table] No match for param entry:', name, '→ norm:', norm(name));
   });
-  rawCols.forEach(c => { if (!used.has(c.fieldName)) mapped.push(c); });
+  const dropped=rawCols.filter(c=>!used.has(c.fieldName)).map(c=>c.fieldName);
+  if(dropped.length) console.log('[RTL Table] Dropped (not in param):', dropped);
   console.log('[RTL Table] Final col order:', mapped.map(c=>c.fieldName));
   return mapped;
 };
@@ -228,8 +229,8 @@ async function load() {
       cols.forEach((_,ci)=>{
         const cell=r[colIdxMap[ci]], td=document.createElement('td');
         const fmt=fmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
-        td.textContent=fmt.text;
-        if(fmt.num) td.className='num';
+        if(fmt.num){td.className='num';td.innerHTML=`<span style="direction:ltr;unicode-bidi:embed">${fmt.text}</span>`;}
+        else td.textContent=fmt.text;
         tr.appendChild(td);
       });
       frag.appendChild(tr);
