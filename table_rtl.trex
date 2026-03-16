@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
+  <worksheet-extension id="com.dataviz.table-rtl" extension-version="1.0.0">
+    <default-locale>he-IL</default-locale>
+    <name resource-id="name"/>
+    <description resource-id="description"/>
+    <author name="TESTViz" email="info@TEST.com" organization="TESTViz" website="https://testviz.com"/>
+    <min-api-version>1.7</min-api-version>
+    <source-location>
+     <url>https://ohomri-rgb.github.io/kpi-extension/table_rtl.html</url>
+    </source-location>
+    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAANklEQVQ4y2NgGAWDDPz//x8nJSMDAwMDIyMDAwMDIyMDIwMDAwMDIwMDAwMDIwMDAwMDgx8AEqQB/p8BWWYAAAAASUVORK5CYII=</icon>
+    <permissions><permission>full data</permission></permissions>
+  </worksheet-extension>
+  <resources>
+    <resource id="name"><text locale="en-US">RTL Table</text></resource>
+    <resource id="description"><text locale="en-US">RTL data table. Drag fields to Detail — column order follows marks card order.</text></resource>
+  </resources>
+</manifest>
