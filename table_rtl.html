@@ -17,7 +17,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'No
 #app{width:100%;height:100%;display:flex;flex-direction:column;opacity:0;transition:opacity .25s ease}
 #error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;margin:8px;flex-shrink:0}
 #table-wrap{flex:1;min-height:0;overflow:auto}
-table{width:100%;border-collapse:collapse;direction:rtl}
+table{border-collapse:collapse;direction:rtl;table-layout:fixed}
 
 thead tr:first-child th,
 thead tr:nth-child(2) th{position:sticky;z-index:3;background:#f3f4f6;text-align:right;white-space:nowrap;border-bottom:1px solid #e5e7eb}
@@ -49,8 +49,7 @@ thead tr:nth-child(2) th{top:34px;padding:3px 6px 4px;border-bottom-color:#c7d2f
 
 td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap;vertical-align:top}
 td.num{text-align:right}
-tr td:nth-child(1),
-tr td:nth-child(2){white-space:normal;word-break:break-word;line-height:1.6;max-width:250px}
+td.wrap{white-space:normal;word-break:break-word;line-height:1.6}
 tbody tr:nth-child(even){background:#f9fafb}
 tbody tr:hover{background:#eef2ff}
 tbody tr.hidden-row{display:none}
@@ -61,7 +60,7 @@ tbody tr.hidden-row{display:none}
   <div id="table-wrap">
     <table><thead><tr id="hrow"></tr><tr id="frow"></tr></thead><tbody id="tbody"></tbody></table>
   </div>
-  <div id="footer">v11</div>
+  <div id="footer">v12</div>
 </div>
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
@@ -207,6 +206,28 @@ async function load() {
     const hrow=G('hrow'), frow=G('frow');
     hrow.innerHTML=''; frow.innerHTML='';
 
+    // colgroup: string cols get fixed 220px, others auto-size via a wide-enough value
+    const isStrCol = cols.map(c => {
+      const t=(c.dataType||'').toLowerCase();
+      return !(/float|real|double|number|int|date|bool/.test(t));
+    });
+    const tbl=document.querySelector('table');
+    const oldCg=tbl.querySelector('colgroup'); if(oldCg) oldCg.remove();
+    const cg=document.createElement('colgroup');
+    cols.forEach((_,ci)=>{
+      const col=document.createElement('col');
+      col.style.width=isStrCol[ci]?'220px':'auto';
+      cg.appendChild(col);
+    });
+    tbl.insertBefore(cg,tbl.firstChild);
+    // total width: string cols 220px, others measured by header text (~10px per char + padding)
+    const totalW=cols.reduce((s,c,ci)=>{
+      if(isStrCol[ci]) return s+220;
+      const headerLen=cleanName(c.fieldName).length;
+      return s+Math.max(60, headerLen*9+24);
+    },0);
+    tbl.style.width=totalW+'px';
+
     cols.forEach((c,ci)=>{
       const th=document.createElement('th');
       th.textContent=cleanName(c.fieldName);
@@ -236,7 +257,7 @@ async function load() {
         const cell=r[colIdxMap[ci]], td=document.createElement('td');
         const fmt=fmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
         if(fmt.num){td.className='num';td.innerHTML=`<span style="direction:ltr;unicode-bidi:embed">${fmt.text}</span>`;}
-        else td.textContent=fmt.text;
+        else{td.textContent=fmt.text;if(isStrCol[ci])td.classList.add('wrap');}
         tr.appendChild(td);
       });
       frag.appendChild(tr);
