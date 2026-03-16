@@ -5,12 +5,16 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Multi-Line Chart</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'Noto Sans Hebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400;font-style:normal}
+@font-face{font-family:'Noto Sans Hebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal}
+@font-face{font-family:'Noto Sans Hebrew';src:url('NotoSansHebrew-ExtraBold.ttf') format('truetype');font-weight:800;font-style:normal}
+</style>
 <script src="tableau.extensions.js"></script>
 <script src="chart.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM Sans',sans-serif}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'Noto Sans Hebrew',sans-serif}
 #app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease}
 #header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;direction:rtl}
 #measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;direction:rtl;text-align:right}
@@ -27,7 +31,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'DM
 #color-pop-label{font-size:11px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #color-pop-row{display:flex;align-items:center;gap:8px}
 #color-pop-native{width:32px;height:32px;border:none;padding:0;border-radius:6px;cursor:pointer;flex-shrink:0;background:none}
-#color-pop-hex{flex:1;font-size:12px;font-family:'DM Sans',monospace;border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;color:#111;outline:none}
+#color-pop-hex{flex:1;font-size:12px;font-family:'Noto Sans Hebrew',monospace;border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;color:#111;outline:none}
 #color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
 #color-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
 #color-pop-close:hover{color:#374151}
@@ -275,8 +279,8 @@ async function load() {
           tooltip: {
             titleAlign: 'right', bodyAlign: 'right',
             backgroundColor: '#fff', borderColor: '#e5e7eb', borderWidth: 1,
-            titleColor: '#374151', titleFont: {size:12, weight:'600', family:"'DM Sans',sans-serif"},
-            bodyColor: '#374151', bodyFont: {size:12, family:"'DM Sans',sans-serif"},
+            titleColor: '#374151', titleFont: {size:12, weight:'600', family:"'Noto Sans Hebrew',sans-serif"},
+            bodyColor: '#374151', bodyFont: {size:12, family:"'Noto Sans Hebrew',sans-serif"},
             padding: 10, boxPadding: 5,
             callbacks: {
               title: items => items.length ? items[0].label : '',
@@ -289,8 +293,8 @@ async function load() {
           }
         },
         scales: {
-          x: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,weight:'500',family:"'DM Sans',sans-serif"}, padding:6}},
-          y: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,family:"'DM Sans',sans-serif"}, callback:v=>fmt(v), maxTicksLimit:6, padding:8}}
+          x: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,weight:'500',family:"'Noto Sans Hebrew',sans-serif"}, padding:6}},
+          y: {grid:{display:false,drawBorder:false}, border:{display:false}, ticks:{color:'#9ca3af', font:{size:11,family:"'Noto Sans Hebrew',sans-serif"}, callback:v=>fmt(v), maxTicksLimit:6, padding:8}}
         }
       }
     });
