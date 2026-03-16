@@ -13,24 +13,71 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'No
 #app{width:100%;height:100%;display:flex;flex-direction:column;opacity:0;transition:opacity .25s ease}
 #error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;margin:8px;flex-shrink:0}
 #table-wrap{flex:1;min-height:0;overflow:auto}
+
 table{width:100%;border-collapse:collapse;direction:rtl}
-thead tr{background:#f3f4f6;position:sticky;top:0;z-index:1}
-th{padding:8px 12px;font-size:12px;font-weight:600;color:#374151;text-align:right;border-bottom:2px solid #e5e7eb;white-space:nowrap}
-td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap}
+
+thead tr:first-child th{
+  position:sticky;top:0;z-index:3;
+  background:#f3f4f6;
+  padding:8px 12px;
+  font-size:12px;font-weight:600;color:#374151;
+  text-align:right;
+  border-bottom:1px solid #e5e7eb;
+  white-space:nowrap;
+  user-select:none;
+}
+thead tr:nth-child(2) th{
+  position:sticky;top:33px;z-index:3;
+  background:#f3f4f6;
+  padding:3px 6px 5px;
+  border-bottom:2px solid #e5e7eb;
+}
+
+.col-filter{
+  width:100%;
+  font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
+  border:1px solid #d1d5db;border-radius:5px;
+  padding:2px 4px;
+  background:#fff;color:#374151;
+  direction:rtl;
+  outline:none;
+  cursor:pointer;
+  max-width:140px;
+}
+.col-filter:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
+
+td{
+  padding:7px 12px;
+  font-size:12px;color:#111;
+  text-align:right;
+  border-bottom:1px solid #f3f4f6;
+  white-space:nowrap;
+}
 tbody tr:nth-child(even){background:#f9fafb}
 tbody tr:hover{background:#eef2ff}
+tbody tr.hidden-row{display:none}
+
 #footer{font-size:10px;color:#d1d5db;text-align:left;direction:ltr;padding:3px 8px;flex-shrink:0}
 </style></head><body>
 <div id="app">
   <div id="error"></div>
-  <div id="table-wrap"><table><thead id="thead"><tr id="hrow"></tr></thead><tbody id="tbody"></tbody></table></div>
-  <div id="footer">v1</div>
+  <div id="table-wrap">
+    <table>
+      <thead>
+        <tr id="hrow"></tr>
+        <tr id="frow"></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div id="footer">v2</div>
 </div>
 <script>
 const G = id => document.getElementById(id);
 const cleanName = s => s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
 
 let ws = null, timer = null, firstLoad = true;
+let activeFilters = {};
 
 function showError(msg) {
   G('error').textContent = msg;
@@ -53,29 +100,121 @@ function fmtCell(val, fval, dataType) {
   return fval || String(val);
 }
 
+function applyFilters() {
+  G('tbody').querySelectorAll('tr').forEach(tr => {
+    let show = true;
+    Object.entries(activeFilters).forEach(([ci, val]) => {
+      if (!val) return;
+      const td = tr.children[parseInt(ci)];
+      if (td && td.textContent !== val) show = false;
+    });
+    tr.classList.toggle('hidden-row', !show);
+  });
+}
+
+async function resolveDetailOrder(cols) {
+  try {
+    const spec = await ws.getVisualSpecificationAsync();
+    const encList = spec?.marksSpecificationList?.[0]?.encodingList || [];
+    const detailEncs = encList.filter(e => (e.id || '').toLowerCase() === 'detail');
+
+    const orderedNames = [];
+    detailEncs.forEach(e => {
+      const list = e.fieldList || (e.field ? [{ fieldName: e.field.name }] : []);
+      list.forEach(f => { if (f.fieldName) orderedNames.push(f.fieldName); });
+    });
+
+    console.log('Detail slot field order:', orderedNames);
+    if (!orderedNames.length) return cols;
+
+    const used = new Set();
+    const mapped = [];
+    orderedNames.forEach(fname => {
+      let idx = cols.findIndex(c => c.fieldName === fname);
+      if (idx < 0) idx = cols.findIndex(c => cleanName(c.fieldName) === cleanName(fname));
+      if (idx < 0) idx = cols.findIndex(c => c.fieldName.toLowerCase() === fname.toLowerCase());
+      if (idx >= 0 && !used.has(idx)) { mapped.push(cols[idx]); used.add(idx); }
+    });
+    cols.forEach((c, i) => { if (!used.has(i)) mapped.push(c); });
+    return mapped;
+  } catch(e) {
+    console.warn('getVisualSpecificationAsync failed — using original order:', e);
+    return cols;
+  }
+}
+
 async function load() {
   G('error').style.display = 'none';
+  activeFilters = {};
   try {
     const dt = await ws.getSummaryDataAsync({ ignoreSelection: true });
-    const cols = dt.columns, rows = dt.data;
-    if (!cols.length) return showError('No fields found. Drag fields to the Detail marks card.');
+    const rawCols = dt.columns, rows = dt.data;
+    if (!rawCols.length) return showError('No fields found. Drag fields to the Detail marks card.');
 
-    // Column order = order they appear in Detail marks card (cols array preserves it)
-    const hrow = G('hrow'), tbody = G('tbody');
+    const cols = await resolveDetailOrder(rawCols);
+    const colIdxMap = cols.map(c => rawCols.findIndex(rc => rc.fieldName === c.fieldName));
+
+    // Collect unique formatted cell values per column for filter dropdowns
+    const uniqueVals = cols.map(() => new Set());
+    rows.forEach(r => {
+      cols.forEach((c, ci) => {
+        const cell = r[colIdxMap[ci]];
+        uniqueVals[ci].add(fmtCell(cell.value, cell.formattedValue, c.dataType));
+      });
+    });
+
+    // Header row — column names
+    const hrow = G('hrow'), frow = G('frow');
     hrow.innerHTML = '';
-    tbody.innerHTML = '';
+    frow.innerHTML = '';
 
-    cols.forEach(c => {
+    cols.forEach((c, ci) => {
       const th = document.createElement('th');
       th.textContent = cleanName(c.fieldName);
       hrow.appendChild(th);
+
+      // Filter row — one dropdown per column
+      const fth = document.createElement('th');
+      const vals = Array.from(uniqueVals[ci]).sort((a, b) => {
+        const na = parseFloat(a.replace(/,/g,'')), nb = parseFloat(b.replace(/,/g,''));
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return a.localeCompare(b, 'he');
+      });
+
+      const sel = document.createElement('select');
+      sel.className = 'col-filter';
+      sel.dataset.ci = ci;
+
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = 'הכל';
+      sel.appendChild(allOpt);
+
+      vals.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        sel.appendChild(opt);
+      });
+
+      sel.addEventListener('change', e => {
+        activeFilters[ci] = e.target.value;
+        applyFilters();
+      });
+
+      fth.appendChild(sel);
+      frow.appendChild(fth);
     });
 
+    // Data rows
+    const tbody = G('tbody');
+    tbody.innerHTML = '';
     rows.forEach(r => {
       const tr = document.createElement('tr');
-      cols.forEach((c, i) => {
+      cols.forEach((c, ci) => {
+        const cell = r[colIdxMap[ci]];
         const td = document.createElement('td');
-        td.textContent = fmtCell(r[i].value, r[i].formattedValue, c.dataType);
+        td.textContent = fmtCell(cell.value, cell.formattedValue, c.dataType);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
