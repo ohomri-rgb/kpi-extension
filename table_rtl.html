@@ -281,9 +281,23 @@ async function load() {
     let paramValue = '';
     try {
       const params = await ws.getParametersAsync();
+      console.log('[RTL Table] All params:', params.map(p=>({name:p.name,val:p.currentValue})));
       const p = params.find(p => p.name.toLowerCase() === 'columns');
-      if (p) paramValue = String(p.currentValue.value || p.currentValue.formattedValue || '').trim();
-      console.log('[RTL Table] Columns param raw value:', paramValue);
+      if (p) {
+        const cv = p.currentValue;
+        // Try every possible field Tableau Cloud may use
+        paramValue = String(
+          cv.value ?? cv.formattedValue ?? cv.nativeValue ?? ''
+        ).trim();
+        // If still empty, try allowable values — pick the first one (the ordered string)
+        if (!paramValue && p.allowableValues?.list?.length) {
+          paramValue = String(p.allowableValues.list[0].value || p.allowableValues.list[0].formattedValue || '').trim();
+        }
+        console.log('[RTL Table] Columns param full object:', JSON.stringify(cv));
+        console.log('[RTL Table] Columns param raw value:', paramValue);
+      } else {
+        console.warn('[RTL Table] No parameter named "Columns" found. Available:', params.map(p=>p.name));
+      }
     } catch(e) { console.warn('[RTL Table] Could not read parameters:', e); }
 
     const dt = await ws.getSummaryDataAsync({ ignoreSelection: true });
