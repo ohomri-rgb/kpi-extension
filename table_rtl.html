@@ -16,7 +16,6 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'No
 
 table{width:100%;border-collapse:collapse;direction:rtl}
 
-/* ── sticky header rows ── */
 thead tr:first-child th{
   position:sticky;top:0;z-index:3;
   background:#f3f4f6;
@@ -34,7 +33,6 @@ thead tr:nth-child(2) th{
   border-bottom:2px solid #c7d2fe;
 }
 
-/* ── filter button in header ── */
 .filter-btn{
   display:flex;align-items:center;gap:4px;
   font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
@@ -42,33 +40,23 @@ thead tr:nth-child(2) th{
   padding:2px 7px 2px 5px;
   background:#fff;color:#374151;
   direction:rtl;cursor:pointer;
-  white-space:nowrap;
-  width:100%;min-width:60px;max-width:150px;
+  white-space:nowrap;width:100%;
   transition:border-color .15s;
 }
 .filter-btn:hover{border-color:#6366f1;color:#6366f1}
 .filter-btn.active{border-color:#6366f1;background:#eef2ff;color:#4338ca;font-weight:600}
-.filter-btn .arrow{font-size:9px;opacity:.6;flex-shrink:0;margin-right:auto;margin-left:0}
+.filter-btn .arrow{font-size:9px;opacity:.6;flex-shrink:0;margin-right:auto}
 .filter-btn .btn-label{flex:1;overflow:hidden;text-overflow:ellipsis;text-align:right}
 
-/* ── dropdown panel ── */
 .dd-panel{
-  position:fixed;
-  z-index:9999;
-  background:#fff;
-  border:1px solid #e5e7eb;
-  border-radius:8px;
+  position:fixed;z-index:9999;
+  background:#fff;border:1px solid #e5e7eb;border-radius:8px;
   box-shadow:0 8px 24px rgba(0,0,0,.13);
   min-width:160px;max-width:220px;
-  display:none;flex-direction:column;
-  overflow:hidden;
+  display:none;flex-direction:column;overflow:hidden;
 }
 .dd-panel.open{display:flex}
-.dd-search{
-  padding:6px 8px;
-  border-bottom:1px solid #f3f4f6;
-  flex-shrink:0;
-}
+.dd-search{padding:6px 8px;border-bottom:1px solid #f3f4f6;flex-shrink:0}
 .dd-search input{
   width:100%;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
   border:1px solid #e5e7eb;border-radius:4px;
@@ -79,21 +67,12 @@ thead tr:nth-child(2) th{
 .dd-item{
   display:flex;align-items:center;gap:7px;
   padding:5px 10px;font-size:12px;color:#374151;
-  cursor:pointer;direction:rtl;
-  user-select:none;
+  cursor:pointer;direction:rtl;user-select:none;
 }
 .dd-item:hover{background:#f5f3ff}
-.dd-item input[type=checkbox]{
-  accent-color:#6366f1;
-  width:13px;height:13px;flex-shrink:0;cursor:pointer;
-}
+.dd-item input[type=checkbox]{accent-color:#6366f1;width:13px;height:13px;flex-shrink:0;cursor:pointer}
 .dd-item label{cursor:pointer;flex:1;text-align:right}
-.dd-footer{
-  display:flex;gap:6px;
-  padding:6px 8px;
-  border-top:1px solid #f3f4f6;
-  flex-shrink:0;
-}
+.dd-footer{display:flex;gap:6px;padding:6px 8px;border-top:1px solid #f3f4f6;flex-shrink:0}
 .dd-footer button{
   flex:1;font-size:11px;font-family:'Noto Sans Hebrew',sans-serif;
   border-radius:5px;padding:3px 0;cursor:pointer;border:1px solid;
@@ -104,12 +83,9 @@ thead tr:nth-child(2) th{
 .btn-apply{background:#6366f1;border-color:#6366f1;color:#fff;font-weight:600}
 .btn-apply:hover{background:#4338ca}
 
-/* ── data rows ── */
 td{
-  padding:7px 12px;
-  font-size:12px;color:#111;
-  text-align:right;
-  border-bottom:1px solid #f3f4f6;
+  padding:7px 12px;font-size:12px;color:#111;
+  text-align:right;border-bottom:1px solid #f3f4f6;
   white-space:nowrap;
 }
 tbody tr:nth-child(even){background:#f9fafb}
@@ -129,9 +105,8 @@ tbody tr.hidden-row{display:none}
       <tbody id="tbody"></tbody>
     </table>
   </div>
-  <div id="footer">v3</div>
+  <div id="footer">v4</div>
 </div>
-<!-- shared dropdown panel (reused for all columns) -->
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
   <div class="dd-list" id="dd-list"></div>
@@ -144,298 +119,253 @@ tbody tr.hidden-row{display:none}
 <script>
 const G = id => document.getElementById(id);
 
-// strip aggregation wrappers: SUM(Sales For...) → Sales For...
+// Strip aggregation wrappers for display: SUM(Sales) → Sales
 const cleanName = s => s.replace(/^(sum|avg|count|min|max|attr|median|year|month|day|quarter|week)\s*\(/i,'').replace(/\)$/,'').trim();
-// aggressive normalise for matching: lower + strip all parens/aggregations recursively
-const normField = s => {
-  let r = s;
-  for(let i=0;i<5;i++) r = r.replace(/^(sum|avg|count|min|max|attr|median|year|month|day|quarter|week|truncated)\s*\(/i,'').replace(/\)$/,'').trim();
-  return r.toLowerCase().replace(/\s+/g,'');
+
+// Normalise for matching: lowercase, strip all spaces, strip aggregation wrappers recursively
+const norm = s => {
+  let r = String(s||'');
+  for(let i=0;i<6;i++) r = r.replace(/^(sum|avg|count|min|max|attr|median|year|month|day|quarter|week|cnt|truncated)\s*\(/i,'').replace(/\)$/,'').trim();
+  return r.toLowerCase().replace(/[\s_]/g,'');
 };
 
 let ws = null, timer = null, firstLoad = true;
-// activeFilters[ci] = Set of selected formatted values (empty Set = show all)
-let activeFilters = {};
-let _ddCi = -1;           // which column the open dropdown belongs to
-let _ddVals = [];         // all unique vals for open dropdown
-let _ddSelected = null;   // working Set (before apply)
-let _ddBtnEl = null;      // the button that opened it
+let activeFilters = {}; // {colIndex: Set of selected values}
 
-// ── dropdown open / close ──────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────
+function showError(msg) {
+  G('error').textContent = msg;
+  G('error').style.display = 'block';
+  if (firstLoad) { G('app').style.opacity='1'; firstLoad=false; }
+}
+
+function fmtCell(val, fval, dataType) {
+  if (val==null||val===''||val==='%null%') return '—';
+  const t=(dataType||'').toLowerCase();
+  if (t.includes('date')) return fval||String(val);
+  if (['float','real','double','number'].some(x=>t.includes(x))) {
+    const n=parseFloat(val); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US');
+  }
+  if (['int','integer'].some(x=>t.includes(x))) {
+    const n=parseInt(val,10); return isNaN(n)?(fval||String(val)):n.toLocaleString('en-US');
+  }
+  return fval||String(val);
+}
+
+// ── column ordering from "Columns" parameter ──────────────────────────────
+// Parameter value: "YEAR(Order Date), YEAR(Ship Date), Category, Customer Name, ..."
+// We split by comma, trim each, then match against rawCols by normalised name.
+// Unmatched rawCols are appended at the end.
+function applyParamOrder(rawCols, paramValue) {
+  if (!paramValue || !paramValue.trim()) return rawCols;
+
+  const ordered = paramValue.split(',').map(s => s.trim()).filter(Boolean);
+  console.log('[RTL Table] Columns param order:', ordered);
+
+  // Build norm → rawCol lookup
+  const normMap = {};
+  rawCols.forEach(c => { normMap[norm(c.fieldName)] = c; });
+
+  const used = new Set();
+  const mapped = [];
+
+  ordered.forEach(name => {
+    const key = norm(name);
+    const col = normMap[key];
+    if (col && !used.has(col.fieldName)) {
+      mapped.push(col);
+      used.add(col.fieldName);
+    } else {
+      console.warn('[RTL Table] No match for param entry:', name, '→ norm:', key);
+    }
+  });
+
+  // Append any rawCols not covered by the param (show at end, don't lose data)
+  rawCols.forEach(c => { if (!used.has(c.fieldName)) mapped.push(c); });
+
+  console.log('[RTL Table] Final col order:', mapped.map(c=>c.fieldName));
+  return mapped;
+}
+
+// ── dropdown ──────────────────────────────────────────────────────────────
+let _ddCi=-1, _ddVals=[], _ddSelected=null, _ddBtnEl=null;
+
 function openDropdown(ci, vals, btnEl) {
-  _ddCi = ci;
-  _ddVals = vals;
-  _ddSelected = new Set(activeFilters[ci] || []);
-  _ddBtnEl = btnEl;
-
-  renderDdList(vals, '');
-  G('dd-search-input').value = '';
-
-  const panel = G('dd-panel');
+  _ddCi=ci; _ddVals=vals;
+  _ddSelected=new Set(activeFilters[ci]||[]);
+  _ddBtnEl=btnEl;
+  renderDdList(vals,'');
+  G('dd-search-input').value='';
+  const panel=G('dd-panel');
   panel.classList.add('open');
-
-  // Position below the button
-  const rect = btnEl.getBoundingClientRect();
-  let top = rect.bottom + 2, left = rect.left;
-  // Keep inside viewport
-  const pw = 220;
-  if (left + pw > window.innerWidth) left = window.innerWidth - pw - 4;
-  if (top + 240 > window.innerHeight) top = rect.top - 244;
-  panel.style.top  = top  + 'px';
-  panel.style.left = left + 'px';
+  const rect=btnEl.getBoundingClientRect();
+  let top=rect.bottom+2, left=rect.left;
+  if(left+220>window.innerWidth) left=window.innerWidth-224;
+  if(top+250>window.innerHeight) top=rect.top-254;
+  panel.style.top=top+'px'; panel.style.left=left+'px';
 }
-
-function closeDropdown() {
-  G('dd-panel').classList.remove('open');
-  _ddCi = -1;
-}
+function closeDropdown(){G('dd-panel').classList.remove('open');_ddCi=-1;}
 
 function renderDdList(vals, search) {
-  const q = search.toLowerCase();
-  const filtered = vals.filter(v => v.toLowerCase().includes(q));
-  G('dd-list').innerHTML = filtered.map(v => {
-    const checked = _ddSelected.has(v) ? 'checked' : '';
-    const esc = v.replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const q=search.toLowerCase();
+  const filtered=vals.filter(v=>v.toLowerCase().includes(q));
+  G('dd-list').innerHTML=filtered.map((v,i)=>{
+    const checked=_ddSelected.has(v)?'checked':'';
+    const esc=v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
     return `<div class="dd-item" data-v="${esc}">
-      <input type="checkbox" ${checked} data-v="${esc}" id="chk-${esc}"/>
-      <label for="chk-${esc}">${esc}</label>
+      <input type="checkbox" ${checked} id="chk_${i}"/>
+      <label for="chk_${i}">${esc}</label>
     </div>`;
   }).join('');
-  G('dd-list').querySelectorAll('.dd-item').forEach(item => {
-    item.addEventListener('click', e => {
-      if (e.target.tagName === 'INPUT') return; // let checkbox handle itself
-      const chk = item.querySelector('input');
-      chk.checked = !chk.checked;
-      toggleVal(item.dataset.v, chk.checked);
-    });
-    item.querySelector('input').addEventListener('change', e => {
-      toggleVal(item.dataset.v, e.target.checked);
-    });
+  G('dd-list').querySelectorAll('.dd-item').forEach(item=>{
+    const chk=item.querySelector('input');
+    const v=item.dataset.v;
+    chk.addEventListener('change',e=>{ if(e.target.checked) _ddSelected.add(v); else _ddSelected.delete(v); });
+    item.querySelector('label').addEventListener('click',()=>{ chk.checked=!chk.checked; if(chk.checked) _ddSelected.add(v); else _ddSelected.delete(v); });
   });
 }
 
-function toggleVal(v, checked) {
-  if (checked) _ddSelected.add(v); else _ddSelected.delete(v);
-}
+G('dd-search-input').addEventListener('input',e=>renderDdList(_ddVals,e.target.value));
 
-G('dd-search-input').addEventListener('input', e => {
-  renderDdList(_ddVals, e.target.value);
-});
-
-G('btn-all').addEventListener('click', () => {
-  _ddSelected.clear();
-  activeFilters[_ddCi] = new Set();
+G('btn-all').addEventListener('click',()=>{
+  if(_ddCi<0) return;
+  activeFilters[_ddCi]=new Set();
   updateFilterBtn(_ddCi);
   applyFilters();
   closeDropdown();
 });
-
-G('btn-apply').addEventListener('click', () => {
-  if (_ddCi < 0) return;
-  activeFilters[_ddCi] = new Set(_ddSelected);
+G('btn-apply').addEventListener('click',()=>{
+  if(_ddCi<0) return;
+  activeFilters[_ddCi]=new Set(_ddSelected);
   updateFilterBtn(_ddCi);
   applyFilters();
   closeDropdown();
 });
-
-document.addEventListener('click', e => {
-  const panel = G('dd-panel');
-  if (!panel.classList.contains('open')) return;
-  if (panel.contains(e.target)) return;
-  if (_ddBtnEl && _ddBtnEl.contains(e.target)) return;
+document.addEventListener('click',e=>{
+  if(!G('dd-panel').classList.contains('open')) return;
+  if(G('dd-panel').contains(e.target)) return;
+  if(_ddBtnEl&&_ddBtnEl.contains(e.target)) return;
   closeDropdown();
 });
 
-// ── update button label after filter applied ───────────────────────────────
 function updateFilterBtn(ci) {
-  const btn = document.querySelector(`.filter-btn[data-ci="${ci}"]`);
-  if (!btn) return;
-  const sel = activeFilters[ci];
-  const active = sel && sel.size > 0;
-  btn.classList.toggle('active', active);
-  btn.querySelector('.btn-label').textContent = active
-    ? (sel.size === 1 ? [...sel][0] : `${sel.size} נבחרו`)
-    : 'הכל';
+  const btn=document.querySelector(`.filter-btn[data-ci="${ci}"]`);
+  if(!btn) return;
+  const sel=activeFilters[ci];
+  const active=sel&&sel.size>0;
+  btn.classList.toggle('active',active);
+  btn.querySelector('.btn-label').textContent=active
+    ?(sel.size===1?[...sel][0]:`${sel.size} נבחרו`)
+    :'הכל';
 }
 
-// ── apply all active filters to rows ──────────────────────────────────────
 function applyFilters() {
-  G('tbody').querySelectorAll('tr').forEach(tr => {
-    let show = true;
-    Object.entries(activeFilters).forEach(([ci, sel]) => {
-      if (!sel || sel.size === 0) return;
-      const td = tr.children[parseInt(ci)];
-      if (td && !sel.has(td.textContent)) show = false;
+  G('tbody').querySelectorAll('tr').forEach(tr=>{
+    let show=true;
+    Object.entries(activeFilters).forEach(([ci,sel])=>{
+      if(!sel||sel.size===0) return;
+      const td=tr.children[parseInt(ci)];
+      if(td&&!sel.has(td.textContent)) show=false;
     });
-    tr.classList.toggle('hidden-row', !show);
+    tr.classList.toggle('hidden-row',!show);
   });
 }
 
-// ── cell formatting ────────────────────────────────────────────────────────
-function fmtCell(val, fval, dataType) {
-  if (val == null || val === '' || val === '%null%') return '—';
-  const t = (dataType || '').toLowerCase();
-  if (t.includes('date')) return fval || String(val);
-  if (['float','real','double','number'].some(x => t.includes(x))) {
-    const n = parseFloat(val);
-    return isNaN(n) ? (fval || String(val)) : n.toLocaleString('en-US');
-  }
-  if (['int','integer'].some(x => t.includes(x))) {
-    const n = parseInt(val, 10);
-    return isNaN(n) ? (fval || String(val)) : n.toLocaleString('en-US');
-  }
-  return fval || String(val);
-}
-
-// ── resolve column order from marks card Detail slot ──────────────────────
-// Tableau's getSummaryDataAsync returns cols in internal order.
-// getVisualSpecificationAsync gives us the marks card field order.
-// We match them by normalising both sides (strip aggregations, lowercase).
-async function resolveDetailOrder(rawCols) {
-  try {
-    const spec = await ws.getVisualSpecificationAsync();
-    const encList = spec?.marksSpecificationList?.[0]?.encodingList || [];
-
-    // Collect ALL detail-slot field names in order
-    // The detail slot may appear as one encoding with a fieldList, or multiple encodings
-    const orderedNames = [];
-    encList.forEach(e => {
-      if ((e.id || '').toLowerCase() !== 'detail') return;
-      const list = e.fieldList || (e.field ? [e.field] : []);
-      list.forEach(f => {
-        const nm = f.fieldName || f.name || '';
-        if (nm) orderedNames.push(nm);
-      });
-    });
-
-    console.log('[RTL Table] spec detail fields:', orderedNames);
-    console.log('[RTL Table] rawCols fieldNames:', rawCols.map(c=>c.fieldName));
-
-    if (!orderedNames.length) return rawCols;
-
-    // Build lookup: normField(rawCol.fieldName) → rawCol
-    const normMap = {};
-    rawCols.forEach(c => { normMap[normField(c.fieldName)] = c; });
-
-    const used = new Set();
-    const mapped = [];
-
-    orderedNames.forEach(fname => {
-      // Try exact match first, then normalised
-      let col = rawCols.find(c => c.fieldName === fname);
-      if (!col) col = normMap[normField(fname)];
-      if (col && !used.has(col.fieldName)) {
-        mapped.push(col);
-        used.add(col.fieldName);
-      }
-    });
-
-    // Append any rawCols that didn't appear in spec (shouldn't happen, but safety net)
-    rawCols.forEach(c => { if (!used.has(c.fieldName)) mapped.push(c); });
-
-    console.log('[RTL Table] resolved order:', mapped.map(c=>c.fieldName));
-    return mapped;
-  } catch(e) {
-    console.warn('[RTL Table] getVisualSpecificationAsync failed — using raw order:', e);
-    return rawCols;
-  }
-}
-
-// ── main load ──────────────────────────────────────────────────────────────
+// ── main load ─────────────────────────────────────────────────────────────
 async function load() {
-  G('error').style.display = 'none';
-  activeFilters = {};
+  G('error').style.display='none';
+  activeFilters={};
   closeDropdown();
   try {
+    // Read "Columns" parameter for ordering
+    let paramValue = '';
+    try {
+      const params = await ws.getParametersAsync();
+      const p = params.find(p => p.name.toLowerCase() === 'columns');
+      if (p) paramValue = String(p.currentValue.value || p.currentValue.formattedValue || '').trim();
+      console.log('[RTL Table] Columns param raw value:', paramValue);
+    } catch(e) { console.warn('[RTL Table] Could not read parameters:', e); }
+
     const dt = await ws.getSummaryDataAsync({ ignoreSelection: true });
     const rawCols = dt.columns, rows = dt.data;
     if (!rawCols.length) return showError('No fields found. Drag fields to the Detail marks card.');
 
-    const cols = await resolveDetailOrder(rawCols);
-    // For each ordered col, record its index in rawCols for data lookup
+    // Apply parameter-driven column order
+    const cols = applyParamOrder(rawCols, paramValue);
+    // Map each ordered col back to its index in rawCols for data access
     const colIdxMap = cols.map(c => rawCols.findIndex(rc => rc.fieldName === c.fieldName));
 
-    // Collect unique formatted values per column for filter dropdowns
-    const uniqueVals = cols.map(() => new Set());
-    rows.forEach(r => {
-      cols.forEach((c, ci) => {
-        const cell = r[colIdxMap[ci]];
-        uniqueVals[ci].add(fmtCell(cell.value, cell.formattedValue, c.dataType));
+    // Collect unique formatted values per column for filters
+    const uniqueVals = cols.map(()=>new Set());
+    rows.forEach(r=>{
+      cols.forEach((c,ci)=>{
+        const cell=r[colIdxMap[ci]];
+        uniqueVals[ci].add(fmtCell(cell.value,cell.formattedValue,c.dataType));
       });
     });
 
     // Build header rows
-    const hrow = G('hrow'), frow = G('frow');
-    hrow.innerHTML = '';
-    frow.innerHTML = '';
+    const hrow=G('hrow'), frow=G('frow');
+    hrow.innerHTML=''; frow.innerHTML='';
 
-    cols.forEach((c, ci) => {
-      // Column name header
-      const th = document.createElement('th');
-      th.textContent = cleanName(c.fieldName);
+    cols.forEach((c,ci)=>{
+      const th=document.createElement('th');
+      th.textContent=cleanName(c.fieldName);
       hrow.appendChild(th);
 
-      // Filter button header
-      const fth = document.createElement('th');
-      const vals = Array.from(uniqueVals[ci]).sort((a, b) => {
-        const na = parseFloat(a.replace(/,/g,'')), nb = parseFloat(b.replace(/,/g,''));
-        if (!isNaN(na) && !isNaN(nb)) return na - nb;
-        return String(a).localeCompare(String(b), 'he');
+      const fth=document.createElement('th');
+      const vals=Array.from(uniqueVals[ci]).sort((a,b)=>{
+        const na=parseFloat(a.replace(/,/g,'')), nb=parseFloat(b.replace(/,/g,''));
+        if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+        return String(a).localeCompare(String(b),'he');
       });
-
-      const btn = document.createElement('button');
-      btn.className = 'filter-btn';
-      btn.dataset.ci = ci;
-      btn.innerHTML = `<span class="arrow">▼</span><span class="btn-label">הכל</span>`;
-      btn.addEventListener('click', e => {
+      const btn=document.createElement('button');
+      btn.className='filter-btn';
+      btn.dataset.ci=ci;
+      btn.innerHTML=`<span class="arrow">▼</span><span class="btn-label">הכל</span>`;
+      btn.addEventListener('click',e=>{
         e.stopPropagation();
-        if (G('dd-panel').classList.contains('open') && _ddCi === ci) {
-          closeDropdown();
-        } else {
-          openDropdown(ci, vals, btn);
-        }
+        if(G('dd-panel').classList.contains('open')&&_ddCi===ci){ closeDropdown(); }
+        else { openDropdown(ci,vals,btn); }
       });
-
       fth.appendChild(btn);
       frow.appendChild(fth);
     });
 
     // Build data rows
-    const tbody = G('tbody');
-    tbody.innerHTML = '';
-    rows.forEach(r => {
-      const tr = document.createElement('tr');
-      cols.forEach((c, ci) => {
-        const cell = r[colIdxMap[ci]];
-        const td = document.createElement('td');
-        td.textContent = fmtCell(cell.value, cell.formattedValue, c.dataType);
+    const tbody=G('tbody');
+    tbody.innerHTML='';
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      cols.forEach((c,ci)=>{
+        const cell=r[colIdxMap[ci]];
+        const td=document.createElement('td');
+        td.textContent=fmtCell(cell.value,cell.formattedValue,c.dataType);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
 
-    if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
+    if(firstLoad){G('app').style.opacity='1';firstLoad=false;}
   } catch(e) {
-    console.error('[RTL Table] error:', e);
-    showError(e.message || 'Unknown error — check the browser console.');
+    console.error('[RTL Table] error:',e);
+    showError(e.message||'Unknown error — check the browser console.');
   }
 }
 
-function showError(msg) {
-  G('error').textContent = msg;
-  G('error').style.display = 'block';
-  if (firstLoad) { G('app').style.opacity = '1'; firstLoad = false; }
-}
-
-const debouncedLoad = () => { clearTimeout(timer); timer = setTimeout(load, 150); };
+const debouncedLoad=()=>{clearTimeout(timer);timer=setTimeout(load,150);};
 
 async function init() {
-  if (typeof tableau === 'undefined') { setTimeout(init, 50); return; }
+  if(typeof tableau==='undefined'){setTimeout(init,50);return;}
   await tableau.extensions.initializeAsync();
-  ws = tableau.extensions.worksheetContent.worksheet;
+  ws=tableau.extensions.worksheetContent.worksheet;
   load();
-  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, debouncedLoad);
+  ws.addEventListener(tableau.TableauEventType.SummaryDataChanged,debouncedLoad);
+  try {
+    const params=await ws.getParametersAsync();
+    params.forEach(p=>p.addEventListener(tableau.TableauEventType.ParameterChanged,debouncedLoad));
+  } catch(e){console.warn('Param listener failed:',e);}
 }
-window.onload = init;
+window.onload=init;
 </script>
 </body></html>
