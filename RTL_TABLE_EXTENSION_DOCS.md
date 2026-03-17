@@ -1,5 +1,5 @@
 # RTL Table — Tableau Extension
-### Full Project Documentation | v9
+### Full Project Documentation | v20
 
 ---
 
@@ -19,7 +19,7 @@ A Tableau Viz Extension (worksheet extension) that renders a scrollable RTL data
 
 | File | Purpose |
 |---|---|
-| `table_rtl.html` | Main extension — all logic, ~290 lines (v9) |
+| `table_rtl.html` | Main extension — all logic, ~300 lines (v20) |
 | `table_rtl.trex` | Tableau manifest — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
 
@@ -204,6 +204,7 @@ applyFilters()
 | Unlisted Detail fields appearing in table | Unmatched rawCols were appended at end | v7 |
 | Long free-text columns expanding row height excessively | `table-layout:auto` ignores `max-width`; string columns sized by content | v9 |
 | Negative numbers rendering as `1,234-` instead of `-1,234` | RTL bidi reordering of weak minus character | v6 |
+| Inconsistent column widths — some too wide, some too narrow | Numeric columns sized by header length only; string columns hardcoded to 220px regardless of content | v20 |
 | Code bloat — 385 lines | Redundant loops, verbose helpers | v5 (refactor) |
 
 ---
@@ -216,7 +217,7 @@ applyFilters()
 4. Load `table_rtl.trex` in workbook
 5. Drag all desired fields to **Detail** on the Marks card
 6. Create a `Columns` String parameter (List type) with one entry — comma-separated ordered field names
-7. Confirm version footer shows **v9**
+7. Confirm version footer shows **v20**
 8. Open F12 console — verify `Final col order` matches expected sequence and no unexpected `Dropped` fields
 9. Test filter dropdowns — multi-select, search, clear
 10. Verify RTL layout and Hebrew font render correctly
@@ -236,4 +237,6 @@ applyFilters()
 | v6 | Superseded | Negative number fix: numeric cells wrapped in `direction:ltr; unicode-bidi:embed` `<span>` so minus sign renders correctly in RTL layout. `<td>` stays right-aligned. |
 | v7 | Superseded | Unlisted columns dropped: fields on Detail but not in `Columns` param are now silently excluded (logged as `Dropped`) instead of appended. `Columns` param is now the single source of truth for both order and visibility. |
 | v8 | Superseded | Intermediate attempts at fixing long-text column width (various approaches). |
-| v9 | ✅ Current | Long-text column fix: `table-layout:fixed` with JS-injected `<colgroup>` — string columns fixed at 220px (wrap), number/date columns sized by header length (nowrap). Total table width calculated for correct horizontal scroll. |
+| v9 | Superseded | Long-text column fix: `table-layout:fixed` with JS-injected `<colgroup>` — string columns fixed at 220px (wrap), number/date columns sized by header length (nowrap). Total table width calculated for correct horizontal scroll. |
+| v10–v19 | Superseded | Iterative column width attempts. |
+| v20 | ✅ Current | Unified content-aware column sizing: all columns measured by `max(80px, headerWidth, dataWidth)`. Short-content columns (numeric, short strings) size to fit. Long-text string columns (any value >40 chars) fixed at 280px with wrapping. Hard cap 400px. Single width calculation shared by both `<col>` elements and `table.style.width` — no more drift. |
