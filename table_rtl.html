@@ -60,7 +60,7 @@ tbody tr.hidden-row{display:none}
   <div id="table-wrap">
     <table><thead><tr id="hrow"></tr><tr id="frow"></tr></thead><tbody id="tbody"></tbody></table>
   </div>
-  <div id="footer">v9</div>
+  <div id="footer">v20</div>
 </div>
 <div class="dd-panel" id="dd-panel">
   <div class="dd-search"><input type="text" id="dd-search-input" placeholder="חיפוש..."/></div>
@@ -214,17 +214,26 @@ async function load() {
     const tbl=document.querySelector('table');
     const oldCg=tbl.querySelector('colgroup'); if(oldCg) oldCg.remove();
     const cg=document.createElement('colgroup');
-    cols.forEach((_,ci)=>{
+    cols.forEach((c,ci)=>{
       const col=document.createElement('col');
-      col.style.width=isStrCol[ci]?'220px':'auto';
+      if(isStrCol[ci]){ col.style.width='220px'; }
+      else {
+        const headerW=cleanName(c.fieldName).length*9+24;
+        const maxValLen=Array.from(uniqueVals[ci]).reduce((mx,v)=>Math.max(mx,String(v).length),0);
+        const dataW=maxValLen*8+24;
+        col.style.width=Math.max(80,headerW,dataW)+'px';
+      }
       cg.appendChild(col);
     });
     tbl.insertBefore(cg,tbl.firstChild);
-    // total width: string cols 220px, others measured by header text (~10px per char + padding)
+    // total width: string cols 220px, others = widest of header, data values, or filter btn minimum
     const totalW=cols.reduce((s,c,ci)=>{
       if(isStrCol[ci]) return s+220;
       const headerLen=cleanName(c.fieldName).length;
-      return s+Math.max(60, headerLen*9+24);
+      const headerW=headerLen*9+24;
+      const maxValLen=Array.from(uniqueVals[ci]).reduce((mx,v)=>Math.max(mx,String(v).length),0);
+      const dataW=maxValLen*8+24;
+      return s+Math.max(80, headerW, dataW); // 80px min so filter btn fits comfortably
     },0);
     tbl.style.width=totalW+'px';
 
