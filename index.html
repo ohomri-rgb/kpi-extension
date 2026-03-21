@@ -595,7 +595,8 @@ function openSlotDropdown(role, anchorEl) {
   dd.style.right = (window.innerWidth - rect.right) + 'px';
   dd.style.left = 'auto';
 
-  setTimeout(() => document.addEventListener('click', closeDropdownOutside), 0);
+  // Use mousedown instead of click to avoid immediate close
+  setTimeout(() => document.addEventListener('mousedown', closeDropdownOutside), 100);
 }
 
 function assignFromDropdown(escapedFieldName) {
@@ -610,7 +611,7 @@ function closeDropdownOutside(e) {
   const dd = document.getElementById('slot-dropdown');
   if (!dd.contains(e.target)) {
     closeSlotDropdown();
-    document.removeEventListener('click', closeDropdownOutside);
+    document.removeEventListener('mousedown', closeDropdownOutside);
   }
 }
 
