@@ -463,7 +463,12 @@ function openSlotDropdown(role, anchorEl) {
   const dd = document.getElementById('slot-dropdown');
   state.activeDropdownRole = role;
 
+  // DEBUG — remove after testing
+  console.log('[dropdown] role.accepts:', role.accepts);
+  console.log('[dropdown] all fields:', state.worksheetFields.map(f => f.fieldName + ' | dt=' + f.dataType + ' | type=' + getFieldType(f.dataType)));
+
   const compatible = state.worksheetFields.filter(f => canAssign(role.accepts, f.dataType));
+  console.log('[dropdown] compatible:', compatible.length, compatible.map(f=>f.fieldName));
   const dims = compatible.filter(f => getFieldType(f.dataType) === 'dim');
   const measures = compatible.filter(f => getFieldType(f.dataType) === 'measure');
 
