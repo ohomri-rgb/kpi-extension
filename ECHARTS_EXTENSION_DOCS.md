@@ -1,5 +1,5 @@
 # ECharts Extension — Tableau Viz Extension
-### Full Project Documentation | v3
+### Full Project Documentation | v4
 
 ---
 
@@ -7,13 +7,15 @@
 
 A Tableau Viz Extension (worksheet extension) that renders interactive ECharts visualizations inside a Tableau worksheet. Single HTML file, no backend, fully offline.
 
-- **28 chart types** across 11 categories
+- **45 chart types** across 13 categories
 - Marks Card UI inside the extension — assign fields to chart roles via dropdown or drag & drop
 - Gallery modal — browse chart types with live ECharts mini-previews, search + category filter chips
 - Auto-refresh on FilterChanged and MarkSelectionChanged events
 - Manual field reload button (↺) — syncs field list from Detail shelf without page reload
 - Error bar with clear messages when fields are missing or LOD is undefined
 - **Fully offline** — no CDN dependencies, all assets served locally
+
+> **Console warnings note:** Tableau's own runtime emits `@import` CSS warnings and preload warnings in the browser console. These originate from `tableau.css` (Tableau's internal stylesheet) and Tableau's CDN assets — they are not related to extension code and can be safely ignored.
 
 ---
 
@@ -53,31 +55,33 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 ---
 
-## Chart Types (28 total)
+## Chart Types (45 total)
 
 | Category | Charts |
 |---|---|
-| קו ושטח | Line Chart, Area Chart, Step Line, Stacked Area |
-| עמודות | Bar Chart, Horizontal Bar, Stacked Bar, Waterfall, Dual Axis, Pictorial Bar |
-| עוגה | Pie Chart, Donut Chart |
-| פיזור | Scatter Plot, Bubble Chart |
-| מפות חום | Heatmap, Calendar Heatmap |
-| היררכיה | Treemap, Sunburst |
-| זרימה | Sankey Diagram, Network Graph, ThemeRiver |
-| מפה | World Map, US States Map, Geo Bubble Map |
-| KPI | Gauge Chart |
-| פיננסי | Candlestick |
-| מיוחד | Radar Chart, Funnel Chart |
+| קו ושטח | Line Chart, Area Chart, Step Line, Stacked Area, Stacked Line, Confidence Band |
+| עמודות | Bar Chart, Horizontal Bar, Stacked Bar, Waterfall, Dual Axis, Pictorial Bar, Histogram, Polar Bar |
+| עוגה | Pie Chart, Donut Chart, Nightingale Rose, Nested Pie |
+| פיזור | Scatter Plot, Bubble Chart, Effect Scatter |
+| מפות חום | Heatmap, Calendar Heatmap, Multi-year Calendar |
+| היררכיה | Treemap, Sunburst, Tree Chart, Radial Tree |
+| זרימה | Sankey Diagram, Network Graph, ThemeRiver, Circular Graph |
+| מפה | World Map, US States Map, Geo Bubble Map, Lines Map |
+| KPI | Gauge Chart, Progress Bar, Multi Gauge |
+| פיננסי | Candlestick, Candlestick + Volume |
+| מיוחד | Radar Chart, Multi-series Radar, Funnel Chart, Parallel Coordinates |
 
-### Charts Not Included (Removed from Scope)
+### Charts Not Included (Out of Scope)
 
 | Chart | Reason |
 |---|---|
-| Boxplot | Requires raw distribution data — needs underlying rows, high row count risk |
-| Histogram | Same as Boxplot |
-| Parallel Coordinates | Same issue at scale |
-
-These can be re-added with a row count warning (`isTotalRowCountLimited` check).
+| Boxplot / Violin | Requires raw distribution data — `getSummaryDataAsync` returns aggregated data only |
+| Bar Race / Line Race | Requires `setInterval` animation — Tableau loads data once, no streaming |
+| 3D charts (Bar3D, Scatter3D, Globe) | Requires `echarts-gl` library (3MB+, WebGL) — not included in offline bundle |
+| GL charts (Scatter GL, Lines GL) | Same as 3D — requires `echarts-gl` |
+| Custom Region Map | Requires external GeoJSON file — outside offline scope |
+| Clock Gauge | Real-time `setInterval` — not connected to Tableau data |
+| Data Transform / Dataset | Tableau handles aggregation server-side — redundant in extension context |
 
 ---
 
@@ -85,30 +89,46 @@ These can be re-added with a row count warning (`isTotalRowCountLimited` check).
 
 | Chart | Required Roles | Optional Roles |
 |---|---|---|
-| Line / Area / Step Line | X (dim), Y (measure) | Group (dim) |
+| Line / Area / Step Line / Stacked Line | X (dim), Y (measure) | Group (dim) |
 | Stacked Area | X (dim), Y (measure), Group (dim) | — |
+| Confidence Band | X (dim), קו מרכזי (measure), גבול עליון (measure), גבול תחתון (measure) | — |
 | Bar / Horizontal Bar | X/Y axis (dim), value (measure) | Color (dim) |
 | Stacked Bar | X (dim), Y (measure), Stack (dim) | — |
 | Waterfall | X (dim), Y (measure) | — |
 | Dual Axis | X (dim), עמודות (measure), קו (measure) | — |
 | Pictorial Bar | X (dim), Y (measure) | — |
+| Histogram | Bin / קטגוריה (dim), ספירה / ערך (measure) | — |
+| Polar Bar | קטגוריה (dim), ערך (measure) | Color (dim) |
 | Pie / Donut | ממד (dim), ערך (measure) | — |
+| Nightingale Rose | ממד (dim), ערך (measure) | — |
+| Nested Pie | חיצוני (dim), פנימי (dim), ערך (measure) | — |
 | Scatter | X (measure), Y (measure) | Color (dim) |
 | Bubble | X (measure), Y (measure), גודל (measure) | Color (dim) |
+| Effect Scatter | X (measure), Y (measure) | Color (dim) |
 | Heatmap | X (dim), Y (dim), ערך (measure) | — |
 | Calendar Heatmap | תאריך (dim), ערך (measure) | — |
+| Multi-year Calendar | תאריך (dim), ערך (measure) | — |
 | Radar | מדדים (dim), ערך (measure) | — |
+| Multi-series Radar | מדדים (dim), ערך (measure), סדרה (dim) | — |
 | Funnel | שלב (dim), ערך (measure) | — |
+| Parallel Coordinates | קטגוריה (dim), מדד 1 (measure), מדד 2 (measure) | מדד 3–5 (measure) |
 | Treemap | ממד (dim), ערך (measure) | Parent (dim) |
 | Sunburst | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
+| Tree Chart | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
+| Radial Tree | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
 | Sankey | מקור (dim), יעד (dim), ערך (measure) | — |
 | Network Graph | מקור (dim), יעד (dim) | משקל (measure) |
+| Circular Graph | מקור (dim), יעד (dim) | משקל (measure) |
 | ThemeRiver | זמן (dim), נושא (dim), ערך (measure) | — |
 | Gauge | ערך (measure) | מקסימום (measure) |
+| Progress Bar | ערך (measure) | מקסימום (measure), קטגוריה (dim) |
+| Multi Gauge | ערך 1 (measure) | ערך 2, ערך 3 (measure) |
 | Candlestick | תאריך (dim), פתיחה, סגירה, מינימום, מקסימום (measures) | — |
+| Candlestick + Volume | תאריך (dim), פתיחה, סגירה, מינימום, מקסימום (measures) | נפח (measure) |
 | World Map | מדינה (dim), ערך (measure) | — |
 | US States Map | מדינה US (dim), ערך (measure) | — |
 | Geo Bubble Map | Latitude (measure), Longitude (measure), ערך (measure) | תווית (dim), צבע (dim) |
+| Lines Map | Lat מקור, Lon מקור, Lat יעד, Lon יעד (measures) | עוצמה (measure), תווית (dim) |
 
 ---
 
@@ -132,12 +152,19 @@ The extension reads data via `getSummaryDataAsync()`. This call respects the wor
 |---|---|
 | Line Chart | `MONTH(Order Date)`, `Segment`, `SUM(Sales)` |
 | Stacked Bar | `Category`, `Region`, `SUM(Profit)` |
+| Confidence Band | `MONTH(Order Date)`, `AVG(Sales)`, `MAX(Sales)`, `MIN(Sales)` |
 | Geo Bubble Map | `City`, `Latitude (generated)`, `Longitude (generated)`, `SUM(Sales)` |
+| Lines Map | `Route`, `Src Lat`, `Src Lon`, `Tgt Lat`, `Tgt Lon`, `SUM(Sales)` |
 | World Map | `Country/Region`, `SUM(Sales)` |
 | US States Map | `State/Province`, `SUM(Sales)` |
 | Calendar Heatmap | `Order Date` (exact date), `SUM(Sales)` |
+| Multi-year Calendar | `Order Date` (exact date), `SUM(Sales)` |
 | Candlestick | `MONTH(Order Date)`, `SUM(Sales)`, `MIN(Sales)`, `MAX(Sales)` |
+| Candlestick + Volume | `MONTH(Order Date)`, open, close, low, high, `SUM(Quantity)` |
+| Parallel Coordinates | `Segment`, `SUM(Sales)`, `SUM(Profit)`, `SUM(Quantity)` |
 | Gauge | `SUM(Sales)` |
+| Progress Bar | `SUM(Sales)` + optional `Category` for multi-bar |
+| Multi Gauge | `SUM(Sales)`, `SUM(Profit)`, `SUM(Quantity)` |
 
 ### Why Detail and not Rows/Columns?
 The extension renders the chart itself — Tableau's Rows/Columns are unused. Detail is the only shelf that makes fields available to `getSummaryDataAsync` without affecting the Tableau native view.
@@ -166,6 +193,13 @@ After adding or removing fields from the Detail shelf, click the **↺ button** 
 - Bubble size = value field (scaled via `Math.sqrt`)
 - Optional Color field splits bubbles into colored series with legend
 - Optional Label field shows in tooltip on hover
+
+### Lines Map
+- Requires 4 measure fields: `Lat מקור`, `Lon מקור`, `Lat יעד`, `Lon יעד`
+- Optional `עוצמה` (measure) scales line width
+- Optional `תווית` (dim) shows in tooltip on hover
+- Animated flow effect (moving dots along lines) via ECharts `lines` series `effect`
+- Uses the same `world.js` and `ensureMap()` as other map types
 
 ### Map loading
 All three map charts use `world.js` loaded as a `<script>` tag. The map is registered automatically on page load via `echarts.registerMap('world', ...)`. The `ensureMap()` function verifies registration before rendering and shows a Hebrew error if `world.js` is missing.
@@ -353,6 +387,18 @@ Selecting a chart:
 | `echarts.min.js` 404 on GitHub Pages | File not pushed to repo | Fixed — all local assets must be committed to repo |
 | Two separate GeoJSON files for World + US | US is part of world GeoJSON — no separate file needed | Fixed — single `world.js`, US States Map uses `center/zoom` to focus on USA |
 | Debug `console.log` noise in production Console | Leftover development logs | Fixed — all `console.log/warn` removed in v3 |
+| Tableau console warnings — `@import` CSS rule and preload warnings | Originate from `tableau.css` (Tableau's own stylesheet) and Tableau CDN assets | Not a bug — safely ignored, unrelated to extension code |
+
+### Open Known Issues (not yet fixed)
+
+| Issue | Affected Charts | Notes |
+|---|---|---|
+| Sort is lexicographic — "10" sorts before "9" | Line, Area, Step Line, Stacked Line, Candlestick | `.sort()` without comparator. Fix: numeric comparator with string fallback |
+| Bubble symbol size not normalized | Bubble | `Math.sqrt(d[2])*3` without dividing by maxVal — huge bubbles with large values |
+| Treemap `Parent` role ignored in render | Treemap | Role defined in UI but `renderECharts` always renders flat data |
+| Waterfall incorrect baseline for negative values | Waterfall | `baseData` logic breaks when cumulative goes negative |
+| ThemeRiver `type:'time'` axis may break | ThemeRiver | If Tableau returns `MONTH()` as int (1–12) instead of ISO date string |
+| Stacked Area crashes if `groupField` is null | Stacked Area | No null-guard before `groups` map |
 
 ---
 
@@ -398,4 +444,5 @@ Called before rendering any map chart type (worldmap, usmap, geomap). `world.js`
 |---|---|---|
 | v1 | ✅ Superseded | Initial working build. Gallery, Marks Card, 14 chart types, drag & drop + dropdown assignment, FilterChanged listener, onboarding screen, error bar. Debug panel with field types inspector. |
 | v2 | ✅ Superseded | Fix loadFields to use getSummaryDataAsync (respects LOD). Fix getSummaryDataAsync options (maxRows:0). Fix YEAR/MONTH/QUARTER treated as measures. Switch Scatter/Bubble/Sankey to getSummaryDataAsync. Replace deprecated getUnderlyingDataAsync with new tables API. Add ↺ reload button. FilterChanged now reloads fields. Store worksheet ref in state. |
-| v3 | ✅ Current | +14 new chart types (28 total): Gauge, Candlestick, Sunburst, Network Graph, Waterfall, Calendar Heatmap, ThemeRiver, Step Line, Stacked Area, Dual Axis, Pictorial Bar, World Map, US States Map, Geo Bubble Map. Fully offline — all assets local (echarts.min.js, world.js, NotoSansHebrew fonts). Removed all CDN dependencies. Removed debug console.log noise. Fixed map loading via local world.js script tag. Single world.js for all map chart types. renderECharts made async for map support. |
+| v3 | ✅ Superseded | +14 new chart types (28 total): Gauge, Candlestick, Sunburst, Network Graph, Waterfall, Calendar Heatmap, ThemeRiver, Step Line, Stacked Area, Dual Axis, Pictorial Bar, World Map, US States Map, Geo Bubble Map. Fully offline — all assets local (echarts.min.js, world.js, NotoSansHebrew fonts). Removed all CDN dependencies. Removed debug console.log noise. Fixed map loading via local world.js script tag. Single world.js for all map chart types. renderECharts made async for map support. |
+| v4 | ✅ Current | +17 new chart types (45 total) across 2 rounds. Round 4 (easy): Stacked Line, Nightingale Rose, Effect Scatter, Histogram, Multi-series Radar, Circular Graph, Tree Chart, Radial Tree, Progress Bar, Multi Gauge. Round 5 (medium): Confidence Band, Polar Bar, Nested Pie, Lines Map, Candlestick + Volume, Multi-year Calendar, Parallel Coordinates. QA audit completed — 6 open bugs documented in Known Issues. |
