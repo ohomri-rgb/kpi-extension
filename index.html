@@ -375,6 +375,22 @@ const CHARTS = [
     roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true},{id:'parent',label:'Parent',accepts:'dim',required:false}]},
   { id:'sankey', cat:'זרימה', name:'Sankey Diagram', icon:'🌊', api:'summary',
     roles:[{id:'src',label:'מקור',accepts:'dim',required:true},{id:'tgt',label:'יעד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+
+  // ── NEW CHARTS ──
+  { id:'gauge', cat:'KPI', name:'Gauge Chart', icon:'🎯', api:'summary',
+    roles:[{id:'val',label:'ערך',accepts:'measure',required:true},{id:'max',label:'מקסימום',accepts:'measure',required:false}]},
+  { id:'candlestick', cat:'פיננסי', name:'Candlestick', icon:'📉', api:'summary',
+    roles:[{id:'x',label:'תאריך',accepts:'dim',required:true},{id:'open',label:'פתיחה',accepts:'measure',required:true},{id:'close',label:'סגירה',accepts:'measure',required:true},{id:'low',label:'מינימום',accepts:'measure',required:true},{id:'high',label:'מקסימום',accepts:'measure',required:true}]},
+  { id:'sunburst', cat:'היררכיה', name:'Sunburst', icon:'☀️', api:'summary',
+    roles:[{id:'parent',label:'רמה 1',accepts:'dim',required:true},{id:'child',label:'רמה 2',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'graph', cat:'זרימה', name:'Network Graph', icon:'🕸️', api:'summary',
+    roles:[{id:'src',label:'מקור',accepts:'dim',required:true},{id:'tgt',label:'יעד',accepts:'dim',required:true},{id:'val',label:'משקל',accepts:'measure',required:false}]},
+  { id:'waterfall', cat:'עמודות', name:'Waterfall', icon:'🌊', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך',accepts:'measure',required:true}]},
+  { id:'calendar', cat:'מפות חום', name:'Calendar Heatmap', icon:'📅', api:'summary',
+    roles:[{id:'date',label:'תאריך',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'themeriver', cat:'זרימה', name:'ThemeRiver', icon:'🌊', api:'summary',
+    roles:[{id:'time',label:'זמן',accepts:'dim',required:true},{id:'theme',label:'נושא',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
 ];
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
@@ -804,6 +820,13 @@ function drawPreview(chart, container) {
     funnel: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'funnel',left:'15%',width:'70%',top:6,bottom:6,data:[{value:100,itemStyle:{color:COLORS[0]}},{value:70,itemStyle:{color:COLORS[1]}},{value:45,itemStyle:{color:COLORS[2]}},{value:20,itemStyle:{color:COLORS[3]}}],label:{show:false},gap:2}]},
     treemap:{animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'treemap',top:4,right:4,bottom:4,left:4,roam:false,nodeClick:false,data:[{name:'A',value:40,itemStyle:{color:COLORS[0]}},{name:'B',value:28,itemStyle:{color:COLORS[1]}},{name:'C',value:18,itemStyle:{color:COLORS[2]}},{name:'D',value:14,itemStyle:{color:COLORS[3]}}],label:{show:false},breadcrumb:{show:false}}]},
     sankey: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'sankey',top:8,right:8,bottom:8,left:8,nodeWidth:6,nodeGap:4,data:[{name:'A'},{name:'B'},{name:'C'},{name:'D'}],links:[{source:'A',target:'C',value:8},{source:'A',target:'D',value:5},{source:'B',target:'C',value:6},{source:'B',target:'D',value:9}],label:{show:false},lineStyle:{color:'gradient',opacity:.4}}]},
+    gauge: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'gauge',radius:'85%',center:['50%','60%'],startAngle:210,endAngle:-30,min:0,max:100,progress:{show:true,width:8,itemStyle:{color:COLORS[0]}},axisLine:{lineStyle:{width:8,color:[[1,'#e0dfd8']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:true,length:'55%',width:3,itemStyle:{color:COLORS[0]}},detail:{show:false},data:[{value:72}]}]},
+    candlestick: {animation:false,tooltip:{show:false},legend:{show:false},grid:{top:4,right:4,bottom:4,left:4}, xAxis:{type:'category',data:['1','2','3','4','5'],show:false}, yAxis:{show:false}, series:[{type:'candlestick',data:[[18,24,16,22],[22,20,17,19],[19,26,18,25],[25,23,20,21],[21,28,19,27]],itemStyle:{color:COLORS[1],color0:COLORS[2],borderColor:COLORS[1],borderColor0:COLORS[2]}}]},
+    sunburst: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'sunburst',radius:[0,'90%'],center:['50%','50%'],nodeClick:false,data:[{value:10,itemStyle:{color:COLORS[0]},children:[{value:4,itemStyle:{color:COLORS[0]+'bb'}},{value:6,itemStyle:{color:COLORS[0]+'77'}}]},{value:8,itemStyle:{color:COLORS[1]},children:[{value:3,itemStyle:{color:COLORS[1]+'bb'}},{value:5,itemStyle:{color:COLORS[1]+'77'}}]},{value:6,itemStyle:{color:COLORS[2]},children:[{value:2,itemStyle:{color:COLORS[2]+'bb'}},{value:4,itemStyle:{color:COLORS[2]+'77'}}]}],label:{show:false},emphasis:{focus:'ancestor'}}]},
+    graph: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'graph',layout:'circular',roam:false,symbol:'circle',symbolSize:10,data:[{name:'A',itemStyle:{color:COLORS[0]}},{name:'B',itemStyle:{color:COLORS[1]}},{name:'C',itemStyle:{color:COLORS[2]}},{name:'D',itemStyle:{color:COLORS[3]}},{name:'E',itemStyle:{color:COLORS[0]}}],links:[{source:'A',target:'B'},{source:'A',target:'C'},{source:'B',target:'D'},{source:'C',target:'D'},{source:'D',target:'E'},{source:'E',target:'A'}],label:{show:false},lineStyle:{color:'#ccc',width:1}}]},
+    waterfall: {animation:false,tooltip:{show:false},legend:{show:false},grid:{top:4,right:4,bottom:4,left:4}, xAxis:{type:'category',data:['A','B','C','D','E'],show:false}, yAxis:{show:false}, series:[{type:'bar',stack:'total',itemStyle:{borderColor:'transparent',color:'transparent'},data:[0,12,6,19,10]},{type:'bar',stack:'total',data:[12,7,13,5,8],itemStyle:{color:COLORS[0],borderRadius:[3,3,0,0]}}]},
+    calendar: {animation:false,tooltip:{show:false},legend:{show:false}, calendar:{top:10,left:10,right:10,bottom:10,range:'2024-01',cellSize:[10,10],itemStyle:{borderWidth:1,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}}, series:[{type:'heatmap',coordinateSystem:'calendar',data:[['2024-01-01',3],['2024-01-03',7],['2024-01-07',2],['2024-01-10',9],['2024-01-14',5],['2024-01-18',8],['2024-01-21',4],['2024-01-25',6],['2024-01-28',3]],itemStyle:{}}], visualMap:{show:false,min:0,max:9,inRange:{color:['#e8f0ff','#0057e8']}}},
+    themeriver: {animation:false,tooltip:{show:false},legend:{show:false},grid:{top:4,right:4,bottom:4,left:4}, singleAxis:{top:8,bottom:8,left:8,right:8,type:'time',show:false}, series:[{type:'themeRiver',data:[['2024-01',5,'A'],['2024-02',8,'A'],['2024-03',6,'A'],['2024-01',3,'B'],['2024-02',4,'B'],['2024-03',7,'B'],['2024-01',2,'C'],['2024-02',5,'C'],['2024-03',3,'C']],label:{show:false},itemStyle:{opacity:.8}}]},
   };
   if (opts[chart.id]) ec.setOption(opts[chart.id]);
 }
@@ -1136,6 +1159,231 @@ function renderECharts(chart, columns, rows, assignments) {
       option = {
         tooltip:{trigger:'item'},
         series:[{type:'sankey',data:nodes,links,lineStyle:{color:'gradient',opacity:.4}}],
+      };
+      break;
+    }
+
+    case 'gauge': {
+      // Aggregate: sum the val field across all rows
+      const total = rows.reduce((s,r)=>s+(r[valField]||0),0);
+      const maxVal = a.max ? rows.reduce((s,r)=>s+(r[a.max.fieldName]||0),0) : null;
+      const gaugeMax = maxVal && maxVal > 0 ? maxVal : Math.ceil(total * 1.5 / 10) * 10 || 100;
+      const pct = Math.min(total, gaugeMax);
+      option = {
+        tooltip:{formatter:'{a} <br/>{b}: {c}'},
+        series:[{
+          type:'gauge',
+          name: a.val.displayName,
+          radius:'85%',
+          startAngle:210, endAngle:-30,
+          min:0, max:gaugeMax,
+          progress:{show:true,width:18,itemStyle:{color:COLORS[0]}},
+          axisLine:{lineStyle:{width:18,color:[[1,'#e8e8e8']]}},
+          axisTick:{show:true,splitNumber:5,distance:-22,length:6,lineStyle:{color:'#999'}},
+          splitLine:{show:true,distance:-28,length:12,lineStyle:{color:'#999',width:2}},
+          axisLabel:{distance:-45,color:'#666',fontSize:11},
+          pointer:{show:true,length:'60%',width:5,itemStyle:{color:COLORS[0]}},
+          anchor:{show:true,size:12,itemStyle:{color:COLORS[0]}},
+          detail:{
+            valueAnimation:true,
+            formatter: v => {
+              const display = Number.isInteger(v) ? v : v.toFixed(1);
+              return `{val|${display}}\n{name|${a.val.displayName}}`;
+            },
+            rich:{
+              val:{fontSize:28,fontWeight:'bold',color:COLORS[0],lineHeight:40},
+              name:{fontSize:12,color:'#666'},
+            },
+            offsetCenter:[0,'20%'],
+          },
+          data:[{value:pct, name:a.val.displayName}],
+        }],
+      };
+      break;
+    }
+
+    case 'candlestick': {
+      const openF  = a.open?.fieldName;
+      const closeF = a.close?.fieldName;
+      const lowF   = a.low?.fieldName;
+      const highF  = a.high?.fieldName;
+      const sorted = [...rows].sort((a,b)=>String(a[xField]).localeCompare(String(b[xField])));
+      const xVals = sorted.map(r=>r[xField]);
+      // ECharts candlestick data: [open, close, low, high]
+      const data  = sorted.map(r=>[r[openF], r[closeF], r[lowF], r[highF]]);
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?40:0}},
+        yAxis:{type:'value',scale:true},
+        grid:{bottom:xVals.length>8?55:30,top:20,right:16,left:60},
+        series:[{
+          type:'candlestick',
+          data,
+          itemStyle:{
+            color:COLORS[1],          // bullish (close > open)
+            color0:COLORS[2],         // bearish (close < open)
+            borderColor:COLORS[1],
+            borderColor0:COLORS[2],
+          },
+        }],
+      };
+      break;
+    }
+
+    case 'sunburst': {
+      const childField  = a.child?.fieldName;
+      // Build hierarchy: parent → children with values
+      const parentMap = new Map();
+      rows.forEach(r => {
+        const p = String(r[parentField] ?? '(ללא)');
+        const c = String(r[childField]  ?? '(ללא)');
+        const v = r[valField] || 0;
+        if (!parentMap.has(p)) parentMap.set(p, new Map());
+        const children = parentMap.get(p);
+        children.set(c, (children.get(c) || 0) + v);
+      });
+      const sunData = [...parentMap.entries()].map(([p, childMap], pi) => ({
+        name: p,
+        itemStyle:{color: COLORS[pi % COLORS.length]},
+        children: [...childMap.entries()].map(([c, v], ci) => ({
+          name: c,
+          value: v,
+          itemStyle:{color: COLORS[pi % COLORS.length] + (ci % 2 === 0 ? 'bb' : '77')},
+        })),
+      }));
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c}'},
+        series:[{
+          type:'sunburst',
+          data: sunData,
+          radius:[0,'90%'],
+          label:{rotate:'radial',fontSize:11},
+          emphasis:{focus:'ancestor'},
+          nodeClick:'zoomToNode',
+          levels:[{},{itemStyle:{borderWidth:2,borderColor:'#fff'}},{itemStyle:{borderWidth:1,borderColor:'#fff'}}],
+        }],
+      };
+      break;
+    }
+
+    case 'graph': {
+      const weightField = a.val?.fieldName;
+      const nodeSet = new Set([
+        ...rows.map(r=>String(r[srcField])),
+        ...rows.map(r=>String(r[tgtField])),
+      ]);
+      const nodeArr = [...nodeSet];
+      const nodeData = nodeArr.map((n,i)=>({name:n,symbolSize:12,itemStyle:{color:COLORS[i%COLORS.length]},label:{show:true,fontSize:11}}));
+      const maxW = weightField ? Math.max(...rows.map(r=>r[weightField]||0)) || 1 : 1;
+      const links = rows
+        .filter(r=>r[srcField]!=null&&r[tgtField]!=null)
+        .map(r=>({
+          source: String(r[srcField]),
+          target: String(r[tgtField]),
+          lineStyle:{
+            width: weightField ? Math.max(1, (r[weightField]/maxW)*6) : 1.5,
+            color:'#aaa',opacity:.6,
+          },
+          value: weightField ? r[weightField] : 1,
+        }));
+      option = {
+        tooltip:{trigger:'item',formatter: p => p.dataType==='edge' ? `${p.data.source} → ${p.data.target}${weightField?': '+p.data.value:''}` : p.name},
+        series:[{
+          type:'graph',
+          layout:'force',
+          roam:true,
+          data: nodeData,
+          links,
+          force:{repulsion:120,edgeLength:[40,120],gravity:.05},
+          lineStyle:{curveness:.1},
+          emphasis:{focus:'adjacency'},
+          label:{position:'right'},
+        }],
+      };
+      break;
+    }
+
+    case 'waterfall': {
+      const cats = [...new Set(rows.map(r=>r[xField]))];
+      let cumulative = 0;
+      const baseData = [];
+      const barData  = [];
+      cats.forEach(c => {
+        const row = rows.find(r=>r[xField]===c);
+        const v = row ? (row[yField] || 0) : 0;
+        baseData.push(cumulative < 0 ? Math.min(cumulative, cumulative+v) : Math.max(0, Math.min(cumulative, cumulative+v)));
+        barData.push(Math.abs(v));
+        cumulative += v;
+      });
+      option = {
+        tooltip:{
+          trigger:'axis',axisPointer:{type:'shadow'},
+          formatter: params => {
+            const bar = params.find(p=>p.seriesIndex===1);
+            return bar ? `${bar.name}: ${bar.value}` : '';
+          }
+        },
+        xAxis:{type:'category',data:cats,axisLabel:{rotate:cats.length>8?30:0}},
+        yAxis:{type:'value'},
+        grid:{bottom:cats.length>8?55:30,top:20,right:16,left:60},
+        series:[
+          {type:'bar',stack:'waterfall',itemStyle:{borderColor:'transparent',color:'transparent'},data:baseData,tooltip:{show:false}},
+          {type:'bar',stack:'waterfall',data:barData,
+           itemStyle:{
+             color: (params) => {
+               const row = rows.find(r=>r[xField]===cats[params.dataIndex]);
+               return row && row[yField] < 0 ? COLORS[1] : COLORS[2];
+             },
+             borderRadius:[4,4,0,0],
+           }},
+        ],
+      };
+      break;
+    }
+
+    case 'calendar': {
+      const dateField = a.date?.fieldName;
+      const calData = rows
+        .filter(r=>r[dateField]!=null&&r[valField]!=null)
+        .map(r=>[String(r[dateField]).slice(0,10), r[valField]]);
+      if (!calData.length) { showError('אין נתוני תאריך תקינים'); return; }
+      const dates = calData.map(d=>d[0]).sort();
+      const year  = dates[0].slice(0,4);
+      const maxV  = Math.max(...calData.map(d=>d[1]));
+      option = {
+        tooltip:{formatter: p => `${p.data[0]}: ${p.data[1]}`},
+        visualMap:{min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#e8f0ff','#0057e8']}},
+        calendar:{
+          top:30,left:30,right:30,bottom:50,
+          range: year,
+          itemStyle:{borderWidth:.5,borderColor:'#e0dfd8'},
+          dayLabel:{nameMap:'he',color:'#888',fontSize:10},
+          monthLabel:{nameMap:'he',color:'#555',fontSize:11},
+          yearLabel:{color:'#555',fontSize:12},
+          splitLine:{lineStyle:{color:'#ddd',width:.5}},
+        },
+        series:[{type:'heatmap',coordinateSystem:'calendar',data:calData}],
+      };
+      break;
+    }
+
+    case 'themeriver': {
+      const timeField  = a.time?.fieldName;
+      const themeField = a.theme?.fieldName;
+      const themes = [...new Set(rows.map(r=>String(r[themeField])))];
+      const riverData = rows
+        .filter(r=>r[timeField]!=null&&r[themeField]!=null&&r[valField]!=null)
+        .map(r=>[String(r[timeField]), r[valField], String(r[themeField])]);
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'line'}},
+        legend:{data:themes,bottom:0,type:'scroll'},
+        singleAxis:{top:20,bottom:50,left:50,right:16,type:'time'},
+        series:[{
+          type:'themeRiver',
+          emphasis:{focus:'series'},
+          data: riverData,
+          label:{show:false},
+        }],
       };
       break;
     }
