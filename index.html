@@ -416,16 +416,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadFields(ws) {
+  // PRIMARY: getSummaryDataAsync respects the worksheet LOD —
+  // it returns only the fields the user placed on the Detail shelf.
+  // This is what we want for the Marks Card dropdown.
   try {
-    // getUnderlyingDataAsync with includeAllColumns returns all datasource columns
-    // even when the worksheet has no fields on rows/columns
-    const dt = await ws.getUnderlyingDataAsync({
-      maxRows: 1,
-      ignoreAliases: false,
-      ignoreSelection: true,
-      includeAllColumns: true,
-    });
-
+    const dt = await ws.getSummaryDataAsync({ maxRows: 1, ignoreAliases: false, ignoreSelection: true });
     if (dt.columns && dt.columns.length > 0) {
       state.worksheetFields = dt.columns.map(col => ({
         fieldName: col._fieldName,
@@ -433,23 +428,32 @@ async function loadFields(ws) {
         dataType: (col._dataType || 'string').toLowerCase(),
         fieldId: col._fieldId,
       }));
-      console.log('[loadFields] loaded', state.worksheetFields.length, 'fields via getUnderlyingDataAsync');
+      console.log('[loadFields] loaded', state.worksheetFields.length, 'fields via getSummaryDataAsync');
       return;
     }
   } catch(e) {
-    console.warn('[loadFields] getUnderlyingDataAsync failed, trying summary:', e);
+    console.warn('[loadFields] getSummaryDataAsync failed, falling back to underlying:', e);
   }
 
-  // Fallback: getSummaryDataAsync (works when fields are already on the sheet)
+  // FALLBACK: getUnderlyingDataAsync — returns all datasource columns regardless of sheet LOD.
+  // Only used if summary fails (e.g. empty sheet).
   try {
-    const dt = await ws.getSummaryDataAsync();
-    state.worksheetFields = dt.columns.map(col => ({
-      fieldName: col._fieldName,
-      displayName: cleanFieldName(col._fieldName),
-      dataType: (col._dataType || 'string').toLowerCase(),
-      fieldId: col._fieldId,
-    }));
-    console.log('[loadFields] fallback summary: loaded', state.worksheetFields.length, 'columns');
+    const dt = await ws.getUnderlyingDataAsync({
+      maxRows: 1,
+      ignoreAliases: false,
+      ignoreSelection: true,
+      includeAllColumns: true,
+    });
+    if (dt.columns && dt.columns.length > 0) {
+      state.worksheetFields = dt.columns.map(col => ({
+        fieldName: col._fieldName,
+        displayName: cleanFieldName(col._fieldName),
+        dataType: (col._dataType || 'string').toLowerCase(),
+        fieldId: col._fieldId,
+      }));
+      console.log('[loadFields] fallback underlying: loaded', state.worksheetFields.length, 'fields');
+      return;
+    }
   } catch(e) {
     showError('לא ניתן לקרוא שדות: ' + e);
   }
@@ -776,27 +780,26 @@ async function applyChart() {
 
   try {
     const ws = tableau.extensions.worksheetContent.worksheet;
-    // getSummaryDataAsync respects the worksheet LOD and filters
-    // getUnderlyingDataAsync for charts that need raw rows (scatter/bubble/sankey)
     let dt;
     if (chart.api === 'underlying') {
       dt = await ws.getUnderlyingDataAsync({
         maxRows: 0,
         ignoreAliases: false,
         ignoreSelection: false,
-        includeAllColumns: true,
+        includeAllColumns: false,
       });
     } else {
-      dt = await ws.getSummaryDataAsync();
+      dt = await ws.getSummaryDataAsync({ maxRows: 0, ignoreAliases: false, ignoreSelection: false });
     }
 
     const { columns, rows } = parseDataTable(dt);
 
-    // Detect if Tableau returned %many-values% — means no dims on the sheet
-    if (chart.api !== 'underlying' && rows.length <= 1) {
-      const firstRow = rows[0];
-      const hasMany = firstRow && Object.values(firstRow).some(v => String(v).includes('many'));
-      if (hasMany || rows.length === 0) {
+    // Detect %many-values% — means no dims on Detail shelf (LOD undefined)
+    if (chart.api !== 'underlying') {
+      const hasManyValues = rows.some(row =>
+        Object.values(row).some(v => v !== null && String(v).includes('%many%'))
+      );
+      if (hasManyValues || rows.length === 0) {
         showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
         return;
       }
