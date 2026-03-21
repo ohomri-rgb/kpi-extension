@@ -570,7 +570,8 @@ function openSlotDropdown(role, anchorEl) {
   if (dims.length) {
     html += `<div class="slot-dropdown-label">ממדים</div>`;
     dims.forEach(f => {
-      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown('${CSS.escape(f.fieldName)}')">
+      const idx = state.worksheetFields.indexOf(f);
+      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown(${idx})">
         <span class="tag dim-tag dim">ממד</span>${f.displayName}
       </div>`;
     });
@@ -579,7 +580,8 @@ function openSlotDropdown(role, anchorEl) {
     if (dims.length) html += `<div class="slot-dropdown-sep"></div>`;
     html += `<div class="slot-dropdown-label">מדדים</div>`;
     measures.forEach(f => {
-      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown('${CSS.escape(f.fieldName)}')">
+      const idx = state.worksheetFields.indexOf(f);
+      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown(${idx})">
         <span class="tag dim-tag measure">מדד</span>${f.displayName}
       </div>`;
     });
@@ -599,10 +601,8 @@ function openSlotDropdown(role, anchorEl) {
   setTimeout(() => document.addEventListener('mousedown', closeDropdownOutside), 100);
 }
 
-function assignFromDropdown(escapedFieldName) {
-  // unescape
-  const fieldName = escapedFieldName.replace(/\\(.)/g, '$1');
-  const f = state.worksheetFields.find(x => x.fieldName === fieldName);
+function assignFromDropdown(idx) {
+  const f = state.worksheetFields[idx];
   if (f && state.activeDropdownRole) assign(state.activeDropdownRole.id, f);
   closeSlotDropdown();
 }
