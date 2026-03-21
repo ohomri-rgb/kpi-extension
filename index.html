@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>ECharts Extension</title>
 <script src="tableau.extensions.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/map/js/world.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts-countries-js@1.0.5/echarts-countries-js/USA.js"></script>
+<script src="echarts.min.js"></script>
+<script src="world.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-ExtraBold.ttf') format('truetype');font-weight:700 800}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#f2f1ed;--surface:#fff;--surface2:#f7f6f2;--border:#e0dfd8;--border2:#ccc;
@@ -20,7 +21,7 @@
   --green:#00a651;--green-light:#e6f7ee;
   --radius:8px;--radius-sm:5px;
 }
-html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow:hidden}
+html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow:hidden}
 
 /* ── LAYOUT ── */
 .app{display:flex;flex-direction:column;height:100vh}
@@ -844,11 +845,12 @@ function drawPreview(chart, container) {
     stackedarea: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'line',data:v1,stack:'t',smooth:false,areaStyle:{color:COLORS[0],opacity:.6},lineStyle:{color:COLORS[0],width:1},symbolSize:0},{type:'line',data:v2,stack:'t',smooth:false,areaStyle:{color:COLORS[1],opacity:.6},lineStyle:{color:COLORS[1],width:1},symbolSize:0}]},
     dualaxis: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:[{type:'value',show:false},{type:'value',show:false}], series:[{type:'bar',data:v1,yAxisIndex:0,itemStyle:{color:COLORS[0],borderRadius:[3,3,0,0]},barMaxWidth:20},{type:'line',data:v2,yAxisIndex:1,smooth:true,lineStyle:{color:COLORS[1],width:2},itemStyle:{color:COLORS[1]},symbolSize:4}]},
     pictorialbar: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'pictorialBar',data:v1,symbol:'roundRect',symbolSize:['80%',8],symbolRepeat:true,symbolMargin:2,itemStyle:{color:COLORS[0]}}]},
-    worldmap: {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'world',geoIndex:0,data:[{name:'China',value:80},{name:'United States',value:100},{name:'Brazil',value:60},{name:'Russia',value:70},{name:'Australia',value:50}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}},
-    usmap: {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'USA',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'USA',geoIndex:0,data:[{name:'California',value:90},{name:'Texas',value:75},{name:'New York',value:80},{name:'Florida',value:65}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}},
-    geomap: {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#f0f0f0',borderColor:'#fff',borderWidth:.3},emphasis:{disabled:true}}, series:[{type:'scatter',coordinateSystem:'geo',data:[{value:[-74,40.7],symbolSize:10},{value:[2.35,48.85],symbolSize:8},{value:[139.7,35.7],symbolSize:12},{value:[-43.2,-22.9],symbolSize:7},{value:[151.2,-33.9],symbolSize:6}],itemStyle:{color:COLORS[1],opacity:.75}}]},
+    worldmap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'world',geoIndex:0,data:[{name:'China',value:80},{name:'United States',value:100},{name:'Brazil',value:60},{name:'Russia',value:70},{name:'Australia',value:50}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}} : null,
+    usmap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',center:[-96,38],zoom:3.5,roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'world',geoIndex:0,data:[{name:'California',value:90},{name:'Texas',value:75},{name:'New York',value:80},{name:'Florida',value:65}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}} : null,
+    geomap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#f0f0f0',borderColor:'#fff',borderWidth:.3},emphasis:{disabled:true}}, series:[{type:'scatter',coordinateSystem:'geo',data:[{value:[-74,40.7]},{value:[2.35,48.85]},{value:[139.7,35.7]},{value:[-43.2,-22.9]}],symbolSize:6,itemStyle:{color:COLORS[1],opacity:.75}}]} : null,
   };
   if (opts[chart.id]) ec.setOption(opts[chart.id]);
+  else { container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa">טוען מפה...</div>'; ec.dispose(); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -936,9 +938,26 @@ function aggregateRows(rows, dimFields, measureFields) {
 }
 
 // ═══════════════════════════════════════════════════
+// MAP LOADER — world.js registers the map on load
+// ═══════════════════════════════════════════════════
+const _mapCache = {};
+
+async function ensureMap() {
+  if (_mapCache['world']) return;
+  // world.js registers 'world' map automatically when loaded as <script>
+  // Just verify it's available
+  try {
+    echarts.getMap('world'); // throws if not registered
+    _mapCache['world'] = true;
+  } catch(e) {
+    throw new Error('world.js לא נטען — בדוק שהקובץ קיים לצד index.html');
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // ECHARTS RENDERER
 // ═══════════════════════════════════════════════════
-function renderECharts(chart, columns, rows, assignments) {
+async function renderECharts(chart, columns, rows, assignments) {
   const container = document.getElementById('echarts-container');
   document.getElementById('placeholder').style.display = 'none';
 
@@ -1501,6 +1520,7 @@ function renderECharts(chart, columns, rows, assignments) {
     }
 
     case 'worldmap': {
+      try { await ensureMap(); } catch(e) { showError('לא ניתן לטעון מפת עולם: ' + e.message); return; }
       const countryField = a.country?.fieldName;
       const mapData = rows
         .filter(r=>r[countryField]!=null&&r[valField]!=null)
@@ -1522,6 +1542,7 @@ function renderECharts(chart, columns, rows, assignments) {
     }
 
     case 'usmap': {
+      try { await ensureMap(); } catch(e) { showError('לא ניתן לטעון מפה: ' + e.message); return; }
       const stateField = a.state?.fieldName;
       const mapData = rows
         .filter(r=>r[stateField]!=null&&r[valField]!=null)
@@ -1530,19 +1551,24 @@ function renderECharts(chart, columns, rows, assignments) {
       option = {
         tooltip:{trigger:'item',formatter:'{b}: {c}'},
         visualMap:{min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#b3d1ff','#0057e8']}},
+        geo:{
+          map:'world', roam:true,
+          center:[-96, 38], zoom: 4,
+          itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},
+          emphasis:{label:{show:true,fontSize:10},itemStyle:{areaColor:'#ffcc66'}},
+        },
         series:[{
-          type:'map', map:'USA',
-          roam:true,
+          type:'map', map:'world',
+          geoIndex: 0,
           data: mapData,
           label:{show:false},
-          emphasis:{label:{show:true,fontSize:10},itemStyle:{areaColor:'#ffcc66'}},
-          itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},
         }],
       };
       break;
     }
 
     case 'geomap': {
+      try { await ensureMap(); } catch(e) { showError('לא ניתן לטעון מפה: ' + e.message); return; }
       const latField   = a.lat?.fieldName;
       const lonField   = a.lon?.fieldName;
       const dimFld     = a.dim?.fieldName;
