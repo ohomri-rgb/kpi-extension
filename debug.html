@@ -522,21 +522,29 @@ function mkCard(id, title, badge) {
 }
 
 function scrollTo(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const el = document.getElementById(id);
+  if (!el) return;
+  try {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) {
+    document.getElementById('content').scrollTop = el.offsetTop - 16;
+  }
 }
 
 function copyJSON() {
   if (!rawData) return;
   const out = {
     columns: rawData.columns.map(c => ({ ...c })),
-    sampleRows: rawData.data.slice(0, 5).map(row =>
-      Object.fromEntries(rawData.columns.map((c, i) => [c.fieldName, rawData.data[0][i]]))
+    sampleRows: rawData.data.slice(0, 5).map((row, ri) =>
+      Object.fromEntries(rawData.columns.map((c, i) => [c.fieldName, row[i]?.value]))
     ),
     totalRows: rawData.data.length,
     isTotalRowCountLimited: rawData.isTotalRowCountLimited
   };
-  navigator.clipboard.writeText(JSON.stringify(out, null, 2));
-  log('ok', 'JSON הועתק ל-clipboard');
+  const json = JSON.stringify(out, null, 2);
+  console.log('%c[ECharts Debug] JSON Output:', 'color:#4ade80;font-weight:bold');
+  console.log(json);
+  log('ok', 'JSON מודפס בקונסול (F12 → Console)');
 }
 
 function renderError(msg) {
