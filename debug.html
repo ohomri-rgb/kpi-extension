@@ -535,16 +535,43 @@ function copyJSON() {
   if (!rawData) return;
   const out = {
     columns: rawData.columns.map(c => ({ ...c })),
-    sampleRows: rawData.data.slice(0, 5).map((row, ri) =>
+    sampleRows: rawData.data.slice(0, 5).map((row) =>
       Object.fromEntries(rawData.columns.map((c, i) => [c.fieldName, row[i]?.value]))
     ),
     totalRows: rawData.data.length,
     isTotalRowCountLimited: rawData.isTotalRowCountLimited
   };
   const json = JSON.stringify(out, null, 2);
-  console.log('%c[ECharts Debug] JSON Output:', 'color:#4ade80;font-weight:bold');
-  console.log(json);
-  log('ok', 'JSON מודפס בקונסול (F12 → Console)');
+
+  // Show inline — clipboard blocked in Tableau iframe
+  const existing = document.getElementById('json-output-panel');
+  if (existing) { existing.remove(); return; }
+
+  const panel = document.createElement('div');
+  panel.id = 'json-output-panel';
+  panel.style.cssText = 'position:fixed;top:44px;left:0;right:0;bottom:0;background:#0f0f0d;z-index:999;overflow:auto;padding:16px;';
+
+  const close = document.createElement('button');
+  close.textContent = '✕ סגור';
+  close.className = 'btn';
+  close.style.marginBottom = '12px';
+  close.onclick = () => panel.remove();
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:11px;color:#8a8880;margin-bottom:8px;font-family:var(--mono)';
+  hint.textContent = 'סמן הכל (Ctrl+A) → העתק (Ctrl+C)';
+
+  const pre = document.createElement('textarea');
+  pre.value = json;
+  pre.style.cssText = 'width:100%;height:calc(100% - 80px);background:#1a1a17;color:#4ade80;font-family:var(--mono);font-size:11px;border:1px solid #2e2e2a;border-radius:6px;padding:12px;resize:none;line-height:1.7;';
+  pre.onclick = () => pre.select();
+
+  panel.appendChild(close);
+  panel.appendChild(hint);
+  panel.appendChild(pre);
+  document.body.appendChild(panel);
+  pre.select();
+  log('ok', 'JSON מוצג במסך — סמן הכל והעתק');
 }
 
 function renderError(msg) {
