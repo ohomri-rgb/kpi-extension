@@ -361,9 +361,9 @@ const CHARTS = [
     roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
   { id:'donut', cat:'עוגה', name:'Donut Chart', icon:'🍩', api:'summary',
     roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
-  { id:'scatter', cat:'פיזור', name:'Scatter Plot', icon:'🔵', api:'underlying',
+  { id:'scatter', cat:'פיזור', name:'Scatter Plot', icon:'🔵', api:'summary',
     roles:[{id:'x',label:'ציר X',accepts:'measure',required:true},{id:'y',label:'ציר Y',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
-  { id:'bubble', cat:'פיזור', name:'Bubble Chart', icon:'🫧', api:'underlying',
+  { id:'bubble', cat:'פיזור', name:'Bubble Chart', icon:'🫧', api:'summary',
     roles:[{id:'x',label:'ציר X',accepts:'measure',required:true},{id:'y',label:'ציר Y',accepts:'measure',required:true},{id:'size',label:'גודל',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
   { id:'heatmap', cat:'מפות חום', name:'Heatmap', icon:'🔥', api:'summary',
     roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ציר Y',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
@@ -373,7 +373,7 @@ const CHARTS = [
     roles:[{id:'dim',label:'שלב',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
   { id:'treemap', cat:'מיוחד', name:'Treemap', icon:'🗺', api:'summary',
     roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true},{id:'parent',label:'Parent',accepts:'dim',required:false}]},
-  { id:'sankey', cat:'זרימה', name:'Sankey Diagram', icon:'🌊', api:'underlying',
+  { id:'sankey', cat:'זרימה', name:'Sankey Diagram', icon:'🌊', api:'summary',
     roles:[{id:'src',label:'מקור',accepts:'dim',required:true},{id:'tgt',label:'יעד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
 ];
 
@@ -465,24 +465,27 @@ async function loadFields(ws) {
     console.warn('[loadFields] getSummaryDataAsync failed, falling back to underlying:', e);
   }
 
-  // FALLBACK: getUnderlyingDataAsync — returns all datasource columns regardless of sheet LOD.
-  // Only used if summary fails (e.g. empty sheet).
+  // FALLBACK: use getUnderlyingTablesAsync + getUnderlyingTableDataAsync (new API)
+  // Only triggered if summary returns 0 columns (e.g. completely empty sheet)
   try {
-    const dt = await ws.getUnderlyingDataAsync({
-      maxRows: 1,
-      ignoreAliases: false,
-      ignoreSelection: true,
-      includeAllColumns: true,
-    });
-    if (dt.columns && dt.columns.length > 0) {
-      state.worksheetFields = dt.columns.map(col => ({
-        fieldName: col._fieldName,
-        displayName: cleanFieldName(col._fieldName),
-        dataType: (col._dataType || 'string').toLowerCase(),
-        fieldId: col._fieldId,
-      }));
-      console.log('[loadFields] fallback underlying: loaded', state.worksheetFields.length, 'fields');
-      return;
+    const tables = await ws.getUnderlyingTablesAsync();
+    if (tables && tables.length > 0) {
+      const tableData = await ws.getUnderlyingTableDataAsync(tables[0].id, {
+        maxRows: 1,
+        ignoreAliases: false,
+        ignoreSelection: true,
+        includeAllColumns: true,
+      });
+      if (tableData.columns && tableData.columns.length > 0) {
+        state.worksheetFields = tableData.columns.map(col => ({
+          fieldName: col._fieldName,
+          displayName: cleanFieldName(col._fieldName),
+          dataType: (col._dataType || 'string').toLowerCase(),
+          fieldId: col._fieldId,
+        }));
+        console.log('[loadFields] fallback table data: loaded', state.worksheetFields.length, 'fields');
+        return;
+      }
     }
   } catch(e) {
     showError('לא ניתן לקרוא שדות: ' + e);
@@ -818,30 +821,20 @@ async function applyChart() {
   if (missing.length) { showError('חסרים שדות: ' + missing.join(', ')); return; }
 
   try {
-    const ws = tableau.extensions.worksheetContent.worksheet;
-    let dt;
-    if (chart.api === 'underlying') {
-      dt = await ws.getUnderlyingDataAsync({
-        maxRows: 0,
-        ignoreAliases: false,
-        ignoreSelection: false,
-        includeAllColumns: false,
-      });
-    } else {
-      dt = await ws.getSummaryDataAsync({ maxRows: 0, ignoreAliases: false, ignoreSelection: false });
-    }
+    const ws = state.worksheet || tableau.extensions.worksheetContent.worksheet;
+    // Always use getSummaryDataAsync — it respects the worksheet LOD and all active filters.
+    // The user controls granularity via the Detail shelf. underlying data is deprecated.
+    const dt = await ws.getSummaryDataAsync({ maxRows: 0, ignoreAliases: false, ignoreSelection: false });
 
     const { columns, rows } = parseDataTable(dt);
 
     // Detect %many-values% — means no dims on Detail shelf (LOD undefined)
-    if (chart.api !== 'underlying') {
-      const hasManyValues = rows.some(row =>
-        Object.values(row).some(v => v !== null && String(v).includes('%many%'))
-      );
-      if (hasManyValues || rows.length === 0) {
-        showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
-        return;
-      }
+    const hasManyValues = rows.some(row =>
+      Object.values(row).some(v => v !== null && String(v).includes('%many%'))
+    );
+    if (hasManyValues || rows.length === 0) {
+      showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
+      return;
     }
 
     renderECharts(chart, columns, rows, state.assignments);
