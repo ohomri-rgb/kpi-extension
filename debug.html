@@ -240,6 +240,10 @@ html, body {
             <svg class="item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="5"/><line x1="6" y1="4" x2="6" y2="7"/><circle cx="6" cy="8.5" r="0.5" fill="currentColor"/></svg>
             לוג
           </div>
+          <div class="sidebar-item" onclick="scrollTo('section-types')">
+            <svg class="item-icon" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="10" height="10" rx="1.5"/><line x1="3" y1="6" x2="9" y2="6"/><line x1="6" y1="3" x2="6" y2="9"/></svg>
+            field types
+          </div>
         </div>
       </div>
       <div class="sidebar-section">
@@ -338,6 +342,7 @@ function renderAll(dt) {
   content.appendChild(buildColumnsCard(dt));
   content.appendChild(buildRowsCard(dt));
   content.appendChild(buildRawCard(dt));
+  content.appendChild(buildTypesCard(dt));
   content.appendChild(buildLogCard());
 }
 
@@ -572,6 +577,55 @@ function copyJSON() {
   document.body.appendChild(panel);
   pre.select();
   log('ok', 'JSON מוצג במסך — סמן הכל והעתק');
+}
+
+function buildTypesCard(dt) {
+  const card = mkCard('section-types', 'field types — dataType מלא לכל עמודה', '');
+  const body = document.createElement('div');
+  body.style.overflowX = 'auto';
+
+  const table = document.createElement('table');
+  table.className = 'debug-table';
+  table.innerHTML = `<thead><tr>
+    <th>#</th>
+    <th>fieldName</th>
+    <th>_dataType (raw)</th>
+    <th>getFieldType()</th>
+    <th>canAssign dim</th>
+    <th>canAssign measure</th>
+    <th>כל keys באובייקט</th>
+  </tr></thead>`;
+
+  const tbody = document.createElement('tbody');
+
+  function getFieldType(dataType) {
+    if (!dataType) return 'unknown';
+    const dt = dataType.toLowerCase();
+    if (dt === 'float' || dt === 'int' || dt === 'integer' || dt === 'real' || dt === 'number' || dt === 'double') return 'measure';
+    return 'dim';
+  }
+
+  dt.columns.forEach((col, i) => {
+    const tr = document.createElement('tr');
+    const ft = getFieldType(col._dataType);
+    const allKeys = Object.keys(col).map(k => `${k}: ${JSON.stringify(col[k])}`).join(' | ');
+
+    tr.innerHTML = `
+      <td style="color:var(--text3)">${i}</td>
+      <td style="color:var(--amber)">"${col._fieldName}"</td>
+      <td style="color:var(--purple);font-family:var(--mono)">"${col._dataType}"</td>
+      <td><span class="tag ${ft === 'measure' ? 'tag-measure' : 'tag-dim'}">${ft}</span></td>
+      <td style="color:${ft==='dim'?'var(--green)':'var(--red)'}">${ft==='dim'}</td>
+      <td style="color:${ft==='measure'?'var(--green)':'var(--red)'}">${ft==='measure'}</td>
+      <td style="font-size:10px;color:var(--text3);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${allKeys}">${allKeys}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  body.appendChild(table);
+  card.appendChild(body);
+  return card;
 }
 
 function renderError(msg) {
