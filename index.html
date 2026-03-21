@@ -474,11 +474,11 @@ async function loadFields(ws) {
         dataType: (col._dataType || 'string').toLowerCase(),
         fieldId: col._fieldId,
       }));
-      console.log('[loadFields] loaded', state.worksheetFields.length, 'fields via getSummaryDataAsync');
+
       return;
     }
   } catch(e) {
-    console.warn('[loadFields] getSummaryDataAsync failed, falling back to underlying:', e);
+
   }
 
   // FALLBACK: use getUnderlyingTablesAsync + getUnderlyingTableDataAsync (new API)
@@ -499,7 +499,7 @@ async function loadFields(ws) {
           dataType: (col._dataType || 'string').toLowerCase(),
           fieldId: col._fieldId,
         }));
-        console.log('[loadFields] fallback table data: loaded', state.worksheetFields.length, 'fields');
+
         return;
       }
     }
@@ -629,12 +629,7 @@ function openSlotDropdown(role, anchorEl) {
   const dd = document.getElementById('slot-dropdown');
   state.activeDropdownRole = role;
 
-  // DEBUG — remove after testing
-  console.log('[dropdown] role.accepts:', role.accepts);
-  console.log('[dropdown] all fields:', state.worksheetFields.map(f => f.fieldName + ' | dt=' + f.dataType + ' | type=' + getFieldType(f.dataType, f.fieldName)));
-
   const compatible = state.worksheetFields.filter(f => canAssign(role.accepts, f.dataType, f.fieldName));
-  console.log('[dropdown] compatible:', compatible.length, compatible.map(f=>f.fieldName));
   const dims = compatible.filter(f => getFieldType(f.dataType, f.fieldName) === 'dim');
   const measures = compatible.filter(f => getFieldType(f.dataType, f.fieldName) === 'measure');
 
