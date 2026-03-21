@@ -6,6 +6,8 @@
 <title>ECharts Extension</title>
 <script src="tableau.extensions.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/map/js/world.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-countries-js@1.0.5/echarts-countries-js/USA.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -391,6 +393,22 @@ const CHARTS = [
     roles:[{id:'date',label:'תאריך',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
   { id:'themeriver', cat:'זרימה', name:'ThemeRiver', icon:'🌊', api:'summary',
     roles:[{id:'time',label:'זמן',accepts:'dim',required:true},{id:'theme',label:'נושא',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+
+  // ── ROUND 3 ──
+  { id:'stepline', cat:'קו ושטח', name:'Step Line', icon:'📶', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'group',label:'Group',accepts:'dim',required:false}]},
+  { id:'stackedarea', cat:'קו ושטח', name:'Stacked Area', icon:'🏔', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'group',label:'Group',accepts:'dim',required:true}]},
+  { id:'dualaxis', cat:'עמודות', name:'Dual Axis', icon:'📊', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y1',label:'עמודות',accepts:'measure',required:true},{id:'y2',label:'קו',accepts:'measure',required:true}]},
+  { id:'pictorialbar', cat:'עמודות', name:'Pictorial Bar', icon:'🎭', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true}]},
+  { id:'worldmap', cat:'מפה', name:'World Map', icon:'🌍', api:'summary',
+    roles:[{id:'country',label:'מדינה',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'usmap', cat:'מפה', name:'US States Map', icon:'🇺🇸', api:'summary',
+    roles:[{id:'state',label:'מדינה (US)',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'geomap', cat:'מפה', name:'Geo Bubble Map', icon:'📍', api:'summary',
+    roles:[{id:'lat',label:'Latitude',accepts:'measure',required:true},{id:'lon',label:'Longitude',accepts:'measure',required:true},{id:'val',label:'ערך (גודל)',accepts:'measure',required:true},{id:'dim',label:'תווית',accepts:'dim',required:false},{id:'color',label:'צבע',accepts:'dim',required:false}]},
 ];
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
@@ -822,6 +840,13 @@ function drawPreview(chart, container) {
     waterfall: {animation:false,tooltip:{show:false},legend:{show:false},grid:{top:4,right:4,bottom:4,left:4}, xAxis:{type:'category',data:['A','B','C','D','E'],show:false}, yAxis:{show:false}, series:[{type:'bar',stack:'total',itemStyle:{borderColor:'transparent',color:'transparent'},data:[0,12,6,19,10]},{type:'bar',stack:'total',data:[12,7,13,5,8],itemStyle:{color:COLORS[0],borderRadius:[3,3,0,0]}}]},
     calendar: {animation:false,tooltip:{show:false},legend:{show:false}, calendar:{top:10,left:10,right:10,bottom:10,range:'2024-01',cellSize:[10,10],itemStyle:{borderWidth:1,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}}, series:[{type:'heatmap',coordinateSystem:'calendar',data:[['2024-01-01',3],['2024-01-03',7],['2024-01-07',2],['2024-01-10',9],['2024-01-14',5],['2024-01-18',8],['2024-01-21',4],['2024-01-25',6],['2024-01-28',3]],itemStyle:{}}], visualMap:{show:false,min:0,max:9,inRange:{color:['#e8f0ff','#0057e8']}}},
     themeriver: {animation:false,tooltip:{show:false},legend:{show:false},grid:{top:4,right:4,bottom:4,left:4}, singleAxis:{top:8,bottom:8,left:8,right:8,type:'time',show:false}, series:[{type:'themeRiver',data:[['2024-01',5,'A'],['2024-02',8,'A'],['2024-03',6,'A'],['2024-01',3,'B'],['2024-02',4,'B'],['2024-03',7,'B'],['2024-01',2,'C'],['2024-02',5,'C'],['2024-03',3,'C']],label:{show:false},itemStyle:{opacity:.8}}]},
+    stepline: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'line',data:v1,step:'end',lineStyle:{color:COLORS[0],width:2},itemStyle:{color:COLORS[0]},symbolSize:0}]},
+    stackedarea: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'line',data:v1,stack:'t',smooth:false,areaStyle:{color:COLORS[0],opacity:.6},lineStyle:{color:COLORS[0],width:1},symbolSize:0},{type:'line',data:v2,stack:'t',smooth:false,areaStyle:{color:COLORS[1],opacity:.6},lineStyle:{color:COLORS[1],width:1},symbolSize:0}]},
+    dualaxis: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:[{type:'value',show:false},{type:'value',show:false}], series:[{type:'bar',data:v1,yAxisIndex:0,itemStyle:{color:COLORS[0],borderRadius:[3,3,0,0]},barMaxWidth:20},{type:'line',data:v2,yAxisIndex:1,smooth:true,lineStyle:{color:COLORS[1],width:2},itemStyle:{color:COLORS[1]},symbolSize:4}]},
+    pictorialbar: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'pictorialBar',data:v1,symbol:'roundRect',symbolSize:['80%',8],symbolRepeat:true,symbolMargin:2,itemStyle:{color:COLORS[0]}}]},
+    worldmap: {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'world',geoIndex:0,data:[{name:'China',value:80},{name:'United States',value:100},{name:'Brazil',value:60},{name:'Russia',value:70},{name:'Australia',value:50}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}},
+    usmap: {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'USA',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'USA',geoIndex:0,data:[{name:'California',value:90},{name:'Texas',value:75},{name:'New York',value:80},{name:'Florida',value:65}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}},
+    geomap: {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#f0f0f0',borderColor:'#fff',borderWidth:.3},emphasis:{disabled:true}}, series:[{type:'scatter',coordinateSystem:'geo',data:[{value:[-74,40.7],symbolSize:10},{value:[2.35,48.85],symbolSize:8},{value:[139.7,35.7],symbolSize:12},{value:[-43.2,-22.9],symbolSize:7},{value:[151.2,-33.9],symbolSize:6}],itemStyle:{color:COLORS[1],opacity:.75}}]},
   };
   if (opts[chart.id]) ec.setOption(opts[chart.id]);
 }
@@ -1379,6 +1404,184 @@ function renderECharts(chart, columns, rows, assignments) {
           data: riverData,
           label:{show:false},
         }],
+      };
+      break;
+    }
+
+    case 'stepline': {
+      const xVals = [...new Set(rows.map(r=>r[xField]))].sort();
+      if (groupField) {
+        const groups = [...new Set(rows.map(r=>r[groupField]))];
+        option = {
+          tooltip:{trigger:'axis'},
+          legend:{bottom:0,type:'scroll'},
+          xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+          yAxis:{type:'value'},
+          grid:{bottom:xVals.length>8?55:40,top:20,right:16,left:50},
+          series: groups.map((g,i)=>({
+            name:String(g), type:'line', step:'end',
+            data: xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x&&rr[groupField]===g);return r?r[yField]:null;}),
+            itemStyle:{color:COLORS[i%COLORS.length]},
+          })),
+        };
+      } else {
+        option = {
+          tooltip:{trigger:'axis'},
+          xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+          yAxis:{type:'value'},
+          grid:{bottom:xVals.length>8?50:30,top:20,right:16,left:50},
+          series:[{type:'line',step:'end',data:xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x);return r?r[yField]:null;}),itemStyle:{color:COLORS[0]}}],
+        };
+      }
+      break;
+    }
+
+    case 'stackedarea': {
+      const xVals = [...new Set(rows.map(r=>r[xField]))].sort();
+      const groups = [...new Set(rows.map(r=>r[groupField]))];
+      option = {
+        tooltip:{trigger:'axis'},
+        legend:{bottom:0,type:'scroll'},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+        yAxis:{type:'value'},
+        grid:{bottom:xVals.length>8?55:40,top:20,right:16,left:50},
+        series: groups.map((g,i)=>({
+          name:String(g), type:'line', stack:'total',
+          smooth:true,
+          areaStyle:{opacity:.6},
+          itemStyle:{color:COLORS[i%COLORS.length]},
+          lineStyle:{width:1},
+          symbolSize:0,
+          data: xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x&&rr[groupField]===g);return r?r[yField]:null;}),
+        })),
+      };
+      break;
+    }
+
+    case 'dualaxis': {
+      const y1Field = a.y1?.fieldName;
+      const y2Field = a.y2?.fieldName;
+      const xVals = [...new Set(rows.map(r=>r[xField]))].sort();
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+        legend:{bottom:0,data:[a.y1.displayName, a.y2.displayName]},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+        yAxis:[
+          {type:'value',name:a.y1.displayName,nameTextStyle:{color:COLORS[0]},axisLine:{lineStyle:{color:COLORS[0]}},axisTick:{lineStyle:{color:COLORS[0]}},axisLabel:{color:COLORS[0]}},
+          {type:'value',name:a.y2.displayName,nameTextStyle:{color:COLORS[1]},axisLine:{lineStyle:{color:COLORS[1]}},axisTick:{lineStyle:{color:COLORS[1]}},axisLabel:{color:COLORS[1]},splitLine:{show:false}},
+        ],
+        grid:{bottom:xVals.length>8?55:40,top:30,right:60,left:60},
+        series:[
+          {name:a.y1.displayName,type:'bar',yAxisIndex:0,data:xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x);return r?r[y1Field]:null;}),itemStyle:{color:COLORS[0],borderRadius:[4,4,0,0]}},
+          {name:a.y2.displayName,type:'line',yAxisIndex:1,smooth:true,data:xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x);return r?r[y2Field]:null;}),itemStyle:{color:COLORS[1]},lineStyle:{color:COLORS[1],width:2},symbolSize:5},
+        ],
+      };
+      break;
+    }
+
+    case 'pictorialbar': {
+      const cats = [...new Set(rows.map(r=>r[xField]))];
+      const data  = cats.map(c=>{const r=rows.find(rr=>rr[xField]===c);return r?r[yField]:null;});
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+        xAxis:{type:'category',data:cats,axisLabel:{rotate:cats.length>8?30:0}},
+        yAxis:{type:'value'},
+        grid:{bottom:cats.length>8?55:30,top:20,right:16,left:55},
+        series:[{
+          type:'pictorialBar',
+          data: data.map((v,i)=>({value:v,itemStyle:{color:COLORS[i%COLORS.length]}})),
+          symbol:'roundRect',
+          symbolSize:['80%', 10],
+          symbolRepeat: true,
+          symbolMargin: '20%',
+          symbolClip: true,
+        }],
+      };
+      break;
+    }
+
+    case 'worldmap': {
+      const countryField = a.country?.fieldName;
+      const mapData = rows
+        .filter(r=>r[countryField]!=null&&r[valField]!=null)
+        .map(r=>({name:String(r[countryField]),value:r[valField]}));
+      const maxV = Math.max(...mapData.map(d=>d.value));
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c}'},
+        visualMap:{min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#b3d1ff','#0057e8']}},
+        series:[{
+          type:'map', map:'world',
+          roam:true,
+          data: mapData,
+          label:{show:false},
+          emphasis:{label:{show:true},itemStyle:{areaColor:'#ffcc66'}},
+          itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},
+        }],
+      };
+      break;
+    }
+
+    case 'usmap': {
+      const stateField = a.state?.fieldName;
+      const mapData = rows
+        .filter(r=>r[stateField]!=null&&r[valField]!=null)
+        .map(r=>({name:String(r[stateField]),value:r[valField]}));
+      const maxV = Math.max(...mapData.map(d=>d.value));
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c}'},
+        visualMap:{min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#b3d1ff','#0057e8']}},
+        series:[{
+          type:'map', map:'USA',
+          roam:true,
+          data: mapData,
+          label:{show:false},
+          emphasis:{label:{show:true,fontSize:10},itemStyle:{areaColor:'#ffcc66'}},
+          itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},
+        }],
+      };
+      break;
+    }
+
+    case 'geomap': {
+      const latField   = a.lat?.fieldName;
+      const lonField   = a.lon?.fieldName;
+      const dimFld     = a.dim?.fieldName;
+      const colorFld   = a.color?.fieldName;
+      const filtered   = rows.filter(r=>r[latField]!=null&&r[lonField]!=null&&r[valField]!=null);
+      const maxV       = Math.max(...filtered.map(r=>r[valField]));
+      const colorGroups = colorFld ? [...new Set(filtered.map(r=>String(r[colorFld])))] : null;
+
+      const makeData = (subset) => subset.map(r=>({
+        value: [r[lonField], r[latField], r[valField]],
+        name: dimFld ? String(r[dimFld]) : '',
+      }));
+
+      option = {
+        tooltip:{trigger:'item', formatter: p => `${p.data.name||''}<br/>${a.val.displayName}: ${p.data.value[2]}`},
+        geo:{
+          map:'world', roam:true,
+          itemStyle:{areaColor:'#f0f4ff',borderColor:'#c8d8f0',borderWidth:.4},
+          emphasis:{disabled:true},
+        },
+        visualMap:{show:!colorFld,min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#91caff','#0057e8']},seriesIndex:colorFld?undefined:0},
+        legend: colorGroups ? {bottom:0,type:'scroll',data:colorGroups} : {show:false},
+        series: colorGroups
+          ? colorGroups.map((g,i)=>({
+              name:g, type:'scatter', coordinateSystem:'geo',
+              data: makeData(filtered.filter(r=>String(r[colorFld])===g)),
+              symbolSize: d => Math.max(5, Math.sqrt(d[2]/maxV)*40),
+              itemStyle:{color:COLORS[i%COLORS.length],opacity:.75},
+              label:{show:false},
+              emphasis:{label:{show:true,formatter:p=>p.data.name}},
+            }))
+          : [{
+              type:'scatter', coordinateSystem:'geo',
+              data: makeData(filtered),
+              symbolSize: d => Math.max(5, Math.sqrt(d[2]/maxV)*40),
+              itemStyle:{opacity:.75},
+              label:{show:false},
+              emphasis:{label:{show:true,formatter:p=>p.data.name}},
+            }],
       };
       break;
     }
