@@ -766,12 +766,40 @@ async function applyChart() {
 
   try {
     const ws = tableau.extensions.worksheetContent.worksheet;
-    const dt = chart.api === 'underlying'
-      ? await ws.getUnderlyingDataAsync({ maxRows: 0 })
-      : await ws.getSummaryDataAsync();
+    // getSummaryData respects the worksheet's LOD (level of detail)
+    // getUnderlyingData used for scatter/sankey/bubble
+    let dt;
+    if (chart.api === 'underlying') {
+      dt = await ws.getUnderlyingDataAsync({
+        maxRows: 0,
+        ignoreAliases: false,
+        ignoreSelection: false,
+        includeAllColumns: true,
+      });
+    } else {
+      dt = await ws.getUnderlyingDataAsync({
+        maxRows: 0,
+        ignoreAliases: false,
+        ignoreSelection: false,
+        includeAllColumns: true,
+      });
+    }
 
     const { columns, rows } = parseDataTable(dt);
-    renderECharts(chart, columns, rows, state.assignments);
+
+    // Aggregate rows by assigned dim fields, sum measure fields
+    const dimFields = chart.roles
+      .filter(r => r.accepts === 'dim' && state.assignments[r.id])
+      .map(r => state.assignments[r.id].fieldName);
+    const measureFields = chart.roles
+      .filter(r => r.accepts === 'measure' && state.assignments[r.id])
+      .map(r => state.assignments[r.id].fieldName);
+
+    const aggregated = chart.api === 'underlying'
+      ? rows  // scatter/bubble/sankey — no aggregation
+      : aggregateRows(rows, dimFields, measureFields);
+
+    renderECharts(chart, columns, aggregated, state.assignments);
   } catch(e) {
     showError('שגיאת טעינה: ' + e);
   }
@@ -797,6 +825,33 @@ function parseDataTable(dt) {
     ]))
   );
   return { columns, rows };
+}
+
+// ═══════════════════════════════════════════════════
+// AGGREGATION HELPER
+// ═══════════════════════════════════════════════════
+
+/**
+ * Groups rows by dimension fields and sums measure fields
+ * replaces Tableau's LOD when using getUnderlyingDataAsync
+ */
+function aggregateRows(rows, dimFields, measureFields) {
+  const map = new Map();
+  rows.forEach(row => {
+    const key = dimFields.map(d => String(row[d] ?? '')).join('|||');
+    if (!map.has(key)) {
+      const entry = {};
+      dimFields.forEach(d => entry[d] = row[d]);
+      measureFields.forEach(m => entry[m] = 0);
+      map.set(key, entry);
+    }
+    const entry = map.get(key);
+    measureFields.forEach(m => {
+      const v = row[m];
+      if (v !== null && v !== undefined) entry[m] += Number(v) || 0;
+    });
+  });
+  return [...map.values()];
 }
 
 // ═══════════════════════════════════════════════════
