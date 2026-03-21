@@ -313,13 +313,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadFields(ws) {
   try {
+    // Step 1: try getDataSourcesAsync on the worksheet
+    const datasources = await ws.getDataSourcesAsync();
+    if (datasources && datasources.length > 0) {
+      const allFields = [];
+      for (const ds of datasources) {
+        try {
+          const fields = await ds.getFieldsAsync();
+          fields.forEach(f => {
+            // skip hidden and calculated if no name
+            if (!f.name) return;
+            allFields.push({
+              fieldName: f.name,
+              displayName: cleanFieldName(f.name),
+              dataType: (f.dataType || 'string').toLowerCase(),
+              fieldId: f.id || f.name,
+            });
+          });
+        } catch(e2) {
+          console.warn('getFieldsAsync failed for ds:', e2);
+        }
+      }
+      if (allFields.length > 0) {
+        state.worksheetFields = allFields;
+        console.log('[loadFields] loaded', allFields.length, 'fields from datasource');
+        return;
+      }
+    }
+  } catch(e) {
+    console.warn('[loadFields] getDataSourcesAsync failed, falling back to summary:', e);
+  }
+
+  // Step 2: fallback — read from whatever columns are in summary
+  try {
     const dt = await ws.getSummaryDataAsync();
     state.worksheetFields = dt.columns.map(col => ({
       fieldName: col._fieldName,
       displayName: cleanFieldName(col._fieldName),
-      dataType: col._dataType,
+      dataType: (col._dataType || 'string').toLowerCase(),
       fieldId: col._fieldId,
     }));
+    console.log('[loadFields] fallback: loaded', state.worksheetFields.length, 'columns from summary');
   } catch(e) {
     showError('לא ניתן לקרוא שדות: ' + e);
   }
