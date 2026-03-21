@@ -189,10 +189,91 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);colo
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── ONBOARDING ── */
+.onboarding{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;padding:16px;
+}
+.ob-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:24px 20px;width:100%;max-width:340px;
+  text-align:center;
+}
+.ob-icon{font-size:28px;margin-bottom:10px}
+.ob-title{font-size:16px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.ob-sub{font-size:12px;color:var(--text2);margin-bottom:18px}
+.ob-steps{text-align:right;display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.ob-step{display:flex;gap:10px;align-items:flex-start}
+.ob-num{
+  width:20px;height:20px;border-radius:50%;
+  background:var(--teal-light);color:var(--teal-dark);
+  font-size:11px;font-weight:600;display:flex;
+  align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+}
+.ob-step-text{font-size:12px;color:var(--text);line-height:1.6}
+.ob-step-text strong{color:var(--teal-dark)}
+.ob-note{font-size:11px;color:var(--text3);margin-top:2px}
+.ob-marks-preview{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:8px 10px;margin-bottom:16px;text-align:right;
+}
+.ob-marks-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.ob-marks-label{font-size:10px;color:var(--text3);width:44px;flex-shrink:0}
+.ob-pill{
+  font-size:10px;font-weight:500;padding:2px 8px;
+  border-radius:3px;background:var(--teal);color:#fff;
+}
+.ob-pill-dim{opacity:.75}
+.ob-btn{
+  width:100%;background:var(--teal);color:#fff;border:none;
+  border-radius:6px;padding:9px;font-size:13px;font-weight:500;
+  font-family:inherit;cursor:pointer;transition:background .15s;margin-bottom:8px;
+}
+.ob-btn:hover{background:var(--teal-dark)}
+.ob-skip{font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline}
+.ob-skip:hover{color:var(--text2)}
 </style>
 </head>
 <body>
-<div class="app">
+<!-- Onboarding Screen -->
+<div class="onboarding" id="onboarding">
+  <div class="ob-card">
+    <div class="ob-icon">📊</div>
+    <h2 class="ob-title">ECharts Extension</h2>
+    <p class="ob-sub">לפני שמתחילים — שלב אחד קטן</p>
+    <div class="ob-steps">
+      <div class="ob-step">
+        <div class="ob-num">1</div>
+        <div class="ob-step-text">
+          גרור את כל השדות הרצויים ל-<strong>Detail</strong> ב-Marks Card של Tableau
+          <div class="ob-note">ממדים ומדדים — כל מה שרוצים לגרף</div>
+        </div>
+      </div>
+      <div class="ob-step">
+        <div class="ob-num">2</div>
+        <div class="ob-step-text">
+          חזור לכאן ולחץ <strong>המשך</strong>
+          <div class="ob-note">ה-extension יטען את כל השדות אוטומטית</div>
+        </div>
+      </div>
+    </div>
+    <div class="ob-marks-preview">
+      <div class="ob-marks-row">
+        <span class="ob-marks-label">Detail</span>
+        <span class="ob-pill">Order Date</span>
+        <span class="ob-pill">Sales</span>
+        <span class="ob-pill">Profit</span>
+        <span class="ob-pill ob-pill-dim">Segment</span>
+      </div>
+    </div>
+    <button class="ob-btn" onclick="dismissOnboarding()">המשך →</button>
+    <p class="ob-skip" onclick="dismissOnboarding()">כבר הוספתי שדות, דלג</p>
+  </div>
+</div>
+
+<div class="app" id="app" style="display:none">
 
   <!-- Marks Card -->
   <div class="marks-card" id="marks-card">
@@ -291,6 +372,18 @@ let state = {
 };
 
 // ═══════════════════════════════════════════════════
+// ONBOARDING
+// ═══════════════════════════════════════════════════
+function dismissOnboarding() {
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // reload fields now that user confirmed they added fields to Detail
+  tableau.extensions.worksheetContent.worksheet
+    ? loadFields(tableau.extensions.worksheetContent.worksheet)
+    : null;
+}
+
+// ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
@@ -301,6 +394,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load fields
     await loadFields(ws);
 
+    // Show app (onboarding shown first)
     // Listen for changes
     ws.addEventListener(tableau.TableauEventType.FilterChanged, () => refreshChart());
     ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
@@ -980,5 +1074,6 @@ function hideError() {
   document.getElementById('error-bar').classList.remove('show');
 }
 </script>
+</div>
 </body>
 </html>
