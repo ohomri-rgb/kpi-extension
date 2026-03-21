@@ -410,6 +410,28 @@ const CHARTS = [
     roles:[{id:'state',label:'מדינה (US)',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
   { id:'geomap', cat:'מפה', name:'Geo Bubble Map', icon:'📍', api:'summary',
     roles:[{id:'lat',label:'Latitude',accepts:'measure',required:true},{id:'lon',label:'Longitude',accepts:'measure',required:true},{id:'val',label:'ערך (גודל)',accepts:'measure',required:true},{id:'dim',label:'תווית',accepts:'dim',required:false},{id:'color',label:'צבע',accepts:'dim',required:false}]},
+
+  // ── ROUND 4 — EASY ADDITIONS ──
+  { id:'stackedline', cat:'קו ושטח', name:'Stacked Line', icon:'📈', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'group',label:'Group',accepts:'dim',required:true}]},
+  { id:'rose', cat:'עוגה', name:'Nightingale Rose', icon:'🌹', api:'summary',
+    roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'effectscatter', cat:'פיזור', name:'Effect Scatter', icon:'✨', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'measure',required:true},{id:'y',label:'ציר Y',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
+  { id:'histogram', cat:'עמודות', name:'Histogram', icon:'📊', api:'summary',
+    roles:[{id:'x',label:'Bin / קטגוריה',accepts:'dim',required:true},{id:'y',label:'ספירה / ערך',accepts:'measure',required:true}]},
+  { id:'radargroup', cat:'מיוחד', name:'Multi-series Radar', icon:'🕸', api:'summary',
+    roles:[{id:'dim',label:'מדדים',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true},{id:'group',label:'סדרה',accepts:'dim',required:true}]},
+  { id:'graphcirc', cat:'זרימה', name:'Circular Graph', icon:'⭕', api:'summary',
+    roles:[{id:'src',label:'מקור',accepts:'dim',required:true},{id:'tgt',label:'יעד',accepts:'dim',required:true},{id:'val',label:'משקל',accepts:'measure',required:false}]},
+  { id:'tree', cat:'היררכיה', name:'Tree Chart', icon:'🌳', api:'summary',
+    roles:[{id:'parent',label:'רמה 1',accepts:'dim',required:true},{id:'child',label:'רמה 2',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'radialtree', cat:'היררכיה', name:'Radial Tree', icon:'🌐', api:'summary',
+    roles:[{id:'parent',label:'רמה 1',accepts:'dim',required:true},{id:'child',label:'רמה 2',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'gaugeprogress', cat:'KPI', name:'Progress Bar', icon:'📏', api:'summary',
+    roles:[{id:'val',label:'ערך',accepts:'measure',required:true},{id:'max',label:'מקסימום',accepts:'measure',required:false},{id:'dim',label:'קטגוריה',accepts:'dim',required:false}]},
+  { id:'gaugemulti', cat:'KPI', name:'Multi Gauge', icon:'🎯', api:'summary',
+    roles:[{id:'val',label:'ערך 1',accepts:'measure',required:true},{id:'val2',label:'ערך 2',accepts:'measure',required:false},{id:'val3',label:'ערך 3',accepts:'measure',required:false}]},
 ];
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
@@ -848,6 +870,17 @@ function drawPreview(chart, container) {
     worldmap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'world',geoIndex:0,data:[{name:'China',value:80},{name:'United States',value:100},{name:'Brazil',value:60},{name:'Russia',value:70},{name:'Australia',value:50}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}} : null,
     usmap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',center:[-96,38],zoom:3.5,roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true}}, series:[{type:'map',map:'world',geoIndex:0,data:[{name:'California',value:90},{name:'Texas',value:75},{name:'New York',value:80},{name:'Florida',value:65}],label:{show:false}}], visualMap:{show:false,min:0,max:100,inRange:{color:['#b3d1ff','#0057e8']}}} : null,
     geomap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false}, geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#f0f0f0',borderColor:'#fff',borderWidth:.3},emphasis:{disabled:true}}, series:[{type:'scatter',coordinateSystem:'geo',data:[{value:[-74,40.7]},{value:[2.35,48.85]},{value:[139.7,35.7]},{value:[-43.2,-22.9]}],symbolSize:6,itemStyle:{color:COLORS[1],opacity:.75}}]} : null,
+    // ── ROUND 4 previews ──
+    stackedline: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'line',data:v1,stack:'total',lineStyle:{color:COLORS[0],width:2},itemStyle:{color:COLORS[0]},symbolSize:0},{type:'line',data:v2,stack:'total',lineStyle:{color:COLORS[1],width:2},itemStyle:{color:COLORS[1]},symbolSize:0}]},
+    rose: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'pie',radius:['15%','65%'],roseType:'area',data:[{value:40,itemStyle:{color:COLORS[0]}},{value:28,itemStyle:{color:COLORS[1]}},{value:18,itemStyle:{color:COLORS[2]}},{value:32,itemStyle:{color:COLORS[3]}},{value:22,itemStyle:{color:COLORS[4]}}],label:{show:false}}]},
+    effectscatter: {...base, xAxis:{type:'value',show:false}, yAxis:{type:'value',show:false}, series:[{type:'effectScatter',data:[[10,8],[14,12],[8,6],[18,15],[12,10]],symbolSize:8,rippleEffect:{scale:3,period:1.5},itemStyle:{color:COLORS[0]}}]},
+    histogram: {...base, xAxis:{type:'category',data:['0-10','10-20','20-30','30-40','40-50'],show:false}, yAxis:{show:false}, series:[{type:'bar',data:[5,18,32,24,12],barGap:'0%',barCategoryGap:'0%',itemStyle:{color:COLORS[0],borderRadius:[2,2,0,0]}}]},
+    radargroup: {animation:false,tooltip:{show:false},legend:{show:false}, radar:{center:['50%','52%'],radius:'60%',indicator:[{max:10},{max:10},{max:10},{max:10},{max:10}],axisLine:{lineStyle:{color:'#e0dfd8'}},splitLine:{lineStyle:{color:'#e0dfd8'}},splitArea:{show:false}}, series:[{type:'radar',data:[{value:[7,5,9,6,8],lineStyle:{color:COLORS[0],width:1.5},areaStyle:{color:COLORS[0],opacity:.2},itemStyle:{color:COLORS[0]}},{value:[4,8,5,9,4],lineStyle:{color:COLORS[1],width:1.5},areaStyle:{color:COLORS[1],opacity:.2},itemStyle:{color:COLORS[1]}}]}]},
+    graphcirc: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'graph',layout:'circular',roam:false,symbol:'circle',symbolSize:10,data:[{name:'A',itemStyle:{color:COLORS[0]}},{name:'B',itemStyle:{color:COLORS[1]}},{name:'C',itemStyle:{color:COLORS[2]}},{name:'D',itemStyle:{color:COLORS[3]}},{name:'E',itemStyle:{color:COLORS[0]}},{name:'F',itemStyle:{color:COLORS[1]}}],links:[{source:'A',target:'B'},{source:'A',target:'D'},{source:'B',target:'C'},{source:'C',target:'E'},{source:'D',target:'F'},{source:'E',target:'A'},{source:'F',target:'B'}],label:{show:false},lineStyle:{color:'#ccc',width:1}}]},
+    tree: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'tree',data:[{name:'Root',children:[{name:'A',children:[{name:'A1'},{name:'A2'}]},{name:'B',children:[{name:'B1'}]},{name:'C'}]}],top:6,bottom:6,left:16,right:16,orient:'LR',symbol:'emptyCircle',symbolSize:5,label:{show:false},lineStyle:{color:'#ccc',width:1}}]},
+    radialtree: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'tree',data:[{name:'Root',children:[{name:'A',children:[{name:'A1'},{name:'A2'}]},{name:'B',children:[{name:'B1'},{name:'B2'}]},{name:'C',children:[{name:'C1'}]}]}],top:4,bottom:4,left:4,right:4,layout:'radial',symbol:'emptyCircle',symbolSize:5,label:{show:false},lineStyle:{color:'#ccc',width:1}}]},
+    gaugeprogress: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'gauge',radius:'85%',center:['50%','60%'],startAngle:210,endAngle:-30,min:0,max:100,progress:{show:true,width:8,itemStyle:{color:COLORS[2]}},axisLine:{lineStyle:{width:8,color:[[1,'#e0dfd8']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:true,length:'55%',width:3,itemStyle:{color:COLORS[2]}},detail:{show:false},data:[{value:58}]}]},
+    gaugemulti: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'gauge',radius:'85%',center:['50%','60%'],startAngle:210,endAngle:-30,min:0,max:100,progress:{show:true,width:6,itemStyle:{color:COLORS[0]}},axisLine:{lineStyle:{width:6,color:[[1,'#e0dfd8']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:false},detail:{show:false},data:[{value:72,itemStyle:{color:COLORS[0]}},{value:45,itemStyle:{color:COLORS[1]}},{value:88,itemStyle:{color:COLORS[2]}}]}]},
   };
   if (opts[chart.id]) ec.setOption(opts[chart.id]);
   else { container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa">טוען מפה...</div>'; ec.dispose(); }
@@ -1611,11 +1644,287 @@ async function renderECharts(chart, columns, rows, assignments) {
       };
       break;
     }
+
+    // ── ROUND 4: EASY ADDITIONS ──────────────────────
+
+    case 'stackedline': {
+      const xVals = [...new Set(rows.map(r=>r[xField]))].sort((a,b)=>{
+        const pa=parseFloat(a), pb=parseFloat(b);
+        return isNaN(pa)||isNaN(pb) ? String(a).localeCompare(String(b)) : pa-pb;
+      });
+      const groups = [...new Set(rows.map(r=>r[groupField]))];
+      option = {
+        tooltip:{trigger:'axis'},
+        legend:{bottom:0,type:'scroll'},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+        yAxis:{type:'value'},
+        grid:{bottom:xVals.length>8?55:40,top:20,right:16,left:50},
+        series: groups.map((g,i)=>({
+          name:String(g), type:'line', stack:'total',
+          data: xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x&&rr[groupField]===g); return r?r[yField]:null;}),
+          itemStyle:{color:COLORS[i%COLORS.length]},
+          lineStyle:{color:COLORS[i%COLORS.length],width:2},
+          symbolSize:4,
+        })),
+      };
+      break;
+    }
+
+    case 'rose': {
+      const data = rows
+        .filter(r=>r[dimField]!=null&&r[valField]!=null)
+        .map((r,i)=>({name:String(r[dimField]),value:r[valField],itemStyle:{color:COLORS[i%COLORS.length]}}));
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+        legend:{bottom:0,type:'scroll'},
+        series:[{
+          type:'pie',
+          radius:['15%','65%'],
+          roseType:'area',
+          data,
+          label:{formatter:'{b}'},
+        }],
+      };
+      break;
+    }
+
+    case 'effectscatter': {
+      const filtered = rows.filter(r=>r[xField]!=null&&r[yField]!=null);
+      if (colorField) {
+        const groups = [...new Set(filtered.map(r=>r[colorField]))];
+        option = {
+          tooltip:{trigger:'item'},
+          legend:{bottom:0},
+          xAxis:{type:'value',name:a.x.displayName},
+          yAxis:{type:'value',name:a.y.displayName},
+          grid:{bottom:40,top:20,right:16,left:60},
+          series: groups.map((g,i)=>({
+            name:String(g), type:'effectScatter',
+            data: filtered.filter(r=>r[colorField]===g).map(r=>[r[xField],r[yField]]),
+            symbolSize:12,
+            rippleEffect:{scale:3,period:1.5,brushType:'stroke'},
+            itemStyle:{color:COLORS[i%COLORS.length]},
+          })),
+        };
+      } else {
+        option = {
+          tooltip:{trigger:'item'},
+          xAxis:{type:'value',name:a.x.displayName},
+          yAxis:{type:'value',name:a.y.displayName},
+          grid:{bottom:30,top:20,right:16,left:60},
+          series:[{
+            type:'effectScatter',
+            data: filtered.map(r=>[r[xField],r[yField]]),
+            symbolSize:12,
+            rippleEffect:{scale:3,period:1.5,brushType:'stroke'},
+            itemStyle:{color:COLORS[0]},
+          }],
+        };
+      }
+      break;
+    }
+
+    case 'histogram': {
+      const cats = [...new Set(rows.map(r=>r[xField]))];
+      const data  = cats.map(c=>{const r=rows.find(rr=>rr[xField]===c); return r?r[yField]:null;});
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+        xAxis:{type:'category',data:cats,axisLabel:{rotate:cats.length>8?30:0}},
+        yAxis:{type:'value'},
+        grid:{bottom:cats.length>8?55:30,top:20,right:16,left:55},
+        series:[{
+          type:'bar',
+          data: data.map((v,i)=>({value:v,itemStyle:{color:COLORS[0]}})),
+          barGap:'0%',
+          barCategoryGap:'0%',
+          itemStyle:{borderRadius:[3,3,0,0]},
+        }],
+      };
+      break;
+    }
+
+    case 'radargroup': {
+      const dims   = [...new Set(rows.map(r=>r[dimField]))];
+      const groups = [...new Set(rows.map(r=>r[groupField]))];
+      const maxVal = Math.max(...rows.map(r=>r[valField]||0));
+      option = {
+        tooltip:{},
+        legend:{bottom:0,type:'scroll',data:groups.map(String)},
+        radar:{indicator:dims.map(d=>({name:d,max:maxVal})),radius:'60%'},
+        series:[{
+          type:'radar',
+          data: groups.map((g,i)=>({
+            name: String(g),
+            value: dims.map(d=>{const r=rows.find(rr=>rr[dimField]===d&&rr[groupField]===g); return r?r[valField]:0;}),
+            itemStyle:{color:COLORS[i%COLORS.length]},
+            lineStyle:{color:COLORS[i%COLORS.length]},
+            areaStyle:{color:COLORS[i%COLORS.length],opacity:.15},
+          })),
+        }],
+      };
+      break;
+    }
+
+    case 'graphcirc': {
+      const weightField = a.val?.fieldName;
+      const nodeSet = new Set([...rows.map(r=>String(r[srcField])),...rows.map(r=>String(r[tgtField]))]);
+      const nodeArr = [...nodeSet];
+      const maxW = weightField ? Math.max(...rows.map(r=>r[weightField]||0))||1 : 1;
+      const links = rows
+        .filter(r=>r[srcField]!=null&&r[tgtField]!=null)
+        .map(r=>({
+          source:String(r[srcField]), target:String(r[tgtField]),
+          lineStyle:{width: weightField ? Math.max(1,(r[weightField]/maxW)*6) : 1.5, color:'#aaa', opacity:.6},
+          value: weightField ? r[weightField] : 1,
+        }));
+      option = {
+        tooltip:{trigger:'item',formatter:p=>p.dataType==='edge'?`${p.data.source} → ${p.data.target}${weightField?': '+p.data.value:''}`:p.name},
+        series:[{
+          type:'graph', layout:'circular', roam:true,
+          data: nodeArr.map((n,i)=>({name:n,symbolSize:14,itemStyle:{color:COLORS[i%COLORS.length]},label:{show:true,fontSize:11}})),
+          links,
+          lineStyle:{curveness:.3},
+          emphasis:{focus:'adjacency'},
+          label:{position:'outside'},
+          circular:{rotateLabel:true},
+        }],
+      };
+      break;
+    }
+
+    case 'tree':
+    case 'radialtree': {
+      const childField = a.child?.fieldName;
+      const parentMap = new Map();
+      rows.forEach(r=>{
+        const p = String(r[parentField]??'(ללא)');
+        const c = String(r[childField]??'(ללא)');
+        const v = r[valField]||0;
+        if (!parentMap.has(p)) parentMap.set(p,new Map());
+        const cm = parentMap.get(p);
+        cm.set(c,(cm.get(c)||0)+v);
+      });
+      // Collect all child names to detect roots (parents that aren't children)
+      const allChildren = new Set();
+      parentMap.forEach((cm)=>cm.forEach((_,c)=>allChildren.add(c)));
+      const roots = [...parentMap.keys()].filter(p=>!allChildren.has(p));
+      const buildNode = (name) => {
+        const childMap = parentMap.get(name);
+        const node = {name};
+        if (childMap && childMap.size>0) {
+          node.children = [...childMap.entries()].map(([c,v])=>({...buildNode(c),value:v}));
+        }
+        return node;
+      };
+      const treeData = roots.length>0
+        ? (roots.length===1 ? buildNode(roots[0]) : {name:'(שורש)',children:roots.map(buildNode)})
+        : {name:'(שורש)',children:[...parentMap.keys()].slice(0,1).map(buildNode)};
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c}'},
+        series:[{
+          type:'tree',
+          data:[treeData],
+          top:'5%', bottom:'5%', left:'15%', right:'15%',
+          layout: chart.id==='radialtree' ? 'radial' : 'orthogonal',
+          orient: chart.id==='radialtree' ? undefined : 'LR',
+          symbol:'emptyCircle', symbolSize:8,
+          label:{position: chart.id==='radialtree' ? 'radial' : 'left', fontSize:11},
+          leaves:{label:{position: chart.id==='radialtree' ? 'radial' : 'right'}},
+          emphasis:{focus:'descendant'},
+          expandAndCollapse:true,
+          initialTreeDepth:3,
+          lineStyle:{color:'#ccc',width:1.5},
+          itemStyle:{color:COLORS[0],borderColor:COLORS[0]},
+        }],
+      };
+      break;
+    }
+
+    case 'gaugeprogress': {
+      // If dim field given, show one bar per category
+      if (a.dim?.fieldName) {
+        const dimF = a.dim.fieldName;
+        const cats = [...new Set(rows.map(r=>r[dimF]))].slice(0,5);
+        const maxVal = a.max ? rows.reduce((s,r)=>s+(r[a.max.fieldName]||0),0)/rows.length : null;
+        const series = cats.map((cat,i)=>{
+          const catRows = rows.filter(r=>r[dimF]===cat);
+          const val = catRows.reduce((s,r)=>s+(r[valField]||0),0);
+          const gaugeMax = maxVal && maxVal>0 ? maxVal : Math.ceil(val*1.5/10)*10||100;
+          return {
+            type:'gauge', radius:'100%',
+            center:[`${(i/(cats.length))*100+50/cats.length}%`,'60%'],
+            startAngle:200, endAngle:-20, min:0, max:gaugeMax,
+            progress:{show:true,width:6,itemStyle:{color:COLORS[i%COLORS.length]}},
+            axisLine:{lineStyle:{width:6,color:[[1,'#e8e8e8']]}},
+            axisTick:{show:false}, splitLine:{show:false}, axisLabel:{show:false},
+            pointer:{show:false},
+            detail:{valueAnimation:true,fontSize:12,fontWeight:'bold',color:COLORS[i%COLORS.length],
+              formatter:v=>Number.isInteger(v)?v:v.toFixed(1),offsetCenter:[0,'60%']},
+            title:{show:true,fontSize:10,color:'#666',offsetCenter:[0,'90%']},
+            data:[{value:Math.min(val,gaugeMax),name:String(cat),itemStyle:{color:COLORS[i%COLORS.length]}}],
+          };
+        });
+        option = {tooltip:{formatter:'{a} <br/>{b}: {c}'}, series};
+      } else {
+        const total = rows.reduce((s,r)=>s+(r[valField]||0),0);
+        const maxVal = a.max ? rows.reduce((s,r)=>s+(r[a.max.fieldName]||0),0) : null;
+        const gaugeMax = maxVal && maxVal>0 ? maxVal : Math.ceil(total*1.5/10)*10||100;
+        option = {
+          tooltip:{formatter:'{a} <br/>{b}: {c}'},
+          series:[{
+            type:'gauge', radius:'85%',
+            startAngle:180, endAngle:0, min:0, max:gaugeMax,
+            progress:{show:true,width:20,itemStyle:{color:COLORS[2]}},
+            axisLine:{lineStyle:{width:20,color:[[1,'#e8e8e8']]}},
+            axisTick:{show:false}, splitLine:{show:false},
+            axisLabel:{distance:-40,color:'#666',fontSize:10},
+            pointer:{show:false},
+            detail:{valueAnimation:true,formatter:v=>Number.isInteger(v)?v:v.toFixed(1),
+              fontSize:22,fontWeight:'bold',color:COLORS[2],offsetCenter:[0,'-20%']},
+            title:{show:true,fontSize:12,color:'#666',offsetCenter:[0,'15%']},
+            data:[{value:Math.min(total,gaugeMax),name:a.val.displayName,itemStyle:{color:COLORS[2]}}],
+          }],
+        };
+      }
+      break;
+    }
+
+    case 'gaugemulti': {
+      const vals = [
+        a.val  ? {label:a.val.displayName,  val:rows.reduce((s,r)=>s+(r[a.val.fieldName]||0),0),  color:COLORS[0]} : null,
+        a.val2 ? {label:a.val2.displayName, val:rows.reduce((s,r)=>s+(r[a.val2.fieldName]||0),0), color:COLORS[1]} : null,
+        a.val3 ? {label:a.val3.displayName, val:rows.reduce((s,r)=>s+(r[a.val3.fieldName]||0),0), color:COLORS[2]} : null,
+      ].filter(Boolean);
+      const maxV = Math.max(...vals.map(v=>v.val));
+      const gaugeMax = Math.ceil(maxV*1.2/10)*10||100;
+      option = {
+        tooltip:{trigger:'item'},
+        series:[{
+          type:'gauge', radius:'85%',
+          startAngle:210, endAngle:-30, min:0, max:gaugeMax,
+          axisLine:{lineStyle:{width:18,color:[[1,'#e8e8e8']]}},
+          splitLine:{distance:-25,length:14,lineStyle:{color:'#999',width:2}},
+          axisTick:{distance:-18,length:8,lineStyle:{color:'#999'}},
+          axisLabel:{distance:-50,color:'#666',fontSize:10},
+          pointer:{show:false},
+          detail:{show:false},
+          data: vals.map((v,i)=>({
+            value:v.val, name:v.label,
+            itemStyle:{color:v.color},
+            title:{show:true,offsetCenter:[0,(i-1)*30+'%'],color:v.color,fontSize:11},
+            detail:{show:true,offsetCenter:[(i===0?-30:i===1?0:30)+'%','70%'],
+              formatter:vv=>Number.isInteger(vv)?vv:vv.toFixed(1),color:v.color,fontSize:14,fontWeight:'bold',valueAnimation:true},
+            pointer:{show:true,length:'55%',width:4+i,itemStyle:{color:v.color}},
+          })),
+        }],
+      };
+      break;
+    }
+
   }
 
   if (option) {
     ec.setOption(option, true);
-    // Resize on window change
     window.addEventListener('resize', ()=>ec.resize());
   }
 }
