@@ -1,18 +1,953 @@
 <!DOCTYPE html>
-<html>
+<html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>Streamgraph</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/tableau/extensions-api@main/lib/tableau.extensions.1.latest.js"></script>
-    <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #ffffff; }
-        #chart { width: 100vw; height: 100vh; }
-        .axis-label { font-family: sans-serif; font-size: 11px; fill: #666; }
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ECharts Extension</title>
+<script src="tableau.extensions.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f2f1ed;--surface:#fff;--surface2:#f7f6f2;--border:#e0dfd8;--border2:#ccc;
+  --text:#1c1b18;--text2:#6e6c63;--text3:#ababA0;
+  --teal:#17a589;--teal-dark:#0e8070;--teal-light:#e0f2ef;
+  --accent:#e8006a;--accent-light:#fff0f6;
+  --blue:#0057e8;--blue-light:#e8f0ff;
+  --green:#00a651;--green-light:#e6f7ee;
+  --radius:8px;--radius-sm:5px;
+}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow:hidden}
+
+/* ── LAYOUT ── */
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* ── MARKS CARD ── */
+.marks-card{
+  flex-shrink:0;background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:8px 10px;display:flex;flex-direction:column;gap:6px;
+}
+.marks-top{display:flex;align-items:center;gap:8px}
+.chart-type-btn{
+  display:flex;align-items:center;gap:6px;
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);padding:5px 10px;
+  font-size:12px;font-weight:500;color:var(--text);
+  cursor:pointer;transition:all .15s;font-family:inherit;flex:1;
+}
+.chart-type-btn:hover{border-color:var(--teal);color:var(--teal)}
+.chart-type-btn .icon{font-size:14px}
+.chart-type-btn .chevron{margin-right:auto;color:var(--text3);font-size:10px}
+
+.apply-btn{
+  background:var(--teal);color:#fff;border:none;
+  border-radius:var(--radius-sm);padding:5px 12px;
+  font-size:12px;font-weight:500;font-family:inherit;
+  cursor:pointer;transition:background .15s;white-space:nowrap;
+}
+.apply-btn:hover{background:var(--teal-dark)}
+.apply-btn:disabled{background:var(--border2);cursor:not-allowed}
+
+.roles-list{display:flex;flex-direction:column;gap:3px}
+.role-row{display:flex;align-items:center;gap:6px;min-height:28px}
+.role-label{font-size:10px;color:var(--text3);width:58px;flex-shrink:0;font-weight:500}
+.role-required{color:var(--accent)}
+
+/* slot — empty */
+.slot-empty{
+  flex:1;display:flex;align-items:center;padding:4px 8px;
+  border:1.5px dashed #b0cfc9;border-radius:4px;
+  background:var(--teal-light);color:var(--teal);
+  font-size:11px;cursor:pointer;transition:all .12s;
+  position:relative;
+}
+.slot-empty:hover{border-color:var(--teal);background:#c5e8e3}
+.slot-empty.drag-over{border-style:solid;border-color:var(--teal);background:#c5e8e3}
+
+/* slot — filled */
+.slot-filled{
+  flex:1;display:flex;align-items:center;justify-content:space-between;
+  padding:4px 6px 4px 8px;border-radius:4px;
+  background:var(--teal);color:#fff;
+  font-size:11px;font-weight:500;cursor:default;
+}
+.slot-filled .slot-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.slot-remove{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;padding:0 2px;font-size:12px;line-height:1}
+.slot-remove:hover{color:#fff}
+
+/* dropdown overlay for slot click */
+.slot-dropdown{
+  position:fixed;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;
+  min-width:180px;overflow:hidden;
+}
+.slot-dropdown-item{
+  padding:7px 12px;font-size:12px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  transition:background .1s;color:var(--text);
+}
+.slot-dropdown-item:hover{background:var(--surface2)}
+.slot-dropdown-item .tag{font-size:10px;padding:1px 6px;border-radius:3px}
+.slot-dropdown-sep{height:1px;background:var(--border);margin:3px 0}
+.slot-dropdown-label{font-size:10px;color:var(--text3);padding:6px 12px 2px;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+
+/* error bar */
+.error-bar{
+  background:#fff0f0;border-bottom:1px solid #ffd0d0;
+  padding:7px 12px;font-size:12px;color:#c0392b;
+  display:none;align-items:center;gap:8px;flex-shrink:0;
+}
+.error-bar.show{display:flex}
+.error-bar .err-icon{font-size:14px}
+
+/* ── CHART AREA ── */
+.chart-area{flex:1;position:relative;min-height:0}
+#echarts-container{width:100%;height:100%}
+.chart-placeholder{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;
+  color:var(--text3);font-size:12px;pointer-events:none;
+}
+.chart-placeholder .ph-icon{font-size:32px;opacity:.4}
+
+/* ── GALLERY MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:1000;display:none;
+}
+.modal-overlay.open{display:block}
+.modal{
+  position:fixed;top:0;right:0;bottom:0;width:720px;max-width:95vw;
+  background:var(--surface);display:flex;flex-direction:column;
+  z-index:1001;transform:translateX(100%);
+  transition:transform .28s cubic-bezier(.22,1,.36,1);
+}
+.modal-overlay.open .modal{transform:translateX(0)}
+
+.modal-header{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.modal-header h2{font-size:15px;font-weight:600}
+.modal-close{
+  background:none;border:1px solid var(--border);border-radius:var(--radius-sm);
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text2);font-size:14px;
+}
+.modal-close:hover{background:var(--surface2)}
+
+.modal-controls{
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;
+}
+.modal-search{
+  flex:1;min-width:140px;padding:6px 10px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  font-size:12px;font-family:inherit;background:var(--surface2);
+  color:var(--text);outline:none;
+}
+.modal-search:focus{border-color:var(--teal)}
+.chip{
+  padding:4px 10px;border-radius:20px;border:1px solid var(--border);
+  background:var(--surface2);font-size:11px;color:var(--text2);
+  cursor:pointer;transition:all .12s;white-space:nowrap;
+}
+.chip:hover{border-color:var(--teal);color:var(--teal)}
+.chip.active{background:var(--teal);border-color:var(--teal);color:#fff}
+
+.modal-body{flex:1;overflow-y:auto;padding:12px 18px 18px}
+.gallery-section-label{
+  font-size:10px;font-weight:500;color:var(--text3);
+  letter-spacing:.07em;text-transform:uppercase;
+  margin:14px 0 8px;
+}
+.gallery-section-label:first-child{margin-top:4px}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+
+.gallery-card{
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  background:var(--surface);cursor:pointer;
+  transition:border-color .15s,transform .12s,box-shadow .15s;overflow:hidden;
+}
+.gallery-card:hover{border-color:var(--teal);transform:translateY(-2px);box-shadow:0 4px 14px rgba(23,165,137,.1)}
+.gallery-card.selected{border-color:var(--teal);border-width:2px;box-shadow:0 0 0 3px rgba(23,165,137,.12)}
+.gallery-card.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.gallery-preview{height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center}
+.gallery-preview canvas{display:block}
+.gallery-info{padding:7px 9px 9px}
+.gallery-name{font-size:12px;font-weight:600;margin-bottom:3px}
+.gallery-dims{display:flex;flex-wrap:wrap;gap:3px}
+.dim-tag{font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500}
+.dim-tag.dim{background:var(--blue-light);color:var(--blue)}
+.dim-tag.measure{background:var(--green-light);color:var(--green)}
+.dim-tag.optional{background:var(--surface2);color:var(--text3)}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
 </head>
 <body>
-    <div id="chart"></div>
-    <script src="app.js"></script>
+<div class="app">
+
+  <!-- Marks Card -->
+  <div class="marks-card" id="marks-card">
+    <div class="marks-top">
+      <button class="chart-type-btn" onclick="openGallery()">
+        <span class="icon" id="mc-icon">📈</span>
+        <span id="mc-name">בחר סוג גרף</span>
+        <span class="chevron">▾</span>
+      </button>
+      <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
+    </div>
+    <div class="roles-list" id="roles-list"></div>
+  </div>
+
+  <!-- Error bar -->
+  <div class="error-bar" id="error-bar">
+    <span class="err-icon">⚠</span>
+    <span id="error-msg"></span>
+  </div>
+
+  <!-- Chart area -->
+  <div class="chart-area">
+    <div id="echarts-container"></div>
+    <div class="chart-placeholder" id="placeholder">
+      <span class="ph-icon">📊</span>
+      <span>בחר סוג גרף ושייך שדות</span>
+    </div>
+  </div>
+</div>
+
+<!-- Gallery Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2>בחר סוג גרף</h2>
+      <button class="modal-close" onclick="closeGallery()">✕</button>
+    </div>
+    <div class="modal-controls">
+      <input class="modal-search" type="text" placeholder="חפש..." oninput="filterGallery()" id="gallery-search"/>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="gallery-chips"></div>
+    </div>
+    <div class="modal-body" id="gallery-body"></div>
+  </div>
+</div>
+
+<!-- Slot dropdown -->
+<div class="slot-dropdown" id="slot-dropdown" style="display:none"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CHART DEFINITIONS
+// ═══════════════════════════════════════════════════
+const CHARTS = [
+  { id:'line', cat:'קו ושטח', name:'Line Chart', icon:'📈', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'group',label:'Group',accepts:'dim',required:false}]},
+  { id:'area', cat:'קו ושטח', name:'Area Chart', icon:'🏔', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'group',label:'Group',accepts:'dim',required:false}]},
+  { id:'bar', cat:'עמודות', name:'Bar Chart', icon:'📊', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
+  { id:'hbar', cat:'עמודות', name:'Horizontal Bar', icon:'📊', api:'summary',
+    roles:[{id:'y',label:'ציר Y',accepts:'dim',required:true},{id:'x',label:'ערך X',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
+  { id:'stackedbar', cat:'עמודות', name:'Stacked Bar', icon:'📊', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ערך Y',accepts:'measure',required:true},{id:'stack',label:'Stack',accepts:'dim',required:true}]},
+  { id:'pie', cat:'עוגה', name:'Pie Chart', icon:'🥧', api:'summary',
+    roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'donut', cat:'עוגה', name:'Donut Chart', icon:'🍩', api:'summary',
+    roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'scatter', cat:'פיזור', name:'Scatter Plot', icon:'🔵', api:'underlying',
+    roles:[{id:'x',label:'ציר X',accepts:'measure',required:true},{id:'y',label:'ציר Y',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
+  { id:'bubble', cat:'פיזור', name:'Bubble Chart', icon:'🫧', api:'underlying',
+    roles:[{id:'x',label:'ציר X',accepts:'measure',required:true},{id:'y',label:'ציר Y',accepts:'measure',required:true},{id:'size',label:'גודל',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
+  { id:'heatmap', cat:'מפות חום', name:'Heatmap', icon:'🔥', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'y',label:'ציר Y',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'radar', cat:'מיוחד', name:'Radar Chart', icon:'🕸', api:'summary',
+    roles:[{id:'dim',label:'מדדים',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'funnel', cat:'מיוחד', name:'Funnel Chart', icon:'🔽', api:'summary',
+    roles:[{id:'dim',label:'שלב',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'treemap', cat:'מיוחד', name:'Treemap', icon:'🗺', api:'summary',
+    roles:[{id:'dim',label:'ממד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true},{id:'parent',label:'Parent',accepts:'dim',required:false}]},
+  { id:'sankey', cat:'זרימה', name:'Sankey Diagram', icon:'🌊', api:'underlying',
+    roles:[{id:'src',label:'מקור',accepts:'dim',required:true},{id:'tgt',label:'יעד',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+];
+
+const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let state = {
+  chart: null,          // selected chart config
+  assignments: {},      // roleId → { field, fieldName, dataType }
+  worksheetFields: [],  // [{ fieldName, displayName, dataType, fieldId }]
+  echartsInstance: null,
+  activeDropdownRole: null,
+  galleryFilter: 'הכל',
+};
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await tableau.extensions.initializeAsync();
+    const ws = tableau.extensions.worksheetContent.worksheet;
+
+    // Load fields
+    await loadFields(ws);
+
+    // Listen for changes
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, () => refreshChart());
+    ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
+
+    buildGalleryChips();
+  } catch(e) {
+    showError('שגיאת אתחול: ' + e);
+  }
+});
+
+async function loadFields(ws) {
+  try {
+    const dt = await ws.getSummaryDataAsync();
+    state.worksheetFields = dt.columns.map(col => ({
+      fieldName: col._fieldName,
+      displayName: cleanFieldName(col._fieldName),
+      dataType: col._dataType,
+      fieldId: col._fieldId,
+    }));
+  } catch(e) {
+    showError('לא ניתן לקרוא שדות: ' + e);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════
+function cleanFieldName(fn) {
+  return fn.replace(/^[A-Z_]+\((.+)\)$/, '$1');
+}
+
+function normalizeDate(val) {
+  if (!val) return null;
+  const m = String(val).match(/^(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}:\d{2}$/);
+  return m ? m[1] : String(val);
+}
+
+function normalizeValue(val, dataType) {
+  if (val === null || val === undefined || val === '%null%') return null;
+  if (dataType === 'date' || dataType === 'date-time') return normalizeDate(val);
+  if (dataType === 'float' || dataType === 'int') {
+    const n = parseFloat(String(val).replace(/[$,%\s]/g, ''));
+    return isNaN(n) ? null : n;
+  }
+  return String(val);
+}
+
+function getFieldType(dataType) {
+  if (dataType === 'float' || dataType === 'int') return 'measure';
+  return 'dim';
+}
+
+function canAssign(roleAccepts, dataType) {
+  if (roleAccepts === 'both') return true;
+  return roleAccepts === getFieldType(dataType);
+}
+
+// ═══════════════════════════════════════════════════
+// MARKS CARD
+// ═══════════════════════════════════════════════════
+function renderMarksCard() {
+  const chart = state.chart;
+  if (!chart) return;
+
+  document.getElementById('mc-icon').textContent = chart.icon;
+  document.getElementById('mc-name').textContent = chart.name;
+
+  const list = document.getElementById('roles-list');
+  list.innerHTML = '';
+
+  chart.roles.forEach(role => {
+    const row = document.createElement('div');
+    row.className = 'role-row';
+
+    const label = document.createElement('span');
+    label.className = 'role-label';
+    label.innerHTML = role.label + (role.required ? '<span class="role-required"> *</span>' : '');
+
+    const assigned = state.assignments[role.id];
+    const slot = document.createElement('div');
+
+    if (assigned) {
+      slot.className = 'slot-filled';
+      slot.draggable = false;
+      slot.innerHTML = `
+        <span class="slot-name" title="${assigned.fieldName}">${assigned.displayName}</span>
+        <button class="slot-remove" onclick="unassign('${role.id}')">✕</button>
+      `;
+      slot.addEventListener('click', e => {
+        if (!e.target.classList.contains('slot-remove')) openSlotDropdown(role, slot);
+      });
+    } else {
+      slot.className = 'slot-empty';
+      slot.textContent = role.required ? 'גרור או לחץ לבחירה' : 'אופציונלי';
+      slot.dataset.roleId = role.id;
+      slot.dataset.accepts = role.accepts;
+      slot.addEventListener('click', () => openSlotDropdown(role, slot));
+      slot.addEventListener('dragover', e => {
+        const f = getDragField();
+        if (f && canAssign(role.accepts, f.dataType)) {
+          e.preventDefault();
+          slot.classList.add('drag-over');
+        }
+      });
+      slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+      slot.addEventListener('drop', e => {
+        e.preventDefault();
+        slot.classList.remove('drag-over');
+        const f = getDragField();
+        if (f && canAssign(role.accepts, f.dataType)) {
+          assign(role.id, f);
+        }
+      });
+    }
+
+    row.appendChild(label);
+    row.appendChild(slot);
+    list.appendChild(row);
+  });
+
+  // Enable apply button if all required filled
+  const allFilled = chart.roles
+    .filter(r => r.required)
+    .every(r => state.assignments[r.id]);
+  document.getElementById('apply-btn').disabled = !allFilled;
+}
+
+// ── DRAG ──
+let _dragField = null;
+function getDragField() { return _dragField; }
+
+// ── SLOT DROPDOWN ──
+function openSlotDropdown(role, anchorEl) {
+  const dd = document.getElementById('slot-dropdown');
+  state.activeDropdownRole = role;
+
+  const compatible = state.worksheetFields.filter(f => canAssign(role.accepts, f.dataType));
+  const dims = compatible.filter(f => getFieldType(f.dataType) === 'dim');
+  const measures = compatible.filter(f => getFieldType(f.dataType) === 'measure');
+
+  let html = '';
+  if (dims.length) {
+    html += `<div class="slot-dropdown-label">ממדים</div>`;
+    dims.forEach(f => {
+      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown('${CSS.escape(f.fieldName)}')">
+        <span class="tag dim-tag dim">ממד</span>${f.displayName}
+      </div>`;
+    });
+  }
+  if (measures.length) {
+    if (dims.length) html += `<div class="slot-dropdown-sep"></div>`;
+    html += `<div class="slot-dropdown-label">מדדים</div>`;
+    measures.forEach(f => {
+      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown('${CSS.escape(f.fieldName)}')">
+        <span class="tag dim-tag measure">מדד</span>${f.displayName}
+      </div>`;
+    });
+  }
+  if (!compatible.length) html = `<div class="slot-dropdown-item" style="color:var(--text3)">אין שדות מתאימים</div>`;
+
+  dd.innerHTML = html;
+
+  // Position
+  const rect = anchorEl.getBoundingClientRect();
+  dd.style.display = 'block';
+  dd.style.top = (rect.bottom + 4) + 'px';
+  dd.style.right = (window.innerWidth - rect.right) + 'px';
+  dd.style.left = 'auto';
+
+  setTimeout(() => document.addEventListener('click', closeDropdownOutside), 0);
+}
+
+function assignFromDropdown(escapedFieldName) {
+  // unescape
+  const fieldName = escapedFieldName.replace(/\\(.)/g, '$1');
+  const f = state.worksheetFields.find(x => x.fieldName === fieldName);
+  if (f && state.activeDropdownRole) assign(state.activeDropdownRole.id, f);
+  closeSlotDropdown();
+}
+
+function closeDropdownOutside(e) {
+  const dd = document.getElementById('slot-dropdown');
+  if (!dd.contains(e.target)) {
+    closeSlotDropdown();
+    document.removeEventListener('click', closeDropdownOutside);
+  }
+}
+
+function closeSlotDropdown() {
+  document.getElementById('slot-dropdown').style.display = 'none';
+  state.activeDropdownRole = null;
+}
+
+function assign(roleId, field) {
+  state.assignments[roleId] = field;
+  renderMarksCard();
+}
+
+function unassign(roleId) {
+  delete state.assignments[roleId];
+  renderMarksCard();
+}
+
+// ═══════════════════════════════════════════════════
+// GALLERY
+// ═══════════════════════════════════════════════════
+function buildGalleryChips() {
+  const chips = document.getElementById('gallery-chips');
+  chips.innerHTML = CATS.map(c =>
+    `<div class="chip${c==='הכל'?' active':''}" onclick="setGalleryFilter('${c}',this)">${c}</div>`
+  ).join('');
+}
+
+function openGallery() {
+  document.getElementById('modal-overlay').classList.add('open');
+  renderGallery();
+}
+
+function closeGallery() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function onOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeGallery();
+}
+
+function setGalleryFilter(cat, el) {
+  state.galleryFilter = cat;
+  document.querySelectorAll('#gallery-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderGallery();
+}
+
+function filterGallery() { renderGallery(); }
+
+function renderGallery() {
+  const q = document.getElementById('gallery-search').value.toLowerCase();
+  const body = document.getElementById('gallery-body');
+  body.innerHTML = '';
+
+  const cats = [...new Set(CHARTS.map(c => c.cat))];
+  cats.forEach(cat => {
+    if (state.galleryFilter !== 'הכל' && state.galleryFilter !== cat) return;
+    const items = CHARTS.filter(c =>
+      c.cat === cat &&
+      (!q || c.name.toLowerCase().includes(q))
+    );
+    if (!items.length) return;
+
+    const label = document.createElement('div');
+    label.className = 'gallery-section-label';
+    label.textContent = cat;
+    body.appendChild(label);
+
+    const grid = document.createElement('div');
+    grid.className = 'gallery-grid';
+
+    items.forEach(chart => {
+      const card = document.createElement('div');
+      card.className = 'gallery-card' + (state.chart?.id === chart.id ? ' selected' : '');
+      card.innerHTML = `
+        <div class="gallery-preview" id="prev-${chart.id}"></div>
+        <div class="gallery-info">
+          <div class="gallery-name">${chart.icon} ${chart.name}</div>
+          <div class="gallery-dims">
+            ${chart.roles.map(r =>
+              `<span class="dim-tag ${r.accepts==='measure'?'measure':'dim'}">${r.label}${r.required?'':' *'}</span>`
+            ).join('')}
+          </div>
+        </div>
+      `;
+      card.addEventListener('click', () => selectChart(chart));
+      grid.appendChild(card);
+
+      // Draw mini preview
+      requestAnimationFrame(() => drawPreview(chart, document.getElementById('prev-' + chart.id)));
+    });
+
+    body.appendChild(grid);
+  });
+}
+
+function selectChart(chart) {
+  state.chart = chart;
+  state.assignments = {};
+  closeGallery();
+  renderMarksCard();
+  showPlaceholder();
+}
+
+// ═══════════════════════════════════════════════════
+// MINI PREVIEWS (ECharts)
+// ═══════════════════════════════════════════════════
+const COLORS = ['#0057e8','#e8006a','#00a651','#f5a623'];
+function drawPreview(chart, container) {
+  if (!container || container.children.length) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = 150; canvas.height = 80;
+  canvas.style.cssText = 'width:150px;height:80px';
+  container.appendChild(canvas);
+  const ec = echarts.init(canvas, null, {renderer:'canvas', width:150, height:80});
+  const base = {animation:false,grid:{top:4,right:4,bottom:4,left:4},tooltip:{show:false},legend:{show:false}};
+  const xd = ['A','B','C','D','E'];
+  const v1 = [12,19,8,22,15];
+  const v2 = [8,14,10,16,11];
+
+  const opts = {
+    line: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'line',data:v1,smooth:true,lineStyle:{color:COLORS[0],width:2},itemStyle:{color:COLORS[0]},symbolSize:0}]},
+    area: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'line',data:v1,smooth:true,areaStyle:{color:COLORS[0],opacity:.2},lineStyle:{color:COLORS[0],width:2},itemStyle:{color:COLORS[0]},symbolSize:0}]},
+    bar:  {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'bar',data:v1,itemStyle:{color:COLORS[0],borderRadius:[3,3,0,0]},barMaxWidth:20}]},
+    hbar: {...base, xAxis:{type:'value',show:false}, yAxis:{type:'category',data:xd,show:false}, series:[{type:'bar',data:v1,itemStyle:{color:COLORS[0],borderRadius:[0,3,3,0]},barMaxWidth:14}]},
+    stackedbar: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[{type:'bar',stack:'t',data:v1,itemStyle:{color:COLORS[0]},barMaxWidth:20},{type:'bar',stack:'t',data:v2,itemStyle:{color:COLORS[1],borderRadius:[3,3,0,0]},barMaxWidth:20}]},
+    pie:    {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'pie',radius:'65%',data:[{value:48,itemStyle:{color:COLORS[0]}},{value:28,itemStyle:{color:COLORS[1]}},{value:24,itemStyle:{color:COLORS[2]}}],label:{show:false},emphasis:{scale:false}}]},
+    donut:  {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'pie',radius:['35%','65%'],data:[{value:48,itemStyle:{color:COLORS[0]}},{value:28,itemStyle:{color:COLORS[1]}},{value:24,itemStyle:{color:COLORS[2]}}],label:{show:false},emphasis:{scale:false}}]},
+    scatter:{...base, xAxis:{type:'value',show:false}, yAxis:{type:'value',show:false}, series:[{type:'scatter',data:[[10,8],[14,12],[8,6],[18,15],[12,10]],symbolSize:6,itemStyle:{color:COLORS[0],opacity:.75}}]},
+    bubble: {...base, xAxis:{type:'value',show:false}, yAxis:{type:'value',show:false}, series:[{type:'scatter',data:[[10,8,20],[14,12,35],[8,6,15],[18,15,40]],symbolSize:d=>d[2]*.8,itemStyle:{color:COLORS[0],opacity:.7}}]},
+    heatmap: {animation:false,tooltip:{show:false},legend:{show:false},grid:{top:4,right:4,bottom:4,left:4}, xAxis:{type:'category',data:['A','B','C','D'],show:false}, yAxis:{type:'category',data:['1','2','3'],show:false}, visualMap:{show:false,min:0,max:9,inRange:{color:['#e8f0ff','#0057e8']}}, series:[{type:'heatmap',data:[[0,0,5],[1,0,3],[2,0,8],[3,0,1],[0,1,2],[1,1,7],[2,1,4],[3,1,9],[0,2,6],[1,2,1],[2,2,3],[3,2,5]]}]},
+    radar:  {animation:false,tooltip:{show:false},legend:{show:false}, radar:{center:['50%','52%'],radius:'60%',indicator:[{max:10},{max:10},{max:10},{max:10},{max:10}],axisLine:{lineStyle:{color:'#e0dfd8'}},splitLine:{lineStyle:{color:'#e0dfd8'}},splitArea:{show:false}}, series:[{type:'radar',data:[{value:[7,5,9,6,8],lineStyle:{color:COLORS[0],width:1.5},areaStyle:{color:COLORS[0],opacity:.2},itemStyle:{color:COLORS[0]}}]}]},
+    funnel: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'funnel',left:'15%',width:'70%',top:6,bottom:6,data:[{value:100,itemStyle:{color:COLORS[0]}},{value:70,itemStyle:{color:COLORS[1]}},{value:45,itemStyle:{color:COLORS[2]}},{value:20,itemStyle:{color:COLORS[3]}}],label:{show:false},gap:2}]},
+    treemap:{animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'treemap',top:4,right:4,bottom:4,left:4,roam:false,nodeClick:false,data:[{name:'A',value:40,itemStyle:{color:COLORS[0]}},{name:'B',value:28,itemStyle:{color:COLORS[1]}},{name:'C',value:18,itemStyle:{color:COLORS[2]}},{name:'D',value:14,itemStyle:{color:COLORS[3]}}],label:{show:false},breadcrumb:{show:false}}]},
+    sankey: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'sankey',top:8,right:8,bottom:8,left:8,nodeWidth:6,nodeGap:4,data:[{name:'A'},{name:'B'},{name:'C'},{name:'D'}],links:[{source:'A',target:'C',value:8},{source:'A',target:'D',value:5},{source:'B',target:'C',value:6},{source:'B',target:'D',value:9}],label:{show:false},lineStyle:{color:'gradient',opacity:.4}}]},
+  };
+  if (opts[chart.id]) ec.setOption(opts[chart.id]);
+}
+
+// ═══════════════════════════════════════════════════
+// FETCH + RENDER
+// ═══════════════════════════════════════════════════
+async function applyChart() {
+  hideError();
+  const chart = state.chart;
+  if (!chart) return;
+
+  // Validate
+  const missing = chart.roles.filter(r => r.required && !state.assignments[r.id]).map(r => r.label);
+  if (missing.length) { showError('חסרים שדות: ' + missing.join(', ')); return; }
+
+  try {
+    const ws = tableau.extensions.worksheetContent.worksheet;
+    const dt = chart.api === 'underlying'
+      ? await ws.getUnderlyingDataAsync({ maxRows: 0 })
+      : await ws.getSummaryDataAsync();
+
+    const { columns, rows } = parseDataTable(dt);
+    renderECharts(chart, columns, rows, state.assignments);
+  } catch(e) {
+    showError('שגיאת טעינה: ' + e);
+  }
+}
+
+async function refreshChart() {
+  if (!state.chart || !state.echartsInstance) return;
+  const allFilled = state.chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id]);
+  if (!allFilled) return;
+  await applyChart();
+}
+
+function parseDataTable(dt) {
+  const columns = dt.columns.map(col => ({
+    fieldName: col._fieldName,
+    displayName: cleanFieldName(col._fieldName),
+    dataType: col._dataType,
+  }));
+  const rows = dt.data.map(row =>
+    Object.fromEntries(columns.map((col, i) => [
+      col.fieldName,
+      normalizeValue(row[i]?.value ?? row[i], col.dataType)
+    ]))
+  );
+  return { columns, rows };
+}
+
+// ═══════════════════════════════════════════════════
+// ECHARTS RENDERER
+// ═══════════════════════════════════════════════════
+function renderECharts(chart, columns, rows, assignments) {
+  const container = document.getElementById('echarts-container');
+  document.getElementById('placeholder').style.display = 'none';
+
+  if (!state.echartsInstance) {
+    state.echartsInstance = echarts.init(container);
+  }
+
+  const ec = state.echartsInstance;
+  const a = assignments;
+  let option = null;
+
+  const xField = a.x?.fieldName;
+  const yField = a.y?.fieldName;
+  const groupField = a.group?.fieldName;
+  const colorField = a.color?.fieldName;
+  const dimField = a.dim?.fieldName;
+  const valField = a.val?.fieldName;
+  const stackField = a.stack?.fieldName;
+  const sizeField = a.size?.fieldName;
+  const srcField = a.src?.fieldName;
+  const tgtField = a.tgt?.fieldName;
+  const parentField = a.parent?.fieldName;
+
+  switch(chart.id) {
+
+    case 'line':
+    case 'area': {
+      const xVals = [...new Set(rows.map(r=>r[xField]))].sort();
+      if (groupField) {
+        const groups = [...new Set(rows.map(r=>r[groupField]))];
+        const series = groups.map((g,i) => ({
+          name: String(g), type: 'line',
+          smooth: true,
+          areaStyle: chart.id==='area' ? {opacity:.15} : undefined,
+          data: xVals.map(x => {
+            const row = rows.find(r=>r[xField]===x && r[groupField]===g);
+            return row ? row[yField] : null;
+          }),
+          itemStyle: {color: COLORS[i % COLORS.length]},
+          symbolSize: 4,
+        }));
+        option = {
+          tooltip:{trigger:'axis'},
+          legend:{bottom:0,type:'scroll'},
+          xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+          yAxis:{type:'value'},
+          grid:{bottom:xVals.length>8?50:30,top:20,right:16,left:50},
+          series,
+        };
+      } else {
+        option = {
+          tooltip:{trigger:'axis'},
+          xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+          yAxis:{type:'value'},
+          grid:{bottom:xVals.length>8?50:30,top:20,right:16,left:50},
+          series:[{
+            type:'line', smooth:true,
+            areaStyle: chart.id==='area'?{opacity:.15}:undefined,
+            data: xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x); return r?r[yField]:null;}),
+            itemStyle:{color:COLORS[0]}, symbolSize:4,
+          }],
+        };
+      }
+      break;
+    }
+
+    case 'bar':
+    case 'hbar': {
+      const horiz = chart.id === 'hbar';
+      const catField = horiz ? yField : xField;
+      const valF = horiz ? xField : yField;
+      const cats = [...new Set(rows.map(r=>r[catField]))];
+
+      if (colorField) {
+        const groups = [...new Set(rows.map(r=>r[colorField]))];
+        const series = groups.map((g,i) => ({
+          name: String(g), type: 'bar',
+          data: cats.map(c=>{const r=rows.find(rr=>rr[catField]===c&&rr[colorField]===g);return r?r[valF]:null;}),
+          itemStyle:{color:COLORS[i%COLORS.length]},
+        }));
+        option = {
+          tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+          legend:{bottom:0},
+          xAxis: horiz ? {type:'value'} : {type:'category',data:cats},
+          yAxis: horiz ? {type:'category',data:cats} : {type:'value'},
+          grid:{bottom:40,top:20,right:16,left:horiz?80:50},
+          series,
+        };
+      } else {
+        option = {
+          tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+          xAxis: horiz ? {type:'value'} : {type:'category',data:cats},
+          yAxis: horiz ? {type:'category',data:cats} : {type:'value'},
+          grid:{bottom:30,top:20,right:16,left:horiz?80:50},
+          series:[{
+            type:'bar',
+            data: cats.map(c=>{const r=rows.find(rr=>rr[catField]===c);return r?r[valF]:null;}),
+            itemStyle:{color:COLORS[0],borderRadius:horiz?[0,4,4,0]:[4,4,0,0]},
+          }],
+        };
+      }
+      break;
+    }
+
+    case 'stackedbar': {
+      const cats = [...new Set(rows.map(r=>r[xField]))];
+      const stacks = [...new Set(rows.map(r=>r[stackField]))];
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+        legend:{bottom:0},
+        xAxis:{type:'category',data:cats},
+        yAxis:{type:'value'},
+        grid:{bottom:40,top:20,right:16,left:50},
+        series: stacks.map((s,i)=>({
+          name:String(s), type:'bar', stack:'total',
+          data: cats.map(c=>{const r=rows.find(rr=>rr[xField]===c&&rr[stackField]===s);return r?r[yField]:null;}),
+          itemStyle:{color:COLORS[i%COLORS.length]},
+        })),
+      };
+      break;
+    }
+
+    case 'pie':
+    case 'donut': {
+      const data = rows
+        .filter(r=>r[dimField]!=null&&r[valField]!=null)
+        .map((r,i)=>({name:String(r[dimField]),value:r[valField],itemStyle:{color:COLORS[i%COLORS.length]}}));
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+        legend:{bottom:0,type:'scroll'},
+        series:[{
+          type:'pie',
+          radius: chart.id==='donut'?['38%','65%']:'65%',
+          data,
+          label:{formatter:'{b}'},
+        }],
+      };
+      break;
+    }
+
+    case 'scatter':
+    case 'bubble': {
+      const filtered = rows.filter(r=>r[xField]!=null&&r[yField]!=null);
+      if (colorField) {
+        const groups = [...new Set(filtered.map(r=>r[colorField]))];
+        option = {
+          tooltip:{trigger:'item'},
+          legend:{bottom:0},
+          xAxis:{type:'value',name:a.x.displayName},
+          yAxis:{type:'value',name:a.y.displayName},
+          grid:{bottom:40,top:20,right:16,left:60},
+          series: groups.map((g,i)=>({
+            name:String(g), type:'scatter',
+            data: filtered.filter(r=>r[colorField]===g).map(r=>
+              chart.id==='bubble'&&sizeField ? [r[xField],r[yField],r[sizeField]] : [r[xField],r[yField]]
+            ),
+            symbolSize: chart.id==='bubble'&&sizeField ? d=>Math.sqrt(d[2])*3 : 7,
+            itemStyle:{color:COLORS[i%COLORS.length],opacity:.75},
+          })),
+        };
+      } else {
+        option = {
+          tooltip:{trigger:'item'},
+          xAxis:{type:'value',name:a.x.displayName},
+          yAxis:{type:'value',name:a.y.displayName},
+          grid:{bottom:30,top:20,right:16,left:60},
+          series:[{
+            type:'scatter',
+            data: filtered.map(r=>
+              chart.id==='bubble'&&sizeField ? [r[xField],r[yField],r[sizeField]] : [r[xField],r[yField]]
+            ),
+            symbolSize: chart.id==='bubble'&&sizeField ? d=>Math.sqrt(d[2])*3 : 7,
+            itemStyle:{color:COLORS[0],opacity:.75},
+          }],
+        };
+      }
+      break;
+    }
+
+    case 'heatmap': {
+      const xs = [...new Set(rows.map(r=>r[xField]))].sort();
+      const ys = [...new Set(rows.map(r=>r[a.y.fieldName]))].sort();
+      const vals = rows.map(r=>[xs.indexOf(r[xField]),ys.indexOf(r[a.y.fieldName]),r[valField]]);
+      const maxVal = Math.max(...vals.map(v=>v[2]||0));
+      option = {
+        tooltip:{},
+        xAxis:{type:'category',data:xs},
+        yAxis:{type:'category',data:ys},
+        visualMap:{min:0,max:maxVal,calculable:true,orient:'horizontal',bottom:0},
+        grid:{bottom:60,top:20,right:16,left:60},
+        series:[{type:'heatmap',data:vals,label:{show:false}}],
+      };
+      break;
+    }
+
+    case 'radar': {
+      const dims = [...new Set(rows.map(r=>r[dimField]))];
+      const maxVal = Math.max(...rows.map(r=>r[valField]||0));
+      option = {
+        tooltip:{},
+        radar:{indicator:dims.map(d=>({name:d,max:maxVal}))},
+        series:[{type:'radar',data:[{value:dims.map(d=>{const r=rows.find(rr=>rr[dimField]===d);return r?r[valField]:0;}),itemStyle:{color:COLORS[0]},areaStyle:{opacity:.2}}]}],
+      };
+      break;
+    }
+
+    case 'funnel': {
+      const data = rows
+        .filter(r=>r[dimField]!=null)
+        .sort((a,b)=>(b[valField]||0)-(a[valField]||0))
+        .map((r,i)=>({name:String(r[dimField]),value:r[valField],itemStyle:{color:COLORS[i%COLORS.length]}}));
+      option = {
+        tooltip:{trigger:'item'},
+        series:[{type:'funnel',left:'10%',width:'80%',data,label:{position:'inside'}}],
+      };
+      break;
+    }
+
+    case 'treemap': {
+      const data = rows
+        .filter(r=>r[dimField]!=null&&r[valField]!=null)
+        .map(r=>({name:String(r[dimField]),value:r[valField]}));
+      option = {
+        tooltip:{},
+        series:[{type:'treemap',data,label:{show:true},breadcrumb:{show:false}}],
+      };
+      break;
+    }
+
+    case 'sankey': {
+      const nodes = [...new Set([
+        ...rows.map(r=>String(r[srcField])),
+        ...rows.map(r=>String(r[tgtField]))
+      ])].map(n=>({name:n}));
+      const links = rows
+        .filter(r=>r[srcField]!=null&&r[tgtField]!=null&&r[valField]!=null)
+        .map(r=>({source:String(r[srcField]),target:String(r[tgtField]),value:r[valField]}));
+      option = {
+        tooltip:{trigger:'item'},
+        series:[{type:'sankey',data:nodes,links,lineStyle:{color:'gradient',opacity:.4}}],
+      };
+      break;
+    }
+  }
+
+  if (option) {
+    ec.setOption(option, true);
+    // Resize on window change
+    window.addEventListener('resize', ()=>ec.resize());
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════
+function showPlaceholder() {
+  document.getElementById('placeholder').style.display = 'flex';
+  if (state.echartsInstance) {
+    state.echartsInstance.clear();
+  }
+}
+
+function showError(msg) {
+  const bar = document.getElementById('error-bar');
+  document.getElementById('error-msg').textContent = msg;
+  bar.classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('error-bar').classList.remove('show');
+}
+</script>
 </body>
 </html>
