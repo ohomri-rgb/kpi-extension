@@ -247,25 +247,35 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);colo
       <div class="ob-step">
         <div class="ob-num">1</div>
         <div class="ob-step-text">
-          גרור את כל השדות הרצויים ל-<strong>Detail</strong> ב-Marks Card של Tableau
-          <div class="ob-note">ממדים ומדדים — כל מה שרוצים לגרף</div>
+          גרור את הממדים הרצויים ל-<strong>Detail</strong> ב-Marks Card
+          <div class="ob-note">הממדים על Detail קובעים את רמת הפירוט של הגרף — בדיוק כמו Rows/Columns</div>
         </div>
       </div>
       <div class="ob-step">
         <div class="ob-num">2</div>
         <div class="ob-step-text">
-          חזור לכאן ולחץ <strong>המשך</strong>
-          <div class="ob-note">ה-extension יטען את כל השדות אוטומטית</div>
+          גרור את המדדים גם ל-<strong>Detail</strong>
+          <div class="ob-note">Sales, Profit וכו׳ — כל מה שרוצים לגרף</div>
+        </div>
+      </div>
+      <div class="ob-step">
+        <div class="ob-num">3</div>
+        <div class="ob-step-text">
+          לחץ <strong>המשך</strong> — בחר גרף ושייך שדות
         </div>
       </div>
     </div>
     <div class="ob-marks-preview">
       <div class="ob-marks-row">
         <span class="ob-marks-label">Detail</span>
-        <span class="ob-pill">Order Date</span>
+        <span class="ob-pill ob-pill-dim">Segment</span>
+        <span class="ob-pill ob-pill-dim">Category</span>
         <span class="ob-pill">Sales</span>
         <span class="ob-pill">Profit</span>
-        <span class="ob-pill ob-pill-dim">Segment</span>
+      </div>
+      <div class="ob-marks-row" style="margin-top:4px">
+        <span class="ob-marks-label" style="font-size:9px;color:#c0392b">⚠ חשוב</span>
+        <span style="font-size:10px;color:#c0392b">רמת הפירוט = הממדים שעל Detail</span>
       </div>
     </div>
     <button class="ob-btn" onclick="dismissOnboarding()">המשך →</button>
@@ -766,8 +776,8 @@ async function applyChart() {
 
   try {
     const ws = tableau.extensions.worksheetContent.worksheet;
-    // getSummaryData respects the worksheet's LOD (level of detail)
-    // getUnderlyingData used for scatter/sankey/bubble
+    // getSummaryDataAsync respects the worksheet LOD and filters
+    // getUnderlyingDataAsync for charts that need raw rows (scatter/bubble/sankey)
     let dt;
     if (chart.api === 'underlying') {
       dt = await ws.getUnderlyingDataAsync({
@@ -777,29 +787,22 @@ async function applyChart() {
         includeAllColumns: true,
       });
     } else {
-      dt = await ws.getUnderlyingDataAsync({
-        maxRows: 0,
-        ignoreAliases: false,
-        ignoreSelection: false,
-        includeAllColumns: true,
-      });
+      dt = await ws.getSummaryDataAsync();
     }
 
     const { columns, rows } = parseDataTable(dt);
 
-    // Aggregate rows by assigned dim fields, sum measure fields
-    const dimFields = chart.roles
-      .filter(r => r.accepts === 'dim' && state.assignments[r.id])
-      .map(r => state.assignments[r.id].fieldName);
-    const measureFields = chart.roles
-      .filter(r => r.accepts === 'measure' && state.assignments[r.id])
-      .map(r => state.assignments[r.id].fieldName);
+    // Detect if Tableau returned %many-values% — means no dims on the sheet
+    if (chart.api !== 'underlying' && rows.length <= 1) {
+      const firstRow = rows[0];
+      const hasMany = firstRow && Object.values(firstRow).some(v => String(v).includes('many'));
+      if (hasMany || rows.length === 0) {
+        showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
+        return;
+      }
+    }
 
-    const aggregated = chart.api === 'underlying'
-      ? rows  // scatter/bubble/sankey — no aggregation
-      : aggregateRows(rows, dimFields, measureFields);
-
-    renderECharts(chart, columns, aggregated, state.assignments);
+    renderECharts(chart, columns, rows, state.assignments);
   } catch(e) {
     showError('שגיאת טעינה: ' + e);
   }
