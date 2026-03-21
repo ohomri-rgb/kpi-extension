@@ -432,6 +432,22 @@ const CHARTS = [
     roles:[{id:'val',label:'ערך',accepts:'measure',required:true},{id:'max',label:'מקסימום',accepts:'measure',required:false},{id:'dim',label:'קטגוריה',accepts:'dim',required:false}]},
   { id:'gaugemulti', cat:'KPI', name:'Multi Gauge', icon:'🎯', api:'summary',
     roles:[{id:'val',label:'ערך 1',accepts:'measure',required:true},{id:'val2',label:'ערך 2',accepts:'measure',required:false},{id:'val3',label:'ערך 3',accepts:'measure',required:false}]},
+
+  // ── ROUND 5 — MEDIUM ──
+  { id:'confidenceband', cat:'קו ושטח', name:'Confidence Band', icon:'📉', api:'summary',
+    roles:[{id:'x',label:'ציר X',accepts:'dim',required:true},{id:'mid',label:'קו מרכזי',accepts:'measure',required:true},{id:'upper',label:'גבול עליון',accepts:'measure',required:true},{id:'lower',label:'גבול תחתון',accepts:'measure',required:true}]},
+  { id:'polarbar', cat:'עמודות', name:'Polar Bar', icon:'🎡', api:'summary',
+    roles:[{id:'dim',label:'קטגוריה',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true},{id:'color',label:'Color',accepts:'dim',required:false}]},
+  { id:'nestedpie', cat:'עוגה', name:'Nested Pie', icon:'🥧', api:'summary',
+    roles:[{id:'outer',label:'חיצוני (ממד)',accepts:'dim',required:true},{id:'inner',label:'פנימי (ממד)',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'linesmap', cat:'מפה', name:'Lines Map', icon:'✈️', api:'summary',
+    roles:[{id:'slat',label:'Lat מקור',accepts:'measure',required:true},{id:'slon',label:'Lon מקור',accepts:'measure',required:true},{id:'tlat',label:'Lat יעד',accepts:'measure',required:true},{id:'tlon',label:'Lon יעד',accepts:'measure',required:true},{id:'val',label:'עוצמה',accepts:'measure',required:false},{id:'dim',label:'תווית',accepts:'dim',required:false}]},
+  { id:'candlevolume', cat:'פיננסי', name:'Candlestick + Volume', icon:'📈', api:'summary',
+    roles:[{id:'x',label:'תאריך',accepts:'dim',required:true},{id:'open',label:'פתיחה',accepts:'measure',required:true},{id:'close',label:'סגירה',accepts:'measure',required:true},{id:'low',label:'מינימום',accepts:'measure',required:true},{id:'high',label:'מקסימום',accepts:'measure',required:true},{id:'vol',label:'נפח',accepts:'measure',required:false}]},
+  { id:'multicalendar', cat:'מפות חום', name:'Multi-year Calendar', icon:'📅', api:'summary',
+    roles:[{id:'date',label:'תאריך',accepts:'dim',required:true},{id:'val',label:'ערך',accepts:'measure',required:true}]},
+  { id:'parallel', cat:'מיוחד', name:'Parallel Coordinates', icon:'🔀', api:'summary',
+    roles:[{id:'dim',label:'קטגוריה (שורה)',accepts:'dim',required:true},{id:'val',label:'מדד 1',accepts:'measure',required:true},{id:'val2',label:'מדד 2',accepts:'measure',required:true},{id:'val3',label:'מדד 3',accepts:'measure',required:false},{id:'val4',label:'מדד 4',accepts:'measure',required:false},{id:'val5',label:'מדד 5',accepts:'measure',required:false}]},
 ];
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
@@ -881,6 +897,46 @@ function drawPreview(chart, container) {
     radialtree: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'tree',data:[{name:'Root',children:[{name:'A',children:[{name:'A1'},{name:'A2'}]},{name:'B',children:[{name:'B1'},{name:'B2'}]},{name:'C',children:[{name:'C1'}]}]}],top:4,bottom:4,left:4,right:4,layout:'radial',symbol:'emptyCircle',symbolSize:5,label:{show:false},lineStyle:{color:'#ccc',width:1}}]},
     gaugeprogress: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'gauge',radius:'85%',center:['50%','60%'],startAngle:210,endAngle:-30,min:0,max:100,progress:{show:true,width:8,itemStyle:{color:COLORS[2]}},axisLine:{lineStyle:{width:8,color:[[1,'#e0dfd8']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:true,length:'55%',width:3,itemStyle:{color:COLORS[2]}},detail:{show:false},data:[{value:58}]}]},
     gaugemulti: {animation:false,tooltip:{show:false},legend:{show:false}, series:[{type:'gauge',radius:'85%',center:['50%','60%'],startAngle:210,endAngle:-30,min:0,max:100,progress:{show:true,width:6,itemStyle:{color:COLORS[0]}},axisLine:{lineStyle:{width:6,color:[[1,'#e0dfd8']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:false},detail:{show:false},data:[{value:72,itemStyle:{color:COLORS[0]}},{value:45,itemStyle:{color:COLORS[1]}},{value:88,itemStyle:{color:COLORS[2]}}]}]},
+    // ── ROUND 5 previews ──
+    confidenceband: {...base, xAxis:{type:'category',data:xd,show:false}, yAxis:{show:false}, series:[
+      {type:'line',data:[1,2,1.5,2.5,1.8],stack:'upper',lineStyle:{opacity:0},areaStyle:{color:COLORS[0],opacity:.15},symbolSize:0},
+      {type:'line',data:[3,4,3.8,5,4.2],stack:'upper',lineStyle:{opacity:0},areaStyle:{color:COLORS[0],opacity:.15},symbolSize:0},
+      {type:'line',data:v1,lineStyle:{color:COLORS[0],width:2},itemStyle:{color:COLORS[0]},symbolSize:3},
+    ]},
+    polarbar: {animation:false,tooltip:{show:false},legend:{show:false}, polar:{radius:'65%'}, angleAxis:{type:'category',data:['A','B','C','D','E','F'],show:false}, radiusAxis:{show:false}, series:[{type:'bar',data:[7,5,9,4,8,6].map((v,i)=>({value:v,itemStyle:{color:COLORS[i%COLORS.length]}})),coordinateSystem:'polar',roundCap:true,barMaxWidth:12}]},
+    nestedpie: {animation:false,tooltip:{show:false},legend:{show:false}, series:[
+      {type:'pie',radius:['0%','35%'],data:[{value:50,itemStyle:{color:COLORS[0]}},{value:30,itemStyle:{color:COLORS[1]}},{value:20,itemStyle:{color:COLORS[2]}}],label:{show:false}},
+      {type:'pie',radius:['42%','65%'],data:[{value:25,itemStyle:{color:COLORS[0]+'bb'}},{value:25,itemStyle:{color:COLORS[0]+'77'}},{value:18,itemStyle:{color:COLORS[1]+'bb'}},{value:12,itemStyle:{color:COLORS[1]+'77'}},{value:20,itemStyle:{color:COLORS[2]+'bb'}}],label:{show:false}},
+    ]},
+    linesmap: _mapCache['world'] ? {animation:false,tooltip:{show:false},legend:{show:false},
+      geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.4},emphasis:{disabled:true}},
+      series:[{type:'lines',coordinateSystem:'geo',data:[
+        {coords:[[-74,40.7],[2.35,48.85]],lineStyle:{color:COLORS[0],width:1.5,opacity:.7,curveness:.3}},
+        {coords:[[-74,40.7],[139.7,35.7]],lineStyle:{color:COLORS[1],width:1.5,opacity:.7,curveness:.3}},
+        {coords:[[2.35,48.85],[-43.2,-22.9]],lineStyle:{color:COLORS[2],width:1.5,opacity:.7,curveness:.3}},
+      ],effect:{show:true,period:4,trailLength:.2,symbolSize:4}}]} : null,
+    candlevolume: {animation:false,tooltip:{show:false},legend:{show:false},
+      grid:[{top:4,right:4,bottom:'35%',left:4},{top:'68%',right:4,bottom:4,left:4}],
+      xAxis:[{type:'category',data:['1','2','3','4','5'],show:false,gridIndex:0},{type:'category',data:['1','2','3','4','5'],show:false,gridIndex:1}],
+      yAxis:[{show:false,gridIndex:0},{show:false,gridIndex:1}],
+      series:[
+        {type:'candlestick',data:[[18,24,16,22],[22,20,17,19],[19,26,18,25],[25,23,20,21],[21,28,19,27]],itemStyle:{color:COLORS[1],color0:COLORS[2],borderColor:COLORS[1],borderColor0:COLORS[2]},xAxisIndex:0,yAxisIndex:0},
+        {type:'bar',data:[120,85,200,140,180],xAxisIndex:1,yAxisIndex:1,itemStyle:{color:COLORS[0],opacity:.6},barMaxWidth:20},
+      ]},
+    multicalendar: {animation:false,tooltip:{show:false},legend:{show:false},
+      calendar:[
+        {top:4,left:8,right:8,bottom:'52%',range:'2023',cellSize:[6,6],itemStyle:{borderWidth:.5,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}},
+        {top:'52%',left:8,right:8,bottom:4,range:'2024',cellSize:[6,6],itemStyle:{borderWidth:.5,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}},
+      ],
+      visualMap:{show:false,min:0,max:9,inRange:{color:['#e8f0ff','#0057e8']}},
+      series:[
+        {type:'heatmap',coordinateSystem:'calendar',calendarIndex:0,data:[['2023-01-05',5],['2023-03-12',8],['2023-06-20',3],['2023-09-15',7],['2023-11-28',6]]},
+        {type:'heatmap',coordinateSystem:'calendar',calendarIndex:1,data:[['2024-02-10',4],['2024-04-22',9],['2024-07-04',2],['2024-10-31',7],['2024-12-25',5]]},
+      ]},
+    parallel: {animation:false,tooltip:{show:false},legend:{show:false},
+      parallelAxis:[{dim:0,name:'A',nameTextStyle:{fontSize:8}},{dim:1,name:'B',nameTextStyle:{fontSize:8}},{dim:2,name:'C',nameTextStyle:{fontSize:8}},{dim:3,name:'D',nameTextStyle:{fontSize:8}}],
+      parallel:{top:14,bottom:10,left:16,right:16},
+      series:[{type:'parallel',lineStyle:{width:1,opacity:.6},data:[[1,4,7,2],[4,2,8,5],[7,5,3,8],[3,8,4,6],[6,3,9,3]].map((d,i)=>({value:d,lineStyle:{color:COLORS[i%COLORS.length]}}))}]},
   };
   if (opts[chart.id]) ec.setOption(opts[chart.id]);
   else { container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa">טוען מפה...</div>'; ec.dispose(); }
@@ -1916,6 +1972,245 @@ async function renderECharts(chart, columns, rows, assignments) {
               formatter:vv=>Number.isInteger(vv)?vv:vv.toFixed(1),color:v.color,fontSize:14,fontWeight:'bold',valueAnimation:true},
             pointer:{show:true,length:'55%',width:4+i,itemStyle:{color:v.color}},
           })),
+        }],
+      };
+      break;
+    }
+
+    // ── ROUND 5: MEDIUM ADDITIONS ────────────────────
+
+    case 'confidenceband': {
+      const midField   = a.mid?.fieldName;
+      const upperField = a.upper?.fieldName;
+      const lowerField = a.lower?.fieldName;
+      const xVals = [...new Set(rows.map(r=>r[xField]))].sort((a,b)=>{
+        const pa=parseFloat(a),pb=parseFloat(b);
+        return isNaN(pa)||isNaN(pb)?String(a).localeCompare(String(b)):pa-pb;
+      });
+      // Band = lower baseline + (upper-lower) stack; trick: series1=lower transparent, series2=(upper-lower) transparent fill
+      const lowerData  = xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x); return r?r[lowerField]:null;});
+      const bandData   = xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x); return r!=null?(r[upperField]??0)-(r[lowerField]??0):null;});
+      const midData    = xVals.map(x=>{const r=rows.find(rr=>rr[xField]===x); return r?r[midField]:null;});
+      option = {
+        tooltip:{trigger:'axis',formatter: params => {
+          const x = params[0]?.axisValue;
+          const row = rows.find(r=>r[xField]===x);
+          if (!row) return x;
+          return `${x}<br/>${a.upper.displayName}: ${row[upperField]}<br/>${a.mid.displayName}: ${row[midField]}<br/>${a.lower.displayName}: ${row[lowerField]}`;
+        }},
+        legend:{bottom:0,data:[a.mid.displayName]},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+        yAxis:{type:'value'},
+        grid:{bottom:xVals.length>8?55:40,top:20,right:16,left:55},
+        series:[
+          {name:'lower',type:'line',data:lowerData,stack:'band',lineStyle:{opacity:0},areaStyle:{color:'transparent'},symbolSize:0,silent:true,tooltip:{show:false}},
+          {name:'band', type:'line',data:bandData, stack:'band',lineStyle:{opacity:0},areaStyle:{color:COLORS[0],opacity:.15},symbolSize:0,silent:true,tooltip:{show:false}},
+          {name:a.mid.displayName,type:'line',data:midData,smooth:true,lineStyle:{color:COLORS[0],width:2.5},itemStyle:{color:COLORS[0]},symbolSize:4},
+        ],
+      };
+      break;
+    }
+
+    case 'polarbar': {
+      const dimField2 = a.dim?.fieldName;
+      const cats = [...new Set(rows.map(r=>r[dimField2]))];
+      if (colorField) {
+        const groups = [...new Set(rows.map(r=>r[colorField]))];
+        option = {
+          tooltip:{trigger:'item'},
+          legend:{bottom:0,type:'scroll'},
+          polar:{radius:'65%'},
+          angleAxis:{type:'category',data:cats},
+          radiusAxis:{},
+          series: groups.map((g,i)=>({
+            name:String(g),type:'bar',
+            data:cats.map(c=>{const r=rows.find(rr=>rr[dimField2]===c&&rr[colorField]===g);return r?r[valField]:null;}),
+            coordinateSystem:'polar',
+            itemStyle:{color:COLORS[i%COLORS.length]},
+            stack:'polar',
+          })),
+        };
+      } else {
+        option = {
+          tooltip:{trigger:'item'},
+          polar:{radius:'65%'},
+          angleAxis:{type:'category',data:cats},
+          radiusAxis:{},
+          series:[{
+            type:'bar',
+            data:cats.map((c,i)=>{const r=rows.find(rr=>rr[dimField2]===c);return {value:r?r[valField]:null,itemStyle:{color:COLORS[i%COLORS.length]}}}),
+            coordinateSystem:'polar',
+            roundCap:true,
+          }],
+        };
+      }
+      break;
+    }
+
+    case 'nestedpie': {
+      const outerField = a.outer?.fieldName;
+      const innerField = a.inner?.fieldName;
+      // Outer ring: aggregate by outer dim
+      const outerGroups = [...new Set(rows.map(r=>String(r[outerField])))];
+      const outerData = outerGroups.map((g,i)=>({
+        name:g,
+        value:rows.filter(r=>String(r[outerField])===g).reduce((s,r)=>s+(r[valField]||0),0),
+        itemStyle:{color:COLORS[i%COLORS.length]},
+      }));
+      // Inner ring: each outer×inner combination
+      const innerData = [];
+      outerGroups.forEach((og,oi)=>{
+        const innerGroups=[...new Set(rows.filter(r=>String(r[outerField])===og).map(r=>String(r[innerField])))];
+        innerGroups.forEach((ig,ii)=>{
+          const v=rows.filter(r=>String(r[outerField])===og&&String(r[innerField])===ig).reduce((s,r)=>s+(r[valField]||0),0);
+          const baseColor=COLORS[oi%COLORS.length];
+          // vary lightness per inner item by appending hex alpha
+          const alphas=['ff','cc','aa','88','66'];
+          innerData.push({name:`${og} › ${ig}`,value:v,itemStyle:{color:baseColor+(alphas[ii%alphas.length])}});
+        });
+      });
+      option = {
+        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+        legend:{bottom:0,type:'scroll'},
+        series:[
+          {name:a.outer.displayName,type:'pie',radius:['0','38%'],data:outerData,label:{position:'inner',fontSize:11},labelLine:{show:false}},
+          {name:a.inner.displayName,type:'pie',radius:['45%','68%'],data:innerData,label:{formatter:'{b}',fontSize:10},labelLine:{length:6,length2:4}},
+        ],
+      };
+      break;
+    }
+
+    case 'linesmap': {
+      try { await ensureMap(); } catch(e) { showError('לא ניתן לטעון מפה: '+e.message); return; }
+      const slatF = a.slat?.fieldName;
+      const slonF = a.slon?.fieldName;
+      const tlatF = a.tlat?.fieldName;
+      const tlonF = a.tlon?.fieldName;
+      const valF2 = a.val?.fieldName;
+      const dimF2 = a.dim?.fieldName;
+      const maxV  = valF2 ? Math.max(...rows.map(r=>r[valF2]||0))||1 : 1;
+      const linesData = rows
+        .filter(r=>r[slatF]!=null&&r[slonF]!=null&&r[tlatF]!=null&&r[tlonF]!=null)
+        .map((r,i)=>({
+          coords:[[r[slonF],r[slatF]],[r[tlonF],r[tlatF]]],
+          name: dimF2 ? String(r[dimF2]) : '',
+          lineStyle:{
+            color: COLORS[i%COLORS.length],
+            width: valF2 ? Math.max(1,(r[valF2]/maxV)*4) : 1.5,
+            opacity:.7,
+            curveness:.3,
+          },
+        }));
+      option = {
+        tooltip:{trigger:'item',formatter:p=>p.data?.name||''},
+        geo:{map:'world',roam:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},emphasis:{label:{show:false},itemStyle:{areaColor:'#ffcc66'}}},
+        series:[{
+          type:'lines', coordinateSystem:'geo',
+          data: linesData,
+          effect:{show:true,period:5,trailLength:.3,symbolSize:5,color:'#fff'},
+          polyline:false,
+        }],
+      };
+      break;
+    }
+
+    case 'candlevolume': {
+      const openF  = a.open?.fieldName;
+      const closeF = a.close?.fieldName;
+      const lowF   = a.low?.fieldName;
+      const highF  = a.high?.fieldName;
+      const volF   = a.vol?.fieldName;
+      const sorted = [...rows].sort((a,b)=>String(a[xField]).localeCompare(String(b[xField])));
+      const xVals  = sorted.map(r=>r[xField]);
+      const candleData = sorted.map(r=>[r[openF],r[closeF],r[lowF],r[highF]]);
+      const volData    = volF ? sorted.map(r=>({
+        value:r[volF],
+        itemStyle:{color: (r[closeF]??0)>=(r[openF]??0) ? COLORS[1] : COLORS[2], opacity:.6},
+      })) : null;
+      const hasVol = volF && volData;
+      option = {
+        tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+        grid:[
+          {bottom: hasVol?'32%':'5%', top:20, right:16, left:60},
+          ...(hasVol?[{top:'72%',bottom:'5%',right:16,left:60}]:[]),
+        ],
+        xAxis:[
+          {type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?40:0},gridIndex:0},
+          ...(hasVol?[{type:'category',data:xVals,show:false,gridIndex:1}]:[]),
+        ],
+        yAxis:[
+          {type:'value',scale:true,gridIndex:0},
+          ...(hasVol?[{type:'value',gridIndex:1,splitNumber:2,axisLabel:{fontSize:10}}]:[]),
+        ],
+        dataZoom:[{type:'inside',xAxisIndex:hasVol?[0,1]:[0]},{type:'slider',xAxisIndex:hasVol?[0,1]:[0],bottom:0,height:20}],
+        series:[
+          {type:'candlestick',data:candleData,xAxisIndex:0,yAxisIndex:0,
+            itemStyle:{color:COLORS[1],color0:COLORS[2],borderColor:COLORS[1],borderColor0:COLORS[2]}},
+          ...(hasVol?[{name:a.vol.displayName,type:'bar',data:volData,xAxisIndex:1,yAxisIndex:1,barMaxWidth:20}]:[]),
+        ],
+      };
+      break;
+    }
+
+    case 'multicalendar': {
+      const dateField2 = a.date?.fieldName;
+      const calData = rows
+        .filter(r=>r[dateField2]!=null&&r[valField]!=null)
+        .map(r=>[String(r[dateField2]).slice(0,10), r[valField]]);
+      if (!calData.length) { showError('אין נתוני תאריך תקינים'); return; }
+      const years = [...new Set(calData.map(d=>d[0].slice(0,4)))].sort();
+      const maxV  = Math.max(...calData.map(d=>d[1]));
+      const calH  = years.length<=2 ? 150 : 120;
+      const totalH= years.length * calH;
+      option = {
+        tooltip:{formatter:p=>`${p.data[0]}: ${p.data[1]}`},
+        visualMap:{min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#e8f0ff','#0057e8']}},
+        calendar: years.map((yr,i)=>({
+          top: 30 + i*calH, left:30, right:30,
+          height: calH-20,
+          range: yr,
+          itemStyle:{borderWidth:.5,borderColor:'#e0dfd8'},
+          dayLabel:{nameMap:'he',color:'#888',fontSize:9},
+          monthLabel:{nameMap:'he',color:'#555',fontSize:10},
+          yearLabel:{color:'#555',fontSize:12},
+        })),
+        series: years.map((yr,i)=>({
+          type:'heatmap', coordinateSystem:'calendar', calendarIndex:i,
+          data: calData.filter(d=>d[0].startsWith(yr)),
+        })),
+      };
+      break;
+    }
+
+    case 'parallel': {
+      // Collect all measure roles in order
+      const measures = ['val','val2','val3','val4','val5']
+        .map(id=>a[id]?{id,field:a[id].fieldName,label:a[id].displayName}:null)
+        .filter(Boolean);
+      const dimF3 = a.dim?.fieldName;
+      const categories = [...new Set(rows.map(r=>String(r[dimF3])))];
+      const parallelAxis = measures.map((m,i)=>({dim:i,name:m.label}));
+      const data = categories.map((cat,ci)=>{
+        const catRows = rows.filter(r=>String(r[dimF3])===cat);
+        // one line per category — average across rows if multiple
+        const vals = measures.map(m=>{
+          const vs=catRows.map(r=>r[m.field]||0);
+          return vs.length ? vs.reduce((s,v)=>s+v,0)/vs.length : 0;
+        });
+        return {value:vals,lineStyle:{color:COLORS[ci%COLORS.length],width:2,opacity:.75},name:cat};
+      });
+      if (rows.length > 1000) showError('אזהרה: יותר מ-1,000 שורות — ביצועים עלולים להיפגע');
+      option = {
+        tooltip:{trigger:'item',formatter:p=>`${p.data.name}`},
+        legend:{bottom:0,type:'scroll',data:categories.map(String)},
+        parallelAxis,
+        parallel:{top:30,bottom:50,left:40,right:40},
+        series:[{
+          type:'parallel',
+          data,
+          lineStyle:{width:2,opacity:.7},
+          emphasis:{lineStyle:{width:3,opacity:1}},
+          smooth:false,
         }],
       };
       break;
