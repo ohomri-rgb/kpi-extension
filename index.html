@@ -50,6 +50,15 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);colo
 .apply-btn:hover{background:var(--teal-dark)}
 .apply-btn:disabled{background:var(--border2);cursor:not-allowed}
 
+.refresh-btn{
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--radius-sm);width:28px;height:28px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;cursor:pointer;color:var(--text2);
+  transition:all .15s;flex-shrink:0;
+}
+.refresh-btn:hover{border-color:var(--teal);color:var(--teal);transform:rotate(30deg)}
+
 .roles-list{display:flex;flex-direction:column;gap:3px}
 .role-row{display:flex;align-items:center;gap:6px;min-height:28px}
 .role-label{font-size:10px;color:var(--text3);width:58px;flex-shrink:0;font-weight:500}
@@ -293,6 +302,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);colo
         <span id="mc-name">בחר סוג גרף</span>
         <span class="chevron">▾</span>
       </button>
+      <button class="refresh-btn" id="refresh-btn" onclick="reloadFields()" title="רענן שדות מהגיליון">↺</button>
       <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
     </div>
     <div class="roles-list" id="roles-list"></div>
@@ -376,6 +386,7 @@ let state = {
   chart: null,          // selected chart config
   assignments: {},      // roleId → { field, fieldName, dataType }
   worksheetFields: [],  // [{ fieldName, displayName, dataType, fieldId }]
+  worksheet: null,      // tableau worksheet reference
   echartsInstance: null,
   activeDropdownRole: null,
   galleryFilter: 'הכל',
@@ -387,10 +398,25 @@ let state = {
 function dismissOnboarding() {
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  // reload fields now that user confirmed they added fields to Detail
-  tableau.extensions.worksheetContent.worksheet
-    ? loadFields(tableau.extensions.worksheetContent.worksheet)
-    : null;
+  if (state.worksheet) loadFields(state.worksheet);
+}
+
+async function reloadFields() {
+  const btn = document.getElementById('refresh-btn');
+  btn.style.transform = 'rotate(360deg)';
+  btn.style.transition = 'transform 0.4s ease';
+  setTimeout(() => { btn.style.transform = ''; btn.style.transition = ''; }, 450);
+
+  if (!state.worksheet) return;
+  await loadFields(state.worksheet);
+  // Clear assignments that no longer exist in the field list
+  const validNames = new Set(state.worksheetFields.map(f => f.fieldName));
+  Object.keys(state.assignments).forEach(roleId => {
+    if (!validNames.has(state.assignments[roleId]?.fieldName)) {
+      delete state.assignments[roleId];
+    }
+  });
+  renderMarksCard();
 }
 
 // ═══════════════════════════════════════════════════
@@ -400,13 +426,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await tableau.extensions.initializeAsync();
     const ws = tableau.extensions.worksheetContent.worksheet;
+    state.worksheet = ws; // store for reuse
 
     // Load fields
     await loadFields(ws);
 
-    // Show app (onboarding shown first)
-    // Listen for changes
-    ws.addEventListener(tableau.TableauEventType.FilterChanged, () => refreshChart());
+    // FilterChanged / MarkSelectionChanged → refresh chart
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
+      await loadFields(ws);
+      renderMarksCard();
+      refreshChart();
+    });
     ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
 
     buildGalleryChips();
@@ -482,14 +512,23 @@ function normalizeValue(val, dataType) {
   return String(val);
 }
 
-function getFieldType(dataType) {
-  if (dataType === 'float' || dataType === 'int') return 'measure';
+// Date functions like YEAR(), MONTH(), QUARTER() return dataType=int from Tableau
+// but they are dimensions — detect by field name pattern
+const DATE_FUNC_RE = /^(YEAR|MONTH|QUARTER|DAY|WEEK|HOUR|MINUTE|SECOND|DATETRUNC|DATEPART)\s*\(/i;
+
+function getFieldType(dataType, fieldName) {
+  if (dataType === 'float') return 'measure';
+  if (dataType === 'int') {
+    // If field name looks like a date function → treat as dim
+    if (fieldName && DATE_FUNC_RE.test(String(fieldName).trim())) return 'dim';
+    return 'measure';
+  }
   return 'dim';
 }
 
-function canAssign(roleAccepts, dataType) {
+function canAssign(roleAccepts, dataType, fieldName) {
   if (roleAccepts === 'both') return true;
-  return roleAccepts === getFieldType(dataType);
+  return roleAccepts === getFieldType(dataType, fieldName);
 }
 
 // ═══════════════════════════════════════════════════
@@ -534,7 +573,7 @@ function renderMarksCard() {
       slot.addEventListener('click', () => openSlotDropdown(role, slot));
       slot.addEventListener('dragover', e => {
         const f = getDragField();
-        if (f && canAssign(role.accepts, f.dataType)) {
+        if (f && canAssign(role.accepts, f.dataType, f.fieldName)) {
           e.preventDefault();
           slot.classList.add('drag-over');
         }
@@ -544,7 +583,7 @@ function renderMarksCard() {
         e.preventDefault();
         slot.classList.remove('drag-over');
         const f = getDragField();
-        if (f && canAssign(role.accepts, f.dataType)) {
+        if (f && canAssign(role.accepts, f.dataType, f.fieldName)) {
           assign(role.id, f);
         }
       });
@@ -573,12 +612,12 @@ function openSlotDropdown(role, anchorEl) {
 
   // DEBUG — remove after testing
   console.log('[dropdown] role.accepts:', role.accepts);
-  console.log('[dropdown] all fields:', state.worksheetFields.map(f => f.fieldName + ' | dt=' + f.dataType + ' | type=' + getFieldType(f.dataType)));
+  console.log('[dropdown] all fields:', state.worksheetFields.map(f => f.fieldName + ' | dt=' + f.dataType + ' | type=' + getFieldType(f.dataType, f.fieldName)));
 
-  const compatible = state.worksheetFields.filter(f => canAssign(role.accepts, f.dataType));
+  const compatible = state.worksheetFields.filter(f => canAssign(role.accepts, f.dataType, f.fieldName));
   console.log('[dropdown] compatible:', compatible.length, compatible.map(f=>f.fieldName));
-  const dims = compatible.filter(f => getFieldType(f.dataType) === 'dim');
-  const measures = compatible.filter(f => getFieldType(f.dataType) === 'measure');
+  const dims = compatible.filter(f => getFieldType(f.dataType, f.fieldName) === 'dim');
+  const measures = compatible.filter(f => getFieldType(f.dataType, f.fieldName) === 'measure');
 
   let html = '';
   if (dims.length) {
