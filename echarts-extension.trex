@@ -9,9 +9,11 @@
     <source-location>
      <url>https://ohomri-rgb.github.io/kpi-extension/index.html</url>
     </source-location>
-    <configuration>true</configuration>
     <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4QMRDREo7UKD8AAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFAx9AAAE0AABHxJqkQAAAABJRU5ErkJggg==</icon>
     <permissions><permission>full data</permission></permissions>
+    <context-menu>
+      <configure-context-menu-item />
+    </context-menu>
   </worksheet-extension>
   <resources>
     <resource id="name"><text locale="en_US">ECharts Extension</text></resource>
