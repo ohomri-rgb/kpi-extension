@@ -1,15 +1,17 @@
 # ECharts Extension — Tableau Viz Extension
-### Full Project Documentation | v4
+### Full Project Documentation | v5
 
 ---
 
 ## Overview
 
-A Tableau Viz Extension (worksheet extension) that renders interactive ECharts visualizations inside a Tableau worksheet. Single HTML file, no backend, fully offline.
+A Tableau Viz Extension (worksheet extension) that renders interactive ECharts visualizations and an RTL data table inside a Tableau worksheet. Single HTML file, no backend, fully offline.
 
-- **45 chart types** across 13 categories
+- **46 chart types** across 14 categories (45 ECharts + 1 RTL Table)
 - Marks Card UI inside the extension — assign fields to chart roles via dropdown or drag & drop
-- Gallery modal — browse chart types with live ECharts mini-previews, search + category filter chips
+- Gallery modal — browse chart types with live previews, search + category filter chips
+- **Settings persist in the workbook** — chart type and field assignments saved via `tableau.extensions.settings`
+- **Format Extension button** — editor-only access to settings via Tableau's native Marks card button
 - Auto-refresh on FilterChanged and MarkSelectionChanged events
 - Manual field reload button (↺) — syncs field list from Detail shelf without page reload
 - Error bar with clear messages when fields are missing or LOD is undefined
@@ -23,7 +25,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 | File | Purpose |
 |---|---|
-| `index.html` | Main extension — all CSS, HTML, JS in one file |
+| `index.html` | Main extension — all CSS, HTML, JS in one file (~2,570 lines) |
 | `echarts-extension.trex` | Tableau manifest — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
 | `echarts.min.js` | ECharts 5 library (local copy) |
@@ -55,7 +57,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 ---
 
-## Chart Types (45 total)
+## Chart Types (46 total)
 
 | Category | Charts |
 |---|---|
@@ -70,6 +72,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 | KPI | Gauge Chart, Progress Bar, Multi Gauge |
 | פיננסי | Candlestick, Candlestick + Volume |
 | מיוחד | Radar Chart, Multi-series Radar, Funnel Chart, Parallel Coordinates |
+| **טבלה** | **RTL Table** |
 
 ### Charts Not Included (Out of Scope)
 
@@ -82,6 +85,120 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 | Custom Region Map | Requires external GeoJSON file — outside offline scope |
 | Clock Gauge | Real-time `setInterval` — not connected to Tableau data |
 | Data Transform / Dataset | Tableau handles aggregation server-side — redundant in extension context |
+
+---
+
+## RTL Table
+
+The RTL Table is a full-featured scrollable table rendered directly in the extension. It is based on the `table_rtl` project (v21) and merged into `index.html` as a standalone chart type in the **טבלה** category.
+
+### Features
+
+| Feature | Detail |
+|---|---|
+| Column order | Controlled by a Tableau String parameter named `Columns` (comma-separated ordered field names) |
+| Column visibility | Only fields listed in `Columns` parameter are shown — unlisted Detail fields are dropped |
+| Fallback | If `Columns` parameter is missing or empty — all Detail fields shown in alphabetical order |
+| Filter dropdowns | Multi-select checkbox panel per column with search, החל / הכל buttons |
+| Filter logic | AND across columns, client-side (hides `<tr>` rows) |
+| Numeric formatting | `toLocaleString('en-US')` — e.g. `1,234.56`. Wrapped in LTR span so negatives render as `-1,234` not `1,234-` |
+| Date formatting | Uses Tableau's `formattedValue` — respects workbook locale |
+| Null values | Displays `—` |
+| Column widths | Content-aware: `max(80px, headerWidth, dataWidth)`. Long-text strings (>40 chars) fixed at 280px. Hard cap 400px |
+| RTL layout | Full RTL with Hebrew font |
+
+### Columns Parameter Setup
+
+1. Create a String parameter named `Columns` in Tableau
+2. Set Allowable Values → **List**
+3. Add one entry — the Value field contains the full comma-separated ordered string:
+   ```
+   YEAR(Order Date), Category, Customer Name, SUM(Sales), SUM(Profit)
+   ```
+4. Field names must match what Tableau sends in `getSummaryDataAsync` — include aggregation wrappers (`SUM(`, `YEAR(`, `CNT(` etc.)
+
+### Marks Card for RTL Table
+
+When RTL Table is selected in the gallery, the Marks Card shows a plain text note instead of role slots: _"כל השדות מה-Detail יוצגו בטבלה. סדר עמודות נקבע ע״י פרמטר Columns."_
+
+The "צייר" button is enabled immediately — no role assignments required.
+
+### Container switching
+
+`index.html` contains two containers inside `.chart-area`:
+- `#echarts-container` — ECharts div, shown for all chart types except RTL Table
+- `#table-container` — RTL Table wrapper, shown only when chart type is `rtltable`
+
+`applyChart()` toggles `display` on both containers before rendering.
+
+---
+
+## Settings — Persist Across Sessions
+
+Chart type and field assignments are saved inside the workbook using `tableau.extensions.settings`.
+
+```javascript
+// Save — called after every successful "צייר"
+tableau.extensions.settings.set('chartId', state.chart.id);
+tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments));
+await tableau.extensions.settings.saveAsync();
+
+// Load — called on initializeAsync
+const chartId = tableau.extensions.settings.get('chartId');
+const assignments = tableau.extensions.settings.get('assignments');
+```
+
+Settings are stored **inside the `.twbx` workbook file** — shared across all users, persists across sessions, works on Tableau Cloud and Desktop.
+
+### Startup flow
+
+```
+initializeAsync()
+  └── loadSettings() → state.chart + state.assignments
+  └── loadFields()
+  └── if saved state exists:
+        → marks-card hidden
+        → app shown
+        → renderMarksCard() + applyChart() → chart rendered immediately
+      else:
+        → onboarding screen shown
+```
+
+---
+
+## Format Extension Button (Editor-only access)
+
+The extension uses Tableau's native **Format Extension** mechanism so that only editors can access the settings UI.
+
+### How it works
+
+The `.trex` manifest declares:
+```xml
+<context-menu>
+  <configure-context-menu-item />
+</context-menu>
+```
+
+`initializeAsync` registers a `configure` callback:
+```javascript
+await tableau.extensions.initializeAsync({ configure: () => {
+  document.getElementById('marks-card').style.display = '';
+}});
+```
+
+| User type | What they see |
+|---|---|
+| **Viewer** | Chart only — no UI, no buttons |
+| **Editor** | Format Extension button appears in Tableau's Marks panel → click → marks-card opens |
+
+### Marks Card buttons (left to right)
+
+| Button | Action |
+|---|---|
+| ✕ | Close the marks-card panel |
+| ↺ | Reload fields from Detail shelf |
+| צייר | Render chart + save settings |
+| [Chart name + icon] | Open gallery |
 
 ---
 
@@ -129,6 +246,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 | US States Map | מדינה US (dim), ערך (measure) | — |
 | Geo Bubble Map | Latitude (measure), Longitude (measure), ערך (measure) | תווית (dim), צבע (dim) |
 | Lines Map | Lat מקור, Lon מקור, Lat יעד, Lon יעד (measures) | עוצמה (measure), תווית (dim) |
+| **RTL Table** | — (no roles) | — |
 
 ---
 
@@ -165,6 +283,7 @@ The extension reads data via `getSummaryDataAsync()`. This call respects the wor
 | Gauge | `SUM(Sales)` |
 | Progress Bar | `SUM(Sales)` + optional `Category` for multi-bar |
 | Multi Gauge | `SUM(Sales)`, `SUM(Profit)`, `SUM(Quantity)` |
+| **RTL Table** | All desired fields — column order via `Columns` parameter |
 
 ### Why Detail and not Rows/Columns?
 The extension renders the chart itself — Tableau's Rows/Columns are unused. Detail is the only shelf that makes fields available to `getSummaryDataAsync` without affecting the Tableau native view.
@@ -211,16 +330,18 @@ All three map charts use `world.js` loaded as a `<script>` tag. The map is regis
 ### Flow
 
 ```
-initializeAsync()
+initializeAsync({ configure: () => show marks-card })
+  └── loadSettings() → restore state.chart + state.assignments
   └── loadFields() — getSummaryDataAsync({ maxRows:1 })
       → builds state.worksheetFields (fields on Detail shelf only)
-  └── initDataListeners()
-      → FilterChanged → loadFields() + renderMarksCard() + refreshChart()
-      → MarkSelectionChanged → refreshChart()
-  └── show onboarding screen
+  └── if saved state:
+        → app shown, marks-card hidden
+        → renderMarksCard() + applyChart() → chart rendered immediately
+      else:
+        → onboarding screen shown
 
-User: drags fields to Detail in Tableau, clicks "המשך" (or ↺)
-  └── dismissOnboarding() / reloadFields() → loadFields() → renderMarksCard()
+User (Editor): clicks Format Extension in Marks panel
+  └── configure callback → marks-card shown
 
 User: clicks chart type button
   └── openGallery() → modal with chart previews + search + category chips
@@ -232,12 +353,15 @@ User: assigns fields to roles (dropdown click or drag & drop)
 
 User: clicks "צייר"
   └── applyChart()
-      ├── validate assignments
+      ├── switch container (echarts vs table)
+      ├── [rtltable] renderTable() → getSummaryDataAsync + applyParamOrder + build DOM
+      ├── [other charts] validate assignments
       ├── [map charts only] ensureMap() — verify world.js registered
-      ├── getSummaryDataAsync({ maxRows:0 }) — ALL chart types
+      ├── getSummaryDataAsync({ maxRows:0 })
       ├── parseDataTable(dt) → { columns, rows }
       ├── detect %many-values% → show error if LOD undefined
-      └── renderECharts(chart, columns, rows, assignments)  [async]
+      └── renderECharts(chart, columns, rows, assignments) [async]
+      └── saveSettings() → tableau.extensions.settings.saveAsync()
 ```
 
 ### API Method
@@ -339,16 +463,16 @@ function parseDataTable(dt) {
 
 Opens as a modal panel from the right. Contains:
 - Search input (filters by chart name)
-- Category filter chips (הכל, קו ושטח, עמודות, עוגה, פיזור, מפות חום, היררכיה, זרימה, מפה, KPI, פיננסי, מיוחד)
+- Category filter chips (הכל, קו ושטח, עמודות, עוגה, פיזור, מפות חום, היררכיה, זרימה, מפה, KPI, פיננסי, מיוחד, **טבלה**)
 - Grid of chart cards — each with a live ECharts mini-preview (150×80px canvas)
+- RTL Table card shows a static text preview instead of ECharts canvas
 - Each card shows chart name + role tags (dim/measure/optional)
-- Map chart previews show placeholder text ("טוען מפה...") until `world.js` is confirmed registered
 
 Selecting a chart:
 1. Sets `state.chart`
 2. Clears `state.assignments`
 3. Closes gallery
-4. Renders Marks Card with the new chart's roles
+4. Renders Marks Card with the new chart's roles (or table note for RTL Table)
 
 ---
 
@@ -362,6 +486,7 @@ Selecting a chart:
 | Field not found in data | "שדות לא נמצאו בגיליון: [fieldName]" |
 | `world.js` not loaded | "world.js לא נטען — בדוק שהקובץ קיים לצד index.html" |
 | Map JSON fetch fails | "לא ניתן לטעון מפה: [message]" |
+| RTL Table — no fields on Detail | "אין שדות — גרור שדות ל-Detail" |
 
 ---
 
@@ -388,6 +513,10 @@ Selecting a chart:
 | Two separate GeoJSON files for World + US | US is part of world GeoJSON — no separate file needed | Fixed — single `world.js`, US States Map uses `center/zoom` to focus on USA |
 | Debug `console.log` noise in production Console | Leftover development logs | Fixed — all `console.log/warn` removed in v3 |
 | Tableau console warnings — `@import` CSS rule and preload warnings | Originate from `tableau.css` (Tableau's own stylesheet) and Tableau CDN assets | Not a bug — safely ignored, unrelated to extension code |
+| Marks card visible on workbook open (flicker) | `app` shown before `applyChart()` completed | Fixed v5 — `marks-card` hidden before `app` shown; `app` revealed only after chart renders |
+| Settings not persisting across sessions | `localStorage` not available on Tableau Cloud | Fixed v5 — migrated to `tableau.extensions.settings.saveAsync()` |
+| Settings UI visible to Viewers | Marks card rendered inside extension visible to all users | Fixed v5 — migrated to Format Extension button (`<configure-context-menu-item />`) — Tableau hides it from Viewers automatically |
+| `<configuration>true</configuration>` in `.trex` caused parse error | Not a valid element in `worksheet-extension` schema | Fixed v5 — correct approach is `<context-menu><configure-context-menu-item /></context-menu>` |
 
 ### Open Known Issues (not yet fixed)
 
@@ -445,4 +574,5 @@ Called before rendering any map chart type (worldmap, usmap, geomap). `world.js`
 | v1 | ✅ Superseded | Initial working build. Gallery, Marks Card, 14 chart types, drag & drop + dropdown assignment, FilterChanged listener, onboarding screen, error bar. Debug panel with field types inspector. |
 | v2 | ✅ Superseded | Fix loadFields to use getSummaryDataAsync (respects LOD). Fix getSummaryDataAsync options (maxRows:0). Fix YEAR/MONTH/QUARTER treated as measures. Switch Scatter/Bubble/Sankey to getSummaryDataAsync. Replace deprecated getUnderlyingDataAsync with new tables API. Add ↺ reload button. FilterChanged now reloads fields. Store worksheet ref in state. |
 | v3 | ✅ Superseded | +14 new chart types (28 total): Gauge, Candlestick, Sunburst, Network Graph, Waterfall, Calendar Heatmap, ThemeRiver, Step Line, Stacked Area, Dual Axis, Pictorial Bar, World Map, US States Map, Geo Bubble Map. Fully offline — all assets local (echarts.min.js, world.js, NotoSansHebrew fonts). Removed all CDN dependencies. Removed debug console.log noise. Fixed map loading via local world.js script tag. Single world.js for all map chart types. renderECharts made async for map support. |
-| v4 | ✅ Current | +17 new chart types (45 total) across 2 rounds. Round 4 (easy): Stacked Line, Nightingale Rose, Effect Scatter, Histogram, Multi-series Radar, Circular Graph, Tree Chart, Radial Tree, Progress Bar, Multi Gauge. Round 5 (medium): Confidence Band, Polar Bar, Nested Pie, Lines Map, Candlestick + Volume, Multi-year Calendar, Parallel Coordinates. QA audit completed — 6 open bugs documented in Known Issues. |
+| v4 | ✅ Superseded | +17 new chart types (45 total) across 2 rounds. Round 4 (easy): Stacked Line, Nightingale Rose, Effect Scatter, Histogram, Multi-series Radar, Circular Graph, Tree Chart, Radial Tree, Progress Bar, Multi Gauge. Round 5 (medium): Confidence Band, Polar Bar, Nested Pie, Lines Map, Candlestick + Volume, Multi-year Calendar, Parallel Coordinates. QA audit completed — 6 open bugs documented in Known Issues. |
+| v5 | ✅ Current | Settings persistence via `tableau.extensions.settings.saveAsync()`. Format Extension button via `<configure-context-menu-item />` in `.trex` — editor-only access, no UI visible to Viewers. RTL Table merged as chart type #46 in new "טבלה" category — full filter dropdowns, column ordering via Columns parameter, content-aware widths, RTL layout, negative number fix. Startup flicker fixed — marks-card hidden before app shown. |
