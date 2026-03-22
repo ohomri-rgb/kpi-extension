@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
+  <worksheet-extension id="com.echarts.extension" extension-version="0.1.0">
+    <default-locale>en_US</default-locale>
+    <name resource-id="name"/>
+    <description resource-id="description"/>
+    <author name="ECharts Extension" email="dev@echarts-ext.com" organization="ECharts Extension" website="https://echarts-ext.com"/>
+    <min-api-version>1.7</min-api-version>
+    <source-location>
+     <url>https://ohomri-rgb.github.io/kpi-extension/index.html</url>
+    </source-location>
+    <configuration>true</configuration>
+    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH4QMRDREo7UKD8AAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFAx9AAAE0AABHxJqkQAAAABJRU5ErkJggg==</icon>
+    <permissions><permission>full data</permission></permissions>
+  </worksheet-extension>
+  <resources>
+    <resource id="name"><text locale="en_US">ECharts Extension</text></resource>
+    <resource id="description"><text locale="en_US">Advanced chart types powered by Apache ECharts</text></resource>
+  </resources>
+</manifest>
