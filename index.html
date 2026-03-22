@@ -263,7 +263,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
 </head>
 <body>
 <!-- Onboarding Screen -->
-<div class="onboarding" id="onboarding">
+<div class="onboarding" id="onboarding" style="display:none">
   <div class="ob-card">
     <div class="ob-icon">📊</div>
     <h2 class="ob-title">ECharts Extension</h2>
@@ -525,12 +525,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasSaved && state.chart) {
       // Skip onboarding — go straight to view mode with saved chart
       document.getElementById('onboarding').style.display = 'none';
-      document.getElementById('marks-card').style.display = 'none'; // hide before app visible
+      document.getElementById('marks-card').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
       renderMarksCard();
-      await applyChart(); // renders and enters view mode automatically
+      await applyChart();
+    } else {
+      // First time — show onboarding
+      document.getElementById('onboarding').style.display = 'flex';
     }
-    // else: onboarding screen stays visible (first time)
 
     // FilterChanged / MarkSelectionChanged → refresh chart
     ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
