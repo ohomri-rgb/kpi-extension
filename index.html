@@ -119,17 +119,26 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
 .chart-area{flex:1;position:relative;min-height:0}
 #echarts-container{width:100%;height:100%}
 
-/* ── SETTINGS TOGGLE BUTTON ── */
-.edit-fab{
+/* ── HELP BUTTON — fixed top right ── */
+.help-fab{
   position:fixed;top:8px;right:8px;z-index:200;
-  width:28px;height:28px;border-radius:50%;
+  width:24px;height:24px;border-radius:50%;
   background:rgba(255,255,255,.9);border:1px solid var(--border);
-  box-shadow:0 2px 8px rgba(0,0,0,.12);
+  box-shadow:0 2px 6px rgba(0,0,0,.1);
   display:flex;align-items:center;justify-content:center;
-  cursor:pointer;font-size:13px;
-  transition:all .15s;backdrop-filter:blur(4px);
+  cursor:pointer;font-size:12px;font-weight:700;color:var(--text3);
+  font-family:inherit;transition:all .15s;
 }
-.edit-fab:hover{background:#fff;border-color:var(--teal);transform:scale(1.08)}
+.help-fab:hover{border-color:var(--teal);color:var(--teal);background:#fff}
+
+/* ── CLOSE MARKS CARD BUTTON ── */
+.close-mc-btn{
+  background:none;border:1px solid var(--border);border-radius:var(--radius-sm);
+  width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text3);font-size:12px;flex-shrink:0;
+  transition:all .15s;
+}
+.close-mc-btn:hover{border-color:var(--accent);color:var(--accent)}
 .chart-placeholder{
   position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:8px;
@@ -309,6 +318,9 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
 
 <div class="app" id="app" style="display:none">
 
+  <!-- Help button — fixed top right, always visible -->
+  <button class="help-fab" onclick="showOnboarding()" title="הנחיות">?</button>
+
   <!-- Marks Card -->
   <div class="marks-card" id="marks-card" style="display:none">
     <div class="marks-top">
@@ -319,6 +331,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
       </button>
       <button class="refresh-btn" id="refresh-btn" onclick="reloadFields()" title="רענן שדות מהגיליון">↺</button>
       <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
+      <button class="close-mc-btn" onclick="toggleMarksCard()" title="סגור">✕</button>
     </div>
     <div class="roles-list" id="roles-list"></div>
   </div>
@@ -332,7 +345,6 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
   <!-- Chart area -->
   <div class="chart-area">
     <div id="echarts-container"></div>
-    <button class="edit-fab" id="edit-fab" onclick="toggleMarksCard()" title="הגדרות גרף">⚙️</button>
     <div class="chart-placeholder" id="placeholder">
       <span class="ph-icon">📊</span>
       <span>בחר סוג גרף ושייך שדות</span>
@@ -484,6 +496,7 @@ let state = {
 function dismissOnboarding() {
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  document.getElementById('marks-card').style.display = ''; // show panel
   if (state.worksheet) loadFields(state.worksheet);
 }
 
@@ -1007,6 +1020,11 @@ function loadSettings() {
 function toggleMarksCard() {
   const mc = document.getElementById('marks-card');
   mc.style.display = mc.style.display === 'none' ? '' : 'none';
+}
+
+function showOnboarding() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('onboarding').style.display = 'flex';
 }
 
 // ═══════════════════════════════════════════════════
