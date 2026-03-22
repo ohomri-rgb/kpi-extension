@@ -118,6 +118,19 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
 /* ── CHART AREA ── */
 .chart-area{flex:1;position:relative;min-height:0}
 #echarts-container{width:100%;height:100%}
+
+/* ── EDIT BUTTON (view mode) ── */
+.edit-fab{
+  position:absolute;top:8px;left:8px;z-index:100;
+  width:30px;height:30px;border-radius:50%;
+  background:rgba(255,255,255,.85);border:1px solid var(--border);
+  box-shadow:0 2px 8px rgba(0,0,0,.1);
+  display:none;align-items:center;justify-content:center;
+  cursor:pointer;font-size:14px;color:var(--text2);
+  transition:all .15s;backdrop-filter:blur(4px);
+}
+.edit-fab:hover{background:#fff;border-color:var(--teal);color:var(--teal);transform:scale(1.08)}
+.edit-fab.visible{display:flex}
 .chart-placeholder{
   position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:8px;
@@ -320,6 +333,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
   <!-- Chart area -->
   <div class="chart-area">
     <div id="echarts-container"></div>
+    <button class="edit-fab" id="edit-fab" onclick="enterEditMode()" title="ערוך גרף">⚙️</button>
     <div class="chart-placeholder" id="placeholder">
       <span class="ph-icon">📊</span>
       <span>בחר סוג גרף ושייך שדות</span>
@@ -471,6 +485,7 @@ let state = {
 function dismissOnboarding() {
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  enterEditMode(); // ensure marks card is visible
   if (state.worksheet) loadFields(state.worksheet);
 }
 
@@ -499,10 +514,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await tableau.extensions.initializeAsync();
     const ws = tableau.extensions.worksheetContent.worksheet;
-    state.worksheet = ws; // store for reuse
+    state.worksheet = ws;
+
+    // Load saved settings from workbook
+    const hasSaved = loadSettings();
 
     // Load fields
     await loadFields(ws);
+
+    if (hasSaved && state.chart) {
+      // Skip onboarding — go straight to view mode with saved chart
+      document.getElementById('onboarding').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      renderMarksCard();
+      await applyChart(); // renders and enters view mode automatically
+    }
+    // else: onboarding screen stays visible (first time)
 
     // FilterChanged / MarkSelectionChanged → refresh chart
     ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
@@ -943,6 +970,51 @@ function drawPreview(chart, container) {
 }
 
 // ═══════════════════════════════════════════════════
+// SETTINGS — persist chart + assignments in workbook
+// ═══════════════════════════════════════════════════
+async function saveSettings() {
+  try {
+    tableau.extensions.settings.set('chartId', state.chart?.id || '');
+    tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments || {}));
+    await tableau.extensions.settings.saveAsync();
+  } catch(e) {
+    console.warn('[ECharts] Could not save settings:', e);
+  }
+}
+
+function loadSettings() {
+  try {
+    const chartId = tableau.extensions.settings.get('chartId');
+    const assignmentsRaw = tableau.extensions.settings.get('assignments');
+    if (chartId) {
+      const chart = CHARTS.find(c => c.id === chartId);
+      if (chart) {
+        state.chart = chart;
+        state.assignments = assignmentsRaw ? JSON.parse(assignmentsRaw) : {};
+        return true;
+      }
+    }
+  } catch(e) {
+    console.warn('[ECharts] Could not load settings:', e);
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════
+// VIEW / EDIT MODE
+// ═══════════════════════════════════════════════════
+function enterViewMode() {
+  document.getElementById('marks-card').style.display = 'none';
+  document.getElementById('error-bar').style.display = 'none';
+  document.getElementById('edit-fab').classList.add('visible');
+}
+
+function enterEditMode() {
+  document.getElementById('marks-card').style.display = '';
+  document.getElementById('edit-fab').classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════════════
 // FETCH + RENDER
 // ═══════════════════════════════════════════════════
 async function applyChart() {
@@ -972,6 +1044,8 @@ async function applyChart() {
     }
 
     renderECharts(chart, columns, rows, state.assignments);
+    await saveSettings();
+    enterViewMode();
   } catch(e) {
     showError('שגיאת טעינה: ' + e);
   }
