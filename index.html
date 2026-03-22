@@ -395,8 +395,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('onboarding').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
     }
-    ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
-      await loadFields(ws); renderMarksCard(); await applyChart();
+    let _filterDebounce = null;
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
+      clearTimeout(_filterDebounce);
+      _filterDebounce = setTimeout(async () => {
+        await loadFields(ws); renderMarksCard(); await applyChart();
+      }, 350);
     });
     ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
     buildGalleryChips();
@@ -1043,6 +1047,8 @@ async function renderECharts(chart, columns, rows, assignments) {
   const findRow = (rows, key, val, key2, val2) =>
     rows.find(r => r[key]===val && (key2===undefined || r[key2]===val2));
   const gridBase = (bottom=30, right=16, left=50, top=20) => ({bottom, top, right, left});
+  // legend עם selectedMode:false — מבטל פילטור בלחיצה על המקרא
+  const mkLegend = (extra={}) => ({selectedMode:false, ...extra});
 
   const lineOrArea = (isArea) => {
     const xVals = uniqSorted(rows.map(r=>r[xField]));
@@ -1055,7 +1061,7 @@ async function renderECharts(chart, columns, rows, assignments) {
     if (groupField) {
       const groups = uniqSorted(rows.map(r=>r[groupField]));
       return {
-        tooltip:{trigger:'axis'}, legend:{bottom:0,type:'scroll'},
+        tooltip:{trigger:'axis'}, mkLegend({bottom:0,type:'scroll'}),
         xAxis:{type:'category',data:xVals,axisLabel:{rotate}},
         yAxis:{type:'value'}, grid:gridBase(xVals.length>8?50:30),
         series: groups.map((g,i) => mkSeries(
@@ -1083,7 +1089,7 @@ async function renderECharts(chart, columns, rows, assignments) {
     if (colorField) {
       const groups = [...new Set(rows.map(r=>r[colorField]))];
       return {
-        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}}, legend:{bottom:0},
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}}, mkLegend({bottom:0}),
         xAxis:horiz?{type:'value'}:{type:'category',data:cats},
         yAxis:horiz?{type:'category',data:cats}:{type:'value'},
         grid:gridBase(40,16,horiz?80:50),
@@ -1104,7 +1110,7 @@ async function renderECharts(chart, columns, rows, assignments) {
 
   const pieDonutRose = (radius, rose) => ({
     tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%}'},
-    legend:{bottom:0,type:'scroll'},
+    mkLegend({bottom:0,type:'scroll'}),
     series:[{type:'pie', radius, roseType:rose?'area':undefined,
       data: rows.filter(r=>r[dimField]!=null&&r[valField]!=null)
                 .map((r,i)=>({name:String(r[dimField]),value:r[valField],itemStyle:{color:COLORS[i%COLORS.length]}})),
@@ -1125,7 +1131,7 @@ async function renderECharts(chart, columns, rows, assignments) {
     if (colorField) {
       const groups = [...new Set(filtered.map(r=>r[colorField]))];
       return {
-        tooltip:{trigger:'item'}, legend:{bottom:0},
+        tooltip:{trigger:'item'}, mkLegend({bottom:0}),
         xAxis:{type:'value',name:a.x.displayName}, yAxis:{type:'value',name:a.y.displayName},
         grid:gridBase(40,16,60),
         series:groups.map((g,i)=>mkSeries(filtered.filter(r=>r[colorField]===g).map(mapRow),String(g),i)),
@@ -1221,7 +1227,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       const xVals=uniqSorted(rows.map(r=>r[xField])), rotate=xVals.length>8?30:0;
       if (groupField) {
         const groups=uniqSorted(rows.map(r=>r[groupField]));
-        option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
+        option={tooltip:{trigger:'axis'},mkLegend({bottom:0,type:'scroll'}),xAxis:{type:'category',data:xVals,axisLabel:{rotate}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
           series:groups.map((g,i)=>({name:String(g),type:'line',step:'end',data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;}),itemStyle:{color:COLORS[i%COLORS.length]}}))};
       } else {
         option={tooltip:{trigger:'axis'},xAxis:{type:'category',data:xVals,axisLabel:{rotate}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?50:30),
@@ -1231,14 +1237,14 @@ async function renderECharts(chart, columns, rows, assignments) {
     }
     case 'stackedarea': {
       const xVals=uniqSorted(rows.map(r=>r[xField])), groups=uniqSorted(rows.map(r=>r[groupField]));
-      option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
+      option={tooltip:{trigger:'axis'},mkLegend({bottom:0,type:'scroll'}),xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
         series:groups.map((g,i)=>({name:String(g),type:'line',stack:'total',smooth:true,areaStyle:{opacity:.6},itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{width:1},symbolSize:0,
           data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;})}))};
       break;
     }
     case 'stackedline': {
       const xVals=uniqSorted(rows.map(r=>r[xField])), groups=uniqSorted(rows.map(r=>r[groupField]));
-      option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
+      option={tooltip:{trigger:'axis'},mkLegend({bottom:0,type:'scroll'}),xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
         series:groups.map((g,i)=>({name:String(g),type:'line',stack:'total',data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;}),
           itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{color:COLORS[i%COLORS.length],width:2},symbolSize:4}))};
       break;
@@ -1248,7 +1254,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       const xVals=uniqSorted(rows.map(r=>r[xField]));
       option={
         tooltip:{trigger:'axis',formatter:params=>{const x=params[0]?.axisValue,row=rows.find(r=>r[xField]===x);return row?`${x}<br/>${a.upper.displayName}: ${row[upperF]}<br/>${a.mid.displayName}: ${row[midF]}<br/>${a.lower.displayName}: ${row[lowerF]}`:x;}},
-        legend:{bottom:0,data:[a.mid.displayName]},
+        mkLegend({bottom:0,data:[a.mid.displayName]}),
         xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40,16,55),
         series:[
           {name:'lower',type:'line',data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[lowerF]:null;}),stack:'band',lineStyle:{opacity:0},areaStyle:{color:'transparent'},symbolSize:0,silent:true,tooltip:{show:false}},
@@ -1260,14 +1266,14 @@ async function renderECharts(chart, columns, rows, assignments) {
     case 'bar': case 'hbar': option = barChart(chart.id==='hbar'); break;
     case 'stackedbar': {
       const cats=uniqSorted(rows.map(r=>r[xField])), stacks=uniqSorted(rows.map(r=>r[stackField]));
-      option={tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},legend:{bottom:0},xAxis:{type:'category',data:cats},yAxis:{type:'value'},grid:gridBase(40),
+      option={tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},mkLegend({bottom:0}),xAxis:{type:'category',data:cats},yAxis:{type:'value'},grid:gridBase(40),
         series:stacks.map((s,i)=>({name:String(s),type:'bar',stack:'total',itemStyle:{color:COLORS[i%COLORS.length]},data:cats.map(c=>{const r=findRow(rows,xField,c,stackField,s);return r?r[yField]:null;})}))};
       break;
     }
     case 'dualaxis': {
       const y1F=a.y1?.fieldName, y2F=a.y2?.fieldName;
       const xVals=uniqSorted(rows.map(r=>r[xField]));
-      option={tooltip:{trigger:'axis',axisPointer:{type:'cross'}},legend:{bottom:0,data:[a.y1.displayName,a.y2.displayName]},
+      option={tooltip:{trigger:'axis',axisPointer:{type:'cross'}},mkLegend({bottom:0,data:[a.y1.displayName,a.y2.displayName]}),
         xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
         yAxis:[{type:'value',name:a.y1.displayName,nameTextStyle:{color:COLORS[0]},axisLine:{lineStyle:{color:COLORS[0]}},axisTick:{lineStyle:{color:COLORS[0]}},axisLabel:{color:COLORS[0]}},
                {type:'value',name:a.y2.displayName,nameTextStyle:{color:COLORS[1]},axisLine:{lineStyle:{color:COLORS[1]}},axisTick:{lineStyle:{color:COLORS[1]}},axisLabel:{color:COLORS[1]},splitLine:{show:false}}],
@@ -1303,7 +1309,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       const dimF=a.dim?.fieldName, cats=[...new Set(rows.map(r=>r[dimF]))];
       if(colorField){
         const groups=[...new Set(rows.map(r=>r[colorField]))];
-        option={tooltip:{trigger:'item'},legend:{bottom:0,type:'scroll'},polar:{radius:'65%'},angleAxis:{type:'category',data:cats},radiusAxis:{},
+        option={tooltip:{trigger:'item'},mkLegend({bottom:0,type:'scroll'}),polar:{radius:'65%'},angleAxis:{type:'category',data:cats},radiusAxis:{},
           series:groups.map((g,i)=>({name:String(g),type:'bar',data:cats.map(c=>{const r=findRow(rows,dimF,c,colorField,g);return r?r[valField]:null;}),coordinateSystem:'polar',itemStyle:{color:COLORS[i%COLORS.length]},stack:'polar'}))};
       } else {
         option={tooltip:{trigger:'item'},polar:{radius:'65%'},angleAxis:{type:'category',data:cats},radiusAxis:{},
@@ -1326,7 +1332,7 @@ async function renderECharts(chart, columns, rows, assignments) {
           innerData.push({name:`${og} › ${ig}`,value:v,itemStyle:{color:COLORS[oi%COLORS.length]+alphas[ii%5]}});
         });
       });
-      option={tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},legend:{bottom:0,type:'scroll'},
+      option={tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},mkLegend({bottom:0,type:'scroll'}),
         series:[{name:a.outer.displayName,type:'pie',radius:['0','38%'],data:outerData,label:{position:'inner',fontSize:11},labelLine:{show:false}},
                 {name:a.inner.displayName,type:'pie',radius:['45%','68%'],data:innerData,label:{formatter:'{b}',fontSize:10},labelLine:{length:6,length2:4}}]};
       break;
@@ -1350,7 +1356,7 @@ async function renderECharts(chart, columns, rows, assignments) {
     case 'radargroup': {
       const dims=[...new Set(rows.map(r=>r[dimField]))], groups=[...new Set(rows.map(r=>r[groupField]))];
       const maxVal=Math.max(...rows.map(r=>r[valField]||0));
-      option={tooltip:{},legend:{bottom:0,type:'scroll',data:groups.map(String)},radar:{indicator:dims.map(d=>({name:d,max:maxVal})),radius:'60%'},
+      option={tooltip:{},mkLegend({bottom:0,type:'scroll',data:groups.map(String)}),radar:{indicator:dims.map(d=>({name:d,max:maxVal})),radius:'60%'},
         series:[{type:'radar',data:groups.map((g,i)=>({name:String(g),value:dims.map(d=>{const r=findRow(rows,dimField,d,groupField,g);return r?r[valField]:0;}),
           itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{color:COLORS[i%COLORS.length]},areaStyle:{color:COLORS[i%COLORS.length],opacity:.15}}))}]};
       break;
@@ -1378,7 +1384,7 @@ async function renderECharts(chart, columns, rows, assignments) {
     case 'themeriver': {
       const themeF=a.theme?.fieldName, timeF=a.time?.fieldName;
       option={tooltip:{trigger:'axis',axisPointer:{type:'line'}},
-        legend:{data:[...new Set(rows.map(r=>String(r[themeF])))],bottom:0,type:'scroll'},
+        mkLegend({data:[...new Set(rows.map(r=>String(r[themeF])))],bottom:0,type:'scroll'}),
         singleAxis:{top:20,bottom:50,left:50,right:16,type:'time'},
         series:[{type:'themeRiver',emphasis:{focus:'series'},label:{show:false},
           data:rows.filter(r=>r[timeF]!=null&&r[themeF]!=null&&r[valField]!=null).map(r=>[String(r[timeF]),r[valField],String(r[themeF])])}]};
@@ -1389,7 +1395,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       const dimF3=a.dim?.fieldName, categories=[...new Set(rows.map(r=>String(r[dimF3])))];
       if(rows.length>1000) showError('אזהרה: יותר מ-1,000 שורות');
       option={tooltip:{trigger:'item',formatter:p=>`${p.data.name}`},
-        legend:{bottom:0,type:'scroll',data:categories.map(String)},
+        mkLegend({bottom:0,type:'scroll',data:categories.map(String)}),
         parallelAxis:measures.map((m,i)=>({dim:i,name:m.label})),
         parallel:{top:30,bottom:50,left:40,right:40},
         series:[{type:'parallel',smooth:false,lineStyle:{width:2,opacity:.7},emphasis:{lineStyle:{width:3,opacity:1}},
@@ -1512,7 +1518,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       option={tooltip:{trigger:'item',formatter:p=>`${p.data.name||''}<br/>${a.val.displayName}: ${p.data.value[2]}`},
         geo:{map:'world',roam:true,itemStyle:{areaColor:'#f0f4ff',borderColor:'#c8d8f0',borderWidth:.4},emphasis:{disabled:true}},
         visualMap:{show:!colorFld,min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#91caff','#0057e8']}},
-        legend:colorGroups?{bottom:0,type:'scroll',data:colorGroups}:{show:false},
+        legend:colorGroups?mkLegend({bottom:0,type:'scroll',data:colorGroups}):{show:false},
         series:colorGroups?colorGroups.map((g,i)=>({name:g,type:'scatter',coordinateSystem:'geo',data:makeData(filtered.filter(r=>String(r[colorFld])===g)),symbolSize:d=>Math.max(5,Math.sqrt(d[2]/maxV)*40),itemStyle:{color:COLORS[i%COLORS.length],opacity:.75},label:{show:false},emphasis:{label:{show:true,formatter:p=>p.data.name}}}))
           :[{type:'scatter',coordinateSystem:'geo',data:makeData(filtered),symbolSize:d=>Math.max(5,Math.sqrt(d[2]/maxV)*40),itemStyle:{opacity:.75},label:{show:false},emphasis:{label:{show:true,formatter:p=>p.data.name}}}]};
       break;
