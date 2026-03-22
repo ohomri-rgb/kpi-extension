@@ -1,5 +1,5 @@
 # ECharts Extension — Tableau Viz Extension
-### Full Project Documentation | v5
+### Full Project Documentation | v6
 
 ---
 
@@ -10,10 +10,14 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 - **46 chart types** across 14 categories (45 ECharts + 1 RTL Table)
 - Marks Card UI inside the extension — assign fields to chart roles via dropdown or drag & drop
 - Gallery modal — browse chart types with live previews, search + category filter chips
-- **Settings persist in the workbook** — chart type and field assignments saved via `tableau.extensions.settings`
+- **Settings persist in the workbook** — chart type, field assignments, custom colors, and background color saved via `tableau.extensions.settings`
 - **Format Extension button** — editor-only access to settings via Tableau's native Marks card button
-- Auto-refresh on FilterChanged and MarkSelectionChanged events
+- **Auto-refresh on FilterChanged** — chart re-renders automatically when any worksheet filter changes, no need to click "צייר"
 - Manual field reload button (↺) — syncs field list from Detail shelf without page reload
+- **🎨 Color editor** — edit the 4 chart palette colors per sheet, saved to workbook
+- **🖼 Background color picker** — set or reset extension background color per sheet, saved to workbook
+- **Click-to-filter disabled** — clicking chart elements does not trigger Tableau mark selection
+- **Transparent background by default** — Tableau sheet background shows through
 - Error bar with clear messages when fields are missing or LOD is undefined
 - **Fully offline** — no CDN dependencies, all assets served locally
 
@@ -25,7 +29,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 | File | Purpose |
 |---|---|
-| `index.html` | Main extension — all CSS, HTML, JS in one file (~2,570 lines) |
+| `index.html` | Main extension — all CSS, HTML, JS in one file (~2,700 lines) |
 | `echarts-extension.trex` | Tableau manifest — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
 | `echarts.min.js` | ECharts 5 library (local copy) |
@@ -135,17 +139,21 @@ The "צייר" button is enabled immediately — no role assignments required.
 
 ## Settings — Persist Across Sessions
 
-Chart type and field assignments are saved inside the workbook using `tableau.extensions.settings`.
+Chart type, field assignments, custom chart colors, and background color are saved inside the workbook using `tableau.extensions.settings`.
 
 ```javascript
-// Save — called after every successful "צייר"
+// Save — called after every successful "צייר" and after color/bg changes
 tableau.extensions.settings.set('chartId', state.chart.id);
 tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments));
+tableau.extensions.settings.set('customColors', JSON.stringify(state.customColors || null));
+tableau.extensions.settings.set('bgColor', state.bgColor || '');
 await tableau.extensions.settings.saveAsync();
 
 // Load — called on initializeAsync
 const chartId = tableau.extensions.settings.get('chartId');
 const assignments = tableau.extensions.settings.get('assignments');
+const customColors = tableau.extensions.settings.get('customColors');  // JSON array or null
+const bgColor = tableau.extensions.settings.get('bgColor');            // hex string or ''
 ```
 
 Settings are stored **inside the `.twbx` workbook file** — shared across all users, persists across sessions, works on Tableau Cloud and Desktop.
@@ -198,6 +206,8 @@ await tableau.extensions.initializeAsync({ configure: () => {
 | ✕ | Close the marks-card panel |
 | ↺ | Reload fields from Detail shelf |
 | צייר | Render chart + save settings |
+| 🎨 | Open color editor — edit the 4 palette colors, saved to workbook |
+| 🖼 | Open background color picker (single click = pick color, double click = reset to transparent) |
 | [Chart name + icon] | Open gallery |
 
 ---
@@ -517,6 +527,11 @@ Selecting a chart:
 | Settings not persisting across sessions | `localStorage` not available on Tableau Cloud | Fixed v5 — migrated to `tableau.extensions.settings.saveAsync()` |
 | Settings UI visible to Viewers | Marks card rendered inside extension visible to all users | Fixed v5 — migrated to Format Extension button (`<configure-context-menu-item />`) — Tableau hides it from Viewers automatically |
 | `<configuration>true</configuration>` in `.trex` caused parse error | Not a valid element in `worksheet-extension` schema | Fixed v5 — correct approach is `<context-menu><configure-context-menu-item /></context-menu>` |
+| Filter change requires manual "צייר" click to update chart | `FilterChanged` only called `refreshChart()` which skipped re-fetch if state unchanged | Fixed v6 — `FilterChanged` now calls `applyChart()` directly, full re-fetch + re-render |
+| Gauge — metric name shown twice (in detail and as data name) | `data:[{value, name}]` passed `name` which rendered as a second label below value | Fixed v6 — removed `name` from data item; detail formatter handles label display only |
+| Gauge — value text overlaps label / top arc clipped | `radius:'85%'` caused arc to be cut off; `offsetCenter` too high | Fixed v6 — `radius:'80%'`, `center:['50%','55%']`, adjusted `offsetCenter` to `[0,'30%']` |
+| ECharts click events trigger Tableau mark selection | `click` event on chart elements could propagate to Tableau and filter data | Fixed v6 — `echartsInstance.on('click', () => {})` added on init to absorb all click events |
+| Extension background color mismatch with sheet | Extension had hardcoded `#f2f1ed` background | Fixed v6 — background now transparent by default; optional color picker saves hex to settings |
 
 ### Open Known Issues (not yet fixed)
 
@@ -542,6 +557,8 @@ state = {
   echartsInstance: null,   // ECharts instance on the container div
   activeDropdownRole: null,// role currently being assigned
   galleryFilter: 'הכל',   // active gallery category filter
+  customColors: null,      // array of 4 hex strings, or null = use DEFAULT_COLORS
+  bgColor: null,           // hex string for background, or null = transparent
 }
 ```
 
@@ -575,4 +592,5 @@ Called before rendering any map chart type (worldmap, usmap, geomap). `world.js`
 | v2 | ✅ Superseded | Fix loadFields to use getSummaryDataAsync (respects LOD). Fix getSummaryDataAsync options (maxRows:0). Fix YEAR/MONTH/QUARTER treated as measures. Switch Scatter/Bubble/Sankey to getSummaryDataAsync. Replace deprecated getUnderlyingDataAsync with new tables API. Add ↺ reload button. FilterChanged now reloads fields. Store worksheet ref in state. |
 | v3 | ✅ Superseded | +14 new chart types (28 total): Gauge, Candlestick, Sunburst, Network Graph, Waterfall, Calendar Heatmap, ThemeRiver, Step Line, Stacked Area, Dual Axis, Pictorial Bar, World Map, US States Map, Geo Bubble Map. Fully offline — all assets local (echarts.min.js, world.js, NotoSansHebrew fonts). Removed all CDN dependencies. Removed debug console.log noise. Fixed map loading via local world.js script tag. Single world.js for all map chart types. renderECharts made async for map support. |
 | v4 | ✅ Superseded | +17 new chart types (45 total) across 2 rounds. Round 4 (easy): Stacked Line, Nightingale Rose, Effect Scatter, Histogram, Multi-series Radar, Circular Graph, Tree Chart, Radial Tree, Progress Bar, Multi Gauge. Round 5 (medium): Confidence Band, Polar Bar, Nested Pie, Lines Map, Candlestick + Volume, Multi-year Calendar, Parallel Coordinates. QA audit completed — 6 open bugs documented in Known Issues. |
-| v5 | ✅ Current | Settings persistence via `tableau.extensions.settings.saveAsync()`. Format Extension button via `<configure-context-menu-item />` in `.trex` — editor-only access, no UI visible to Viewers. RTL Table merged as chart type #46 in new "טבלה" category — full filter dropdowns, column ordering via Columns parameter, content-aware widths, RTL layout, negative number fix. Startup flicker fixed — marks-card hidden before app shown. |
+| v5 | ✅ Superseded | Settings persistence via `tableau.extensions.settings.saveAsync()`. Format Extension button via `<configure-context-menu-item />` in `.trex` — editor-only access, no UI visible to Viewers. RTL Table merged as chart type #46 in new "טבלה" category — full filter dropdowns, column ordering via Columns parameter, content-aware widths, RTL layout, negative number fix. Startup flicker fixed — marks-card hidden before app shown. |
+| v6 | ✅ Current | **Auto-refresh on filter change** — `FilterChanged` now calls `applyChart()` directly (full re-fetch + re-render), no need to click "צייר". **🎨 Color editor** — modal with 4 color swatches, native browser color picker, saved to workbook settings. **🖼 Background color picker** — native color picker for extension background, single click = pick, double click = reset to transparent, saved to workbook. **Transparent background** — default background changed from `#f2f1ed` to `transparent` so Tableau sheet background shows through. **Gauge chart fixes** — removed duplicate metric name, fixed value/label overlap, fixed arc clipping at top, improved centering. **Click-to-filter disabled** — `echartsInstance.on('click', () => {})` prevents chart clicks from triggering Tableau mark selection. |
