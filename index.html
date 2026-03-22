@@ -119,18 +119,17 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
 .chart-area{flex:1;position:relative;min-height:0}
 #echarts-container{width:100%;height:100%}
 
-/* ── EDIT BUTTON (view mode) ── */
+/* ── SETTINGS TOGGLE BUTTON ── */
 .edit-fab{
-  position:absolute;top:8px;left:8px;z-index:100;
-  width:30px;height:30px;border-radius:50%;
-  background:rgba(255,255,255,.85);border:1px solid var(--border);
-  box-shadow:0 2px 8px rgba(0,0,0,.1);
-  display:none;align-items:center;justify-content:center;
-  cursor:pointer;font-size:14px;color:var(--text2);
+  position:fixed;top:8px;right:8px;z-index:200;
+  width:28px;height:28px;border-radius:50%;
+  background:rgba(255,255,255,.9);border:1px solid var(--border);
+  box-shadow:0 2px 8px rgba(0,0,0,.12);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:13px;
   transition:all .15s;backdrop-filter:blur(4px);
 }
-.edit-fab:hover{background:#fff;border-color:var(--teal);color:var(--teal);transform:scale(1.08)}
-.edit-fab.visible{display:flex}
+.edit-fab:hover{background:#fff;border-color:var(--teal);transform:scale(1.08)}
 .chart-placeholder{
   position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:8px;
@@ -311,7 +310,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
 <div class="app" id="app" style="display:none">
 
   <!-- Marks Card -->
-  <div class="marks-card" id="marks-card">
+  <div class="marks-card" id="marks-card" style="display:none">
     <div class="marks-top">
       <button class="chart-type-btn" onclick="openGallery()">
         <span class="icon" id="mc-icon">📈</span>
@@ -333,7 +332,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:var(--b
   <!-- Chart area -->
   <div class="chart-area">
     <div id="echarts-container"></div>
-    <button class="edit-fab" id="edit-fab" onclick="enterEditMode()" title="ערוך גרף">⚙️</button>
+    <button class="edit-fab" id="edit-fab" onclick="toggleMarksCard()" title="הגדרות גרף">⚙️</button>
     <div class="chart-placeholder" id="placeholder">
       <span class="ph-icon">📊</span>
       <span>בחר סוג גרף ושייך שדות</span>
@@ -485,7 +484,6 @@ let state = {
 function dismissOnboarding() {
   document.getElementById('onboarding').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  enterEditMode(); // ensure marks card is visible
   if (state.worksheet) loadFields(state.worksheet);
 }
 
@@ -522,15 +520,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load fields
     await loadFields(ws);
 
+    // Always show app immediately
+    document.getElementById('onboarding').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+
     if (hasSaved && state.chart) {
-      // Skip onboarding — go straight to view mode with saved chart
-      // app stays hidden (display:none in HTML) until chart is ready
-      document.getElementById('marks-card').style.display = 'none';
       renderMarksCard();
-      await applyChart(); // renders, enters view mode, then shows app
+      await applyChart();
     } else {
-      // First time — show onboarding
       document.getElementById('onboarding').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
     }
 
     // FilterChanged / MarkSelectionChanged → refresh chart
@@ -1005,16 +1004,9 @@ function loadSettings() {
 // ═══════════════════════════════════════════════════
 // VIEW / EDIT MODE
 // ═══════════════════════════════════════════════════
-function enterViewMode() {
-  document.getElementById('marks-card').style.display = 'none';
-  document.getElementById('error-bar').style.display = 'none';
-  document.getElementById('app').style.display = 'flex'; // show app only now
-  document.getElementById('edit-fab').classList.add('visible');
-}
-
-function enterEditMode() {
-  document.getElementById('marks-card').style.display = '';
-  document.getElementById('edit-fab').classList.remove('visible');
+function toggleMarksCard() {
+  const mc = document.getElementById('marks-card');
+  mc.style.display = mc.style.display === 'none' ? '' : 'none';
 }
 
 // ═══════════════════════════════════════════════════
@@ -1048,7 +1040,6 @@ async function applyChart() {
 
     renderECharts(chart, columns, rows, state.assignments);
     await saveSettings();
-    enterViewMode();
   } catch(e) {
     showError('שגיאת טעינה: ' + e);
   }
