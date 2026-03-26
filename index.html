@@ -1628,9 +1628,6 @@ function renderBan(rows, assignments) {
 
     card.style.padding = `${s(20)}px ${s(30)}px ${s(18)}px`;
 
-    const bar = card.querySelector('.ban-bar');
-    if (bar) bar.style.height = `${Math.max(3,s(4))}px`;
-
     const lbl = card.querySelector('.ban-kpi-lbl');
     if (lbl) lbl.style.fontSize = `${s(14,10)}px`;
 
@@ -1684,14 +1681,12 @@ function renderBan(rows, assignments) {
       <div class="ban-inner" style="
         flex:1;background:${boxCol};position:relative;overflow:hidden;
         display:flex;flex-direction:column;justify-content:space-between;
-        direction:${nd}">
+        direction:${nd};padding:20px 30px 18px">
 
-        <div class="ban-bar" style="position:absolute;top:0;left:0;right:0;background:${B.bar}"></div>
+        <!-- KPI name: top, inline-start -->
+        <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;color:${topCol};opacity:.38">${kpiName}</div>
 
-        <!-- KPI name -->
-        <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;color:${topCol};opacity:.38;margin-top:4px">${kpiName}</div>
-
-        <!-- Middle: badge inline-end, value inline-start (RTL: value right, badge left) -->
+        <!-- Middle: value inline-start, badge inline-end — same row -->
         <div style="display:flex;align-items:center;justify-content:space-between;direction:${nd}">
           <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr">${fmt(val)}</div>
           ${badgeHTML}
@@ -1700,14 +1695,14 @@ function renderBan(rows, assignments) {
         <!-- Divider -->
         <div style="height:1px;background:${topCol}20"></div>
 
-        <!-- Bottom -->
-        <div style="display:flex;align-items:flex-start;direction:${nd}">
-          ${periodLabel ? `<span class="ban-bot-lbl" style="color:${botCol};opacity:.4;align-self:flex-end">${periodLabel}</span>` : ''}
-          <span style="flex:1"></span>
+        <!-- Bottom: prev value + label stacked inline-start, current period inline-end -->
+        <div style="display:flex;align-items:flex-end;direction:${nd}">
           <div style="display:flex;flex-direction:column;gap:2px;align-items:${nd==='rtl'?'flex-end':'flex-start'}">
             ${hasPrev ? `<span class="ban-bot-val" style="font-weight:700;color:${botCol};direction:ltr;display:inline-block">${fmt(prev)}</span>` : ''}
-            ${(hasPrev && (prevperLabel||prevPerWord)) ? `<span class="ban-bot-lbl" style="color:${botCol};opacity:.5">${prevperLabel||prevPerWord}</span>` : ''}
+            ${hasPrev ? `<span class="ban-bot-lbl" style="color:${botCol};opacity:.5">${prevperLabel||prevPerWord}</span>` : ''}
           </div>
+          <span style="flex:1"></span>
+          ${periodLabel ? `<span class="ban-bot-lbl" style="color:${botCol};opacity:.4">${periodLabel}</span>` : ''}
         </div>
 
       </div>
