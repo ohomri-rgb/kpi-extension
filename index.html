@@ -7,6 +7,7 @@
 <script src="tableau.extensions.js"></script>
 <script src="echarts.min.js"></script>
 <script src="world.js"></script>
+<script src="chart.js"></script>
 <style>
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
@@ -145,6 +146,46 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 .ob-skip{font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline}
 .ob-skip:hover{color:var(--text2)}
 
+/* KPI CARD */
+#kpi-container{width:100%;height:100%;display:none;overflow:hidden}
+#kpi-container #kpi-app{padding:3%;height:100%;display:flex;flex-direction:column;opacity:0;font-family:'NotoSansHebrew',sans-serif}
+#kpi-container .kpi-lbl{font-weight:600;color:#374151}
+#kpi-container .kpi-val-row{display:flex;align-items:baseline;gap:0.3em;margin:0.2em 0;flex-wrap:nowrap}
+#kpi-container .kpi-val{font-weight:800;color:#111;letter-spacing:-1.5px;line-height:1}
+#kpi-container .kpi-chg{font-weight:600}
+#kpi-container .kpi-up{color:#16a34a}
+#kpi-container .kpi-down{color:#dc2626}
+#kpi-container .kpi-period{color:#6b7280;font-weight:500;margin-bottom:0.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#kpi-container .kpi-period span.kpi-date-val{color:#374151;font-weight:500}
+#kpi-container .kpi-wrap{flex:1;min-height:0;position:relative}
+
+/* MULTILINE CHART */
+#multiline-container{width:100%;height:100%;display:none;overflow:hidden}
+#multiline-container #ml-app{width:100%;height:100%;padding:14px 16px 10px;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity .25s ease;font-family:'NotoSansHebrew',sans-serif}
+#ml-header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;direction:rtl}
+#ml-measure-name{font-size:12px;font-weight:600;color:#374151;letter-spacing:.05em;text-transform:uppercase;direction:rtl;text-align:right}
+#ml-timeframe-badge{font-size:10px;color:#6366f1;font-weight:600;letter-spacing:.04em;background:#eef2ff;border-radius:4px;padding:2px 7px}
+#ml-error{display:none;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;flex-shrink:0}
+#ml-chart-wrap{flex:1;min-height:0;position:relative}
+#ml-legend{display:flex;flex-wrap:wrap;gap:4px 14px;flex-shrink:0;padding-top:2px;min-height:16px}
+.ml-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer}
+.ml-legend-swatch{width:20px;height:2.5px;border-radius:2px;flex-shrink:0}
+.ml-legend-item:hover .ml-legend-swatch{outline:2px solid #6366f1;outline-offset:2px}
+#ml-bg-legend{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.ml-bg-swatch-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:2px 7px;transition:border-color .15s}
+.ml-bg-swatch-item:hover{border-color:#6366f1;color:#6366f1}
+.ml-bg-swatch-dot{width:12px;height:12px;border-radius:3px;border:1px solid #d1d5db;flex-shrink:0}
+/* ML color popover */
+#ml-color-pop{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:12px 14px 10px;min-width:180px;display:none;flex-direction:column;gap:8px}
+#ml-color-pop.open{display:flex}
+#ml-color-pop-label{font-size:11px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ml-color-pop-row{display:flex;align-items:center;gap:8px}
+#ml-color-pop-native{width:32px;height:32px;border:none;padding:0;border-radius:6px;cursor:pointer;flex-shrink:0;background:none}
+#ml-color-pop-hex{flex:1;font-size:12px;font-family:'NotoSansHebrew',monospace;border:1px solid #d1d5db;border-radius:6px;padding:5px 8px;color:#111;outline:none}
+#ml-color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
+#ml-color-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
+#ml-color-pop-close:hover{color:#374151}
+
 /* RTL TABLE */
 #table-container{width:100%;height:100%;overflow:auto;direction:rtl;display:none}
 #table-container table{border-collapse:collapse;direction:rtl;table-layout:fixed}
@@ -232,6 +273,41 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
     <div id="echarts-container"></div>
     <div id="table-container">
       <table><thead><tr id="tbl-hrow"></tr><tr id="tbl-frow"></tr></thead><tbody id="tbl-tbody"></tbody></table>
+    </div>
+    <div id="kpi-container">
+      <div id="kpi-app">
+        <div class="kpi-lbl" id="kpi-lbl"></div>
+        <div class="kpi-val-row">
+          <div class="kpi-val" id="kpi-val"></div>
+          <div class="kpi-chg" id="kpi-chg"></div>
+        </div>
+        <div class="kpi-period"><span id="kpi-cur-label"></span> <span id="kpi-cur" class="kpi-date-val"></span></div>
+        <div class="kpi-period" id="kpi-cmp-row" style="display:none"><span id="kpi-vs-label"></span> <span id="kpi-prev" class="kpi-date-val"></span></div>
+        <div class="kpi-wrap" id="kpi-wrap"></div>
+        <div style="font-size:10px;color:#d1d5db;text-align:left;direction:ltr;margin-top:2px">KPI v1 (unified)</div>
+      </div>
+    </div>
+    <div id="multiline-container">
+      <div id="ml-color-pop">
+        <button id="ml-color-pop-close">✕</button>
+        <div id="ml-color-pop-label"></div>
+        <div id="ml-color-pop-row">
+          <input type="color" id="ml-color-pop-native"/>
+          <input type="text" id="ml-color-pop-hex" maxlength="7" placeholder="#6366f1"/>
+        </div>
+      </div>
+      <div id="ml-app">
+        <div id="ml-header">
+          <div id="ml-measure-name"></div>
+          <div style="display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0">
+            <div id="ml-bg-legend"></div>
+            <div id="ml-timeframe-badge"></div>
+          </div>
+        </div>
+        <div id="ml-error"></div>
+        <div id="ml-chart-wrap"><canvas id="ml-ch"></canvas></div>
+        <div id="ml-legend"></div>
+      </div>
     </div>
     <div class="chart-placeholder" id="placeholder">
       <span class="ph-icon">📊</span><span>בחר סוג גרף ושייך שדות</span>
@@ -447,6 +523,19 @@ const CHARTS = [
   {id:'candlevolume',cat:'פיננסי',   name:'Candlestick + Volume',icon:'📈',roles:[R.x('dim'), {id:'open',label:'פתיחה',accepts:'measure',required:true},{id:'close',label:'סגירה',accepts:'measure',required:true},{id:'low',label:'מינימום',accepts:'measure',required:true},{id:'high',label:'מקסימום',accepts:'measure',required:true}, R.opt('vol','נפח','measure')]},
   // טבלה
   {id:'rtltable',    cat:'טבלה',     name:'RTL Table',          icon:'📋', roles:[]},
+  // סדרות זמן
+  {id:'kpi_card',    cat:'סדרות זמן', name:'KPI Card (Sparkline)', icon:'💹', roles:[
+    {id:'date',    label:'תאריך (Truncated)', accepts:'dim',     required:true},
+    {id:'val',     label:'ערך מדד',            accepts:'measure', required:true},
+    {id:'range',   label:'טווח (range field)', accepts:'both',    required:false},
+    {id:'rawdate', label:'תאריך גולמי',         accepts:'dim',     required:false},
+  ]},
+  {id:'multiline',   cat:'סדרות זמן', name:'Multi-Line Chart',     icon:'📈', roles:[
+    {id:'date',    label:'תאריך',               accepts:'dim',     required:true},
+    {id:'val',     label:'ערך מדד',             accepts:'measure', required:true},
+    {id:'group',   label:'קיבוץ (Group By)',    accepts:'dim',     required:false},
+    {id:'bg',      label:'צבע רקע (BG)',        accepts:'dim',     required:false},
+  ]},
 ];
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
@@ -463,6 +552,8 @@ let state = {
   customColors:null, bgColor:null, banColors:null, banStyle:1,
   borderRadius:{tl:0,tr:0,bl:0,br:0},
   kpiNames:['','','',''],
+  mlColorMap:{}, mlBgColorMap:{},
+  mlChartInstance:null,
 };
 
 // ═══════════════════════════════════════════════════
@@ -894,6 +985,32 @@ function drawPreview(chart, container) {
   } else if (chart.id === 'rtltable') {
     ec.dispose();
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
+  } else if (chart.id === 'kpi_card') {
+    ec.dispose();
+    container.innerHTML = `<div style="height:80px;display:flex;flex-direction:column;padding:8px 10px;background:#fff;border-radius:6px;margin:4px;border:1px solid #e5e7eb;direction:ltr">
+      <div style="font-size:7px;font-weight:600;color:#374151;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px">מכירות</div>
+      <div style="display:flex;align-items:baseline;gap:5px">
+        <span style="font-size:22px;font-weight:800;color:#111;letter-spacing:-1px;line-height:1">₪2.3M</span>
+        <span style="font-size:9px;font-weight:600;color:#16a34a">▲+42.9%</span>
+      </div>
+      <div style="font-size:7px;color:#6b7280;margin-bottom:4px">01.01.2025 – 30.09.2025</div>
+      <div style="flex:1;position:relative"><canvas style="width:100%;height:100%"></canvas></div>
+    </div>`;
+  } else if (chart.id === 'multiline') {
+    ec.dispose();
+    container.innerHTML = `<div style="height:80px;display:flex;flex-direction:column;padding:6px 8px;background:#fff;border-radius:6px;margin:4px;border:1px solid #e5e7eb">
+      <div style="font-size:7px;font-weight:600;color:#374151;margin-bottom:4px;direction:rtl">מכירות לפי שנה</div>
+      <div style="flex:1;position:relative;overflow:hidden">
+        <svg viewBox="0 0 130 40" style="width:100%;height:100%" preserveAspectRatio="none">
+          <polyline points="0,30 20,22 40,25 60,12 80,18 100,8 130,14" fill="none" stroke="${C[0]}" stroke-width="2"/>
+          <polyline points="0,36 20,32 40,34 60,26 80,30 100,22 130,28" fill="none" stroke="${C[1]}" stroke-width="2" stroke-dasharray="3,2"/>
+          <polyline points="0,38 20,35 40,37 60,32 80,35 100,28 130,33" fill="none" stroke="${C[2]}" stroke-width="2" stroke-dasharray="3,2"/>
+        </svg>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:3px">
+        ${[['2025',C[0]],['2024',C[1]],['2023',C[2]]].map(([l,c])=>`<div style="display:flex;align-items:center;gap:3px"><div style="width:12px;height:2px;background:${c};border-radius:1px"></div><span style="font-size:7px;color:#6b7280">${l}</span></div>`).join('')}
+      </div>
+    </div>`;
   } else {
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa">טוען...</div>';
     ec.dispose();
@@ -913,6 +1030,8 @@ async function saveSettings() {
     tableau.extensions.settings.set('bgColor', state.bgColor||'');
     tableau.extensions.settings.set('banFontSizes', JSON.stringify(state.banFontSizes||null));
     tableau.extensions.settings.set('kpiNames', JSON.stringify(state.kpiNames||['','','','']));
+    tableau.extensions.settings.set('mlColorMap', JSON.stringify(state.mlColorMap||{}));
+    tableau.extensions.settings.set('mlBgColorMap', JSON.stringify(state.mlBgColorMap||{}));
     await tableau.extensions.settings.saveAsync();
   } catch(e) { console.warn('[ECharts] save failed:', e); }
 }
@@ -938,6 +1057,10 @@ function loadSettings() {
         state.banFontSizes = bfsRaw ? JSON.parse(bfsRaw) : null;
         const kpiNamesRaw = tableau.extensions.settings.get('kpiNames');
         state.kpiNames = kpiNamesRaw ? JSON.parse(kpiNamesRaw) : ['','','',''];
+        const mlColorRaw = tableau.extensions.settings.get('mlColorMap');
+        state.mlColorMap = mlColorRaw ? JSON.parse(mlColorRaw) : {};
+        const mlBgColorRaw = tableau.extensions.settings.get('mlBgColorMap');
+        state.mlBgColorMap = mlBgColorRaw ? JSON.parse(mlBgColorRaw) : {};
         applyBorderRadius();
         applyBgColor(state.bgColor);
         return true;
@@ -1117,11 +1240,37 @@ async function applyChart() {
   const isTable    = chart.id==='rtltable';
   const isBanTable2 = chart.id==='bantable2';
   const isBan      = ['ban1','ban2'].includes(chart.id);
-  document.getElementById('echarts-container').style.display = isTable?'none':'block';
+  const isKpiCard  = chart.id==='kpi_card';
+  const isMultiline= chart.id==='multiline';
+  document.getElementById('echarts-container').style.display = (isTable||isKpiCard||isMultiline)?'none':'block';
   document.getElementById('table-container').style.display = isTable?'block':'none';
+  document.getElementById('kpi-container').style.display = isKpiCard?'block':'none';
+  document.getElementById('multiline-container').style.display = isMultiline?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
   if (isTable) {
     try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isKpiCard) {
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const params = await ws.getParametersAsync();
+      await renderKpiCard(dt, state.assignments, params);
+      applyBorderRadius();
+      await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isMultiline) {
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const params = await ws.getParametersAsync();
+      await renderMultiLine(dt, state.assignments, params);
+      applyBorderRadius();
+      await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
   if (isBanTable2) {
@@ -1166,7 +1315,10 @@ async function applyChart() {
 }
 
 async function refreshChart() {
-  if (!state.chart||!state.echartsInstance) return;
+  if (!state.chart) return;
+  const id = state.chart.id;
+  if (id === 'kpi_card' || id === 'multiline') { await applyChart(); return; }
+  if (!state.echartsInstance) return;
   if (state.chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id])) await applyChart();
 }
 
@@ -2119,6 +2271,445 @@ function renderBanTable2(rows, assignments, kpiNames) {
 }
 
 // ═══════════════════════════════════════════════════
+// KPI CARD (SPARKLINE) RENDERER  — ported from kpi_40.html
+// ═══════════════════════════════════════════════════
+const _kpiMonths = {january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+const _kpiHex = (hex,a)=>{let c=(hex||'').replace('#','');if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];const r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);return isNaN(r)?`rgba(99,102,241,${a})`:`rgba(${r},${g},${b},${a})`;};
+const _kpiNormDate = s=>{let t,x=String(s||'').trim();if((t=x.match(/^(\d{4})-(\d{2})-(\d{2})$/)))return t[3]+'.'+t[2]+'.'+t[1];if((t=x.match(/^(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})$/)))return t[1].padStart(2,'0')+'.'+t[2].padStart(2,'0')+'.'+t[3];return x;};
+const _kpiFmtDMY = d=>String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+const _kpiFmt = n=>n!=null?n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}):'—';
+const _kpiSortPts = g=>Object.values(g).filter(p=>!isNaN(p.d)&&p.d.getFullYear()>1990).sort((a,b)=>a.d-b.d);
+const _kpiGetParam = (params,name)=>{const p=params.find(p=>p.name.toLowerCase()===name.toLowerCase());return p?String(p.currentValue.value||p.currentValue.formattedValue||'').trim():'';};
+
+function _kpiParseDate(raw,fv){
+  let d=new Date(raw),s,m;
+  if(!isNaN(d)&&d.getFullYear()>1990)return d;
+  d=new Date(fv);if(!isNaN(d)&&d.getFullYear()>1990)return d;
+  s=String(fv||raw||'');
+  if((m=s.match(/([A-Za-z]+)\s+(\d{4})/))&&_kpiMonths[m[1].toLowerCase()]!==undefined)return new Date(+m[2],_kpiMonths[m[1].toLowerCase()],1);
+  if(m=s.match(/Q(\d)[\/\s\-]?(\d{4})/i))return new Date(+m[2],(+m[1]-1)*3,1);
+  if(m=s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/))return new Date(+m[3],+m[2]-1,+m[1]);
+  if(m=s.match(/(\d{4})-(\d{2})-(\d{2})/))return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/\d{4}/);return m?new Date(+m[0],0,1):new Date('invalid');
+}
+
+async function renderKpiCard(dt, assignments, params) {
+  // Destroy any existing Chart.js instance in the kpi wrap
+  if (state.mlChartInstance) { try{state.mlChartInstance.destroy();}catch(e){} state.mlChartInstance=null; }
+
+  const app = document.getElementById('kpi-app');
+  const wrapEl = document.getElementById('kpi-wrap');
+  app.style.opacity='0';
+
+  const cols = dt.columns, rows = dt.data;
+
+  // Resolve columns via assignments
+  const dateFieldName = assignments.date?.fieldName;
+  const valFieldName  = assignments.val?.fieldName;
+  const rangeFieldName= assignments.range?.fieldName;
+  const rawDateName   = assignments.rawdate?.fieldName;
+
+  // Fall back to name-based detection if role not assigned
+  let di = dateFieldName ? cols.findIndex(c=>c._fieldName===dateFieldName) : cols.findIndex(c=>c._fieldName.toLowerCase()==='truncated');
+  if (di<0) di = cols.findIndex(c=>c._dataType.toLowerCase().includes('date'));
+
+  let mi = -1;
+  if (valFieldName) {
+    mi = cols.findIndex(c=>c._fieldName===valFieldName);
+  } else {
+    let maxVal=-Infinity;
+    const rangeColIdxTmp = rangeFieldName ? cols.findIndex(c=>c._fieldName===rangeFieldName) : cols.findIndex(c=>c._fieldName.toLowerCase()==='range');
+    cols.forEach((c,i)=>{
+      if(i===rangeColIdxTmp||c._dataType.toLowerCase().includes('date'))return;
+      if(!['float','int','real','integer','number'].some(t=>c._dataType.toLowerCase().includes(t)))return;
+      let colMax=0;rows.forEach(r=>{colMax=Math.max(colMax,Math.abs(parseFloat(r[i].value)||0));});
+      if(colMax>maxVal){maxVal=colMax;mi=i;}
+    });
+  }
+
+  const rangeColIdx = rangeFieldName ? cols.findIndex(c=>c._fieldName===rangeFieldName) : cols.findIndex(c=>c._fieldName.toLowerCase()==='range');
+
+  if (di<0||mi<0) { showError('חסרים שדות — שייך תאריך וערך'); return; }
+
+  const measureName = cleanFieldName(cols[mi]._fieldName);
+  const isHeb = /[\u0590-\u05FF]/.test(measureName);
+  const L = isHeb
+    ? {current:'תקופה נוכחית:',vs:'השוואה:',dir:'rtl',lineCur:'נוכחי',linePrv:'שנה קודמת'}
+    : {current:'Current:',vs:'vs:',dir:'ltr',lineCur:'Current',linePrv:'Prior Year'};
+
+  // Apply direction
+  app.style.direction = L.dir;
+  app.style.textAlign = L.dir==='rtl'?'right':'left';
+  document.getElementById('kpi-cur-label').textContent = L.current;
+  document.getElementById('kpi-vs-label').textContent  = L.vs;
+  document.getElementById('kpi-cmp-row').style.display='none';
+
+  // Font sizing
+  const setKpiFonts = ()=>{
+    const b=Math.min(window.innerWidth,window.innerHeight),r=v=>Math.round(b*v)+'px';
+    document.getElementById('kpi-lbl').style.fontSize=r(0.07);
+    document.getElementById('kpi-val').style.fontSize=r(0.14);
+    document.getElementById('kpi-chg').style.fontSize=r(0.06);
+    document.querySelectorAll('.kpi-period').forEach(el=>el.style.fontSize=r(0.05));
+  };
+  setKpiFonts();
+  window.removeEventListener('resize',window._kpiFontResize||null);
+  window._kpiFontResize = setKpiFonts;
+  window.addEventListener('resize', window._kpiFontResize);
+
+  const frame = _kpiGetParam(params,'frame');
+  let pts,prv,last,lastPrv,curLabel,prevLabel;
+
+  if (frame==='range'&&rangeColIdx>=0) {
+    const g1={},g2={};
+    rows.forEach(r=>{
+      const rv=String(r[rangeColIdx].value!=null?r[rangeColIdx].value:r[rangeColIdx].formattedValue||'');
+      const key=r[di].formattedValue,d=_kpiParseDate(r[di].value,r[di].formattedValue),y=parseFloat(r[mi].value)||0;
+      const g=rv==='1'?g1:rv==='2'?g2:null;
+      if(g){if(!g[key])g[key]={x:key,y:0,d};g[key].y+=y;}
+    });
+    pts=_kpiSortPts(g1);const pts2=_kpiSortPts(g2);
+    if(!pts.length){
+      document.getElementById('kpi-val').textContent='—';
+      document.getElementById('kpi-chg').textContent='No data for Period 1';
+      document.getElementById('kpi-chg').className='kpi-chg';
+      document.getElementById('kpi-cur').textContent=_kpiNormDate(_kpiGetParam(params,'from1'))+' – '+_kpiNormDate(_kpiGetParam(params,'to1'));
+      app.style.opacity='1';setKpiFonts();return;
+    }
+    prv=pts.map((p,i)=>pts2[i]||{x:null,y:null});
+    last=pts[pts.length-1];lastPrv=prv[prv.length-1];
+    const f1=_kpiNormDate(_kpiGetParam(params,'from1')),t1=_kpiNormDate(_kpiGetParam(params,'to1'));
+    const f2=_kpiNormDate(_kpiGetParam(params,'from2')),t2=_kpiNormDate(_kpiGetParam(params,'to2'));
+    if(pts.length===1){
+      pts=[{x:f1,y:pts[0].y,d:pts[0].d},{x:t1,y:pts[0].y,d:pts[0].d}];
+      const p2y=pts2.length?pts2[0].y:null;
+      prv=[{x:f2,y:p2y,d:pts2.length?pts2[0].d:null},{x:t2,y:p2y,d:pts2.length?pts2[0].d:null}];
+      last={x:f1+' – '+t1,y:pts[0].y,d:pts[0].d};lastPrv={x:f2+' – '+t2,y:p2y,d:prv[0].d};
+    }
+    curLabel=f1+' - '+t1;prevLabel=f2+' - '+t2;
+    document.getElementById('kpi-vs-label').textContent=isHeb?'השוואה:':'vs:';
+    document.getElementById('kpi-cmp-row').style.display='block';
+  } else {
+    const grouped={};
+    rows.forEach(r=>{
+      const key=r[di].formattedValue,d=_kpiParseDate(r[di].value,r[di].formattedValue),y=parseFloat(r[mi].value)||0;
+      if(!grouped[key])grouped[key]={x:key,y:0,d};grouped[key].y+=y;
+    });
+    const allPts=Object.values(grouped).filter(p=>!isNaN(p.d)&&p.d.getFullYear()>1990).sort((a,b)=>a.d-b.d);
+    if(!allPts.length){showError('אין נתונים');return;}
+    const curYear=allPts[allPts.length-1].d.getFullYear();
+    pts=allPts.filter(p=>p.d.getFullYear()===curYear);
+    const prvAll=allPts.filter(p=>p.d.getFullYear()===curYear-1);
+    if(!pts.length){showError('אין נתונים לתקופה נוכחית');return;}
+    const gran=_kpiGetParam(params,'parameter 1')||_kpiGetParam(params,'parameter1')||'month';
+    const periodNum=(d,g)=>{const g2=g.toLowerCase();if(g2==='month')return d.getMonth();if(g2==='quarter')return Math.floor(d.getMonth()/3);if(g2==='year')return 0;if(g2==='week'){const tmp=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dayNum=tmp.getUTCDay()||7;tmp.setUTCDate(tmp.getUTCDate()+4-dayNum);return Math.ceil((((tmp-new Date(Date.UTC(tmp.getUTCFullYear(),0,1)))/86400000)+1)/7);}return Math.floor((d-new Date(d.getFullYear(),0,0))/86400000);};
+    const prvMap={};prvAll.forEach(p=>{prvMap[periodNum(p.d,gran)]=p;});
+    prv=pts.map(p=>prvMap[periodNum(p.d,gran)]||{x:null,y:null});
+    last=pts[pts.length-1];lastPrv=prv[prv.length-1]||{x:null,y:null};
+
+    if(gran.toLowerCase()==='year'){
+      let rawColIdx=-1,rawMaxTest=new Date(0);
+      // use rawdate assignment if provided
+      if(rawDateName) rawColIdx=cols.findIndex(c=>c._fieldName===rawDateName);
+      if(rawColIdx<0){
+        cols.forEach((c,ci)=>{
+          if(ci===di||ci===rangeColIdx||!c._dataType.toLowerCase().includes('date'))return;
+          let colMax=new Date(0);rows.forEach(r=>{const d2=_kpiParseDate(r[ci].value,r[ci].formattedValue);if(d2>colMax)colMax=d2;});
+          if(colMax>rawMaxTest){rawMaxTest=colMax;rawColIdx=ci;}
+        });
+      }
+      if(rawColIdx>=0){
+        const gCur={},gPrv={};
+        rows.forEach(r=>{
+          const d2=_kpiParseDate(r[rawColIdx].value,r[rawColIdx].formattedValue),y=parseFloat(r[mi].value)||0;
+          if(isNaN(d2))return;
+          const yr=d2.getFullYear(),bucket=d2.getMonth()+1,mKey=yr+'-'+String(bucket).padStart(2,'0');
+          if(yr===curYear){if(!gCur[bucket])gCur[bucket]={x:mKey,y:0,d:new Date(yr,d2.getMonth(),1)};gCur[bucket].y+=y;}
+          else if(yr===curYear-1){if(!gPrv[bucket])gPrv[bucket]={x:mKey,y:0,d:new Date(yr,d2.getMonth(),1)};gPrv[bucket].y+=y;}
+        });
+        const mCur=Object.values(gCur).sort((a,b)=>a.d-b.d),mPrv=Object.values(gPrv).sort((a,b)=>a.d-b.d);
+        if(mCur.length>=2){
+          pts=[mCur[0],mCur[mCur.length-1]];
+          const prvFirst=mPrv[0]||{x:null,y:null},prvLast=mPrv[mPrv.length-1]||{x:null,y:null};
+          prv=[prvFirst,prvLast];
+          last={x:String(curYear),y:mCur.reduce((s,p)=>s+p.y,0),d:pts[1].d};
+          lastPrv={x:String(curYear-1),y:mPrv.reduce((s,p)=>s+p.y,0),d:prvLast.d||null};prv[1]=lastPrv;
+        }
+      }
+      let maxD=new Date(0);
+      rows.forEach(r=>cols.forEach((c,ci)=>{
+        if(ci===di||ci===rangeColIdx||!c._dataType.toLowerCase().includes('date'))return;
+        const d2=_kpiParseDate(r[ci].value,r[ci].formattedValue);if(!isNaN(d2)&&d2>maxD)maxD=d2;
+      }));
+      const endCur=maxD>new Date(0)?maxD:allPts[allPts.length-1].d;
+      const endPrv=new Date(endCur);endPrv.setFullYear(endPrv.getFullYear()-1);
+      curLabel='01.01.'+curYear+' – '+_kpiFmtDMY(endCur);prevLabel='01.01.'+(curYear-1)+' – '+_kpiFmtDMY(endPrv);
+      if(pts.length===2){
+        pts[0].x=curLabel;pts[0].y=last.y;pts[1].x=curLabel;pts[1].y=last.y;
+        if(prv[0]){prv[0].x=prevLabel;prv[0].y=lastPrv.y||0;}
+        if(prv[1]){prv[1].x=prevLabel;prv[1].y=lastPrv.y||0;}
+      }
+    } else {
+      curLabel=_kpiNormDate(last.x);prevLabel=_kpiNormDate(lastPrv.x||'');
+    }
+    document.getElementById('kpi-vs-label').textContent=L.vs;
+    document.getElementById('kpi-cmp-row').style.display='block';
+  }
+
+  document.getElementById('kpi-lbl').textContent=measureName;
+  document.getElementById('kpi-val').textContent=_kpiFmt(last.y);
+  document.getElementById('kpi-cur').textContent=curLabel;
+  document.getElementById('kpi-prev').textContent=prevLabel;
+
+  let color='#6366f1';
+  if(lastPrv&&lastPrv.y!=null&&lastPrv.y!==0){
+    const diff=last.y-lastPrv.y,pct=Math.abs(diff/Math.abs(lastPrv.y)*100).toFixed(0),up=diff>0,neutral=Math.abs(diff)<0.0001;
+    color=neutral?'#6366f1':up?'#16a34a':'#dc2626';
+    document.getElementById('kpi-chg').innerHTML='<span style="direction:ltr;unicode-bidi:embed">'+(neutral?'':up?'▲+':'▼-')+_kpiFmt(Math.abs(diff))+' ('+(neutral?'':up?'+':'-')+pct+'%)</span>';
+    document.getElementById('kpi-chg').className='kpi-chg '+(neutral?'':up?'kpi-up':'kpi-down');
+  } else {document.getElementById('kpi-chg').textContent='';}
+
+  // Build Chart.js sparkline
+  wrapEl.innerHTML='<canvas id="kpi-canvas"></canvas>';
+  const canvas=document.getElementById('kpi-canvas'),h=wrapEl.offsetHeight||120;
+  const ctx=canvas.getContext('2d'),grad=ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,_kpiHex(color,0.2));grad.addColorStop(1,_kpiHex(color,0));
+  const baseOpts={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}},animation:false};
+
+  if(pts.length===1){
+    const prvY=prv[0]&&prv[0].y!=null?prv[0].y:null;
+    state.mlChartInstance=new Chart(canvas,{type:'bubble',data:{datasets:[
+      {label:L.lineCur,data:[{x:0,y:pts[0].y,r:18}],backgroundColor:_kpiHex(color,0.85),borderColor:color,borderWidth:2},
+      prvY!=null?{label:L.linePrv,data:[{x:0,y:prvY,r:14}],backgroundColor:'rgba(156,163,175,0.5)',borderColor:'rgba(156,163,175,0.8)',borderWidth:1.5}:{data:[]}
+    ]},options:{...baseOpts,plugins:{...baseOpts.plugins,tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+_kpiFmt(c.raw.y)}}}}});
+  } else {
+    state.mlChartInstance=new Chart(canvas,{type:'line',data:{
+      labels:pts.map((_,i)=>i),
+      datasets:[
+        {label:L.lineCur,data:pts.map(p=>p.y),borderColor:color,borderWidth:2,backgroundColor:grad,fill:true,tension:0,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2},
+        {label:L.linePrv,data:prv.map(p=>p.y),borderColor:'rgba(156,163,175,.6)',borderWidth:1.5,borderDash:[4,3],fill:false,tension:0,pointRadius:0,pointHoverRadius:4}
+      ]
+    },options:{...baseOpts,interaction:{mode:'index',intersect:false},plugins:{...baseOpts.plugins,tooltip:{backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,titleColor:'#374151',bodyColor:'#111',padding:12,boxPadding:5,callbacks:{
+      title:items=>{const i=items[0]?items[0].dataIndex:0,cx=pts[i]?_kpiNormDate(pts[i].x):'',px=prv[i]&&prv[i].x?_kpiNormDate(prv[i].x):'';return px?[cx+' / '+px]:[cx];},
+      label:c=>c.raw==null?null:' '+c.dataset.label+': '+_kpiFmt(c.raw)
+    }}}}});
+  }
+  app.style.opacity='1';
+  setKpiFonts();
+}
+
+// ═══════════════════════════════════════════════════
+// MULTI-LINE CHART RENDERER  — ported from multi.html
+// ═══════════════════════════════════════════════════
+const ML_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#f97316','#14b8a6','#ec4899','#06b6d4'];
+const ML_MONTH_LABELS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const ML_QUARTER_LABELS = ['רבעון 1','רבעון 2','רבעון 3','רבעון 4'];
+const _mlCleanName = s=>s.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
+let _mlPopTarget = null;
+
+function _mlOpenColorPop(label, currentColor, swatchEl, isBg, e) {
+  e.stopPropagation();
+  _mlPopTarget = {label, swatchEl, isBg};
+  document.getElementById('ml-color-pop-label').textContent = isBg ? `BG: ${label}` : label;
+  document.getElementById('ml-color-pop-native').value = document.getElementById('ml-color-pop-hex').value = currentColor;
+  const pop=document.getElementById('ml-color-pop'),vw=window.innerWidth,vh=window.innerHeight;
+  let x=e.clientX+8,y=e.clientY+8;
+  if(x+190>vw)x=e.clientX-190;if(y+90>vh)y=e.clientY-90;
+  pop.style.left=x+'px';pop.style.top=y+'px';pop.classList.add('open');
+}
+
+function _mlApplyColor(hex) {
+  if(!_mlPopTarget)return;
+  const {label,swatchEl,isBg}=_mlPopTarget;
+  swatchEl.style.background=hex;
+  if(isBg){
+    state.mlBgColorMap[label]=hex;
+    _mlApplyBgFromMap();
+    return;
+  }
+  if(!state.mlChartInstance)return;
+  state.mlColorMap[label]=hex;
+  state.mlChartInstance.data.datasets.forEach((ds,i)=>{
+    if(ds.label===label){ds.borderColor=ds.pointBackgroundColor=ds.pointHoverBackgroundColor=hex;ds.backgroundColor=hex+'22';}
+    const meta=state.mlChartInstance.getDatasetMeta(i);
+    if(meta?.data)meta.data.forEach(el=>{el._options=null;});
+    if(meta?.dataset)meta.dataset._options=null;
+  });
+  state.mlChartInstance.update();
+  _mlBuildLegend(state.mlChartInstance.data.datasets);
+}
+
+let _mlActiveBgValue=null;
+function _mlApplyBgFromMap(){
+  const keys=Object.keys(state.mlBgColorMap);
+  const color=keys.length?(state.mlBgColorMap[_mlActiveBgValue]||state.mlBgColorMap[keys[0]]||'#ffffff'):'#ffffff';
+  const cont=document.getElementById('multiline-container');
+  if(cont)cont.style.background=color;
+  const mlApp=document.getElementById('ml-app');
+  if(mlApp)mlApp.style.background=color;
+}
+
+function _mlBuildBgLegend(bgValues){
+  const el=document.getElementById('ml-bg-legend');
+  if(!bgValues.length){el.innerHTML='';return;}
+  el.innerHTML=bgValues.map(v=>{
+    const color=state.mlBgColorMap[v]||'#ffffff';
+    return `<div class="ml-bg-swatch-item" data-val="${v}" title="Set background color for: ${v}"><div class="ml-bg-swatch-dot" style="background:${color}"></div><span>${v}</span></div>`;
+  }).join('');
+  el.querySelectorAll('.ml-bg-swatch-item').forEach(item=>{
+    item.addEventListener('click',e=>{
+      const val=item.dataset.val,dot=item.querySelector('.ml-bg-swatch-dot'),cur=state.mlBgColorMap[val]||'#ffffff';
+      _mlOpenColorPop(val,cur,dot,true,e);
+    });
+  });
+}
+
+function _mlBuildLegend(datasets){
+  const el=document.getElementById('ml-legend');
+  el.innerHTML=datasets.map((ds,i)=>{
+    const color=ds.borderColor||ML_COLORS[i%ML_COLORS.length];
+    return `<div class="ml-legend-item" data-idx="${i}"><div class="ml-legend-swatch" style="background:${color}"></div><span>${ds.label}</span></div>`;
+  }).join('');
+  el.querySelectorAll('.ml-legend-item').forEach(item=>{
+    item.addEventListener('click',e=>{
+      const i=parseInt(item.dataset.idx),ds=state.mlChartInstance?.data.datasets[i];
+      if(!ds)return;
+      const swatch=item.querySelector('.ml-legend-swatch');
+      _mlOpenColorPop(ds.label,ds.borderColor||ML_COLORS[i%ML_COLORS.length],swatch,false,e);
+    });
+  });
+}
+
+// Wire up ML color popover inputs once (safe to call multiple times — listeners attach once via flag)
+let _mlPopWired=false;
+function _mlWireColorPop(){
+  if(_mlPopWired)return;_mlPopWired=true;
+  document.getElementById('ml-color-pop-native').addEventListener('input',e=>{document.getElementById('ml-color-pop-hex').value=e.target.value;_mlApplyColor(e.target.value);});
+  document.getElementById('ml-color-pop-hex').addEventListener('input',e=>{const hex=e.target.value.trim();if(/^#[0-9a-fA-F]{6}$/.test(hex)){document.getElementById('ml-color-pop-native').value=hex;_mlApplyColor(hex);}});
+  document.getElementById('ml-color-pop-hex').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('ml-color-pop').classList.remove('open');});
+  document.getElementById('ml-color-pop-close').addEventListener('click',()=>document.getElementById('ml-color-pop').classList.remove('open'));
+  document.addEventListener('click',e=>{if(!document.getElementById('ml-color-pop').contains(e.target)&&!e.target.closest('.ml-bg-swatch-item')&&!e.target.closest('.ml-legend-item'))document.getElementById('ml-color-pop').classList.remove('open');});
+}
+
+async function renderMultiLine(dt, assignments, params) {
+  _mlWireColorPop();
+
+  // Destroy any existing Chart.js instance
+  if(state.mlChartInstance){try{state.mlChartInstance.destroy();}catch(e){}state.mlChartInstance=null;}
+
+  const mlApp=document.getElementById('ml-app');
+  mlApp.style.opacity='0';
+  document.getElementById('ml-error').style.display='none';
+
+  const cols=dt.columns,rows=dt.data;
+
+  const showMlError=msg=>{document.getElementById('ml-error').textContent=msg;document.getElementById('ml-error').style.display='block';mlApp.style.opacity='1';};
+
+  // Resolve column indices via assignments
+  const dateFieldName = assignments.date?.fieldName;
+  const valFieldName  = assignments.val?.fieldName;
+  const groupFieldName= assignments.group?.fieldName;
+  const bgFieldName   = assignments.bg?.fieldName;
+
+  let measureIdx=-1,dateIdx=-1,groupIdx=-1,bgIdx=-1;
+  if(dateFieldName)  dateIdx    = cols.findIndex(c=>c._fieldName===dateFieldName);
+  if(valFieldName)   measureIdx = cols.findIndex(c=>c._fieldName===valFieldName);
+  if(groupFieldName) groupIdx   = cols.findIndex(c=>c._fieldName===groupFieldName);
+  if(bgFieldName)    bgIdx      = cols.findIndex(c=>c._fieldName===bgFieldName);
+
+  // Fallbacks if not assigned
+  if(measureIdx<0) measureIdx=cols.findIndex(c=>['float','real','number','double'].some(t=>c._dataType.toLowerCase().includes(t)));
+  if(measureIdx<0) measureIdx=cols.findIndex(c=>['integer','int'].some(t=>c._dataType.toLowerCase().includes(t))&&!/year|month|quarter|day|week/i.test(c._fieldName));
+  if(dateIdx<0)    dateIdx   =cols.findIndex((c,i)=>i!==measureIdx&&i!==bgIdx&&c._dataType.toLowerCase().includes('date'));
+  if(bgIdx<0)      bgIdx     =cols.findIndex((c,i)=>i!==measureIdx&&i!==dateIdx&&['string','str','char','text','bool','boolean'].some(t=>c._dataType.toLowerCase().includes(t)));
+  if(groupIdx<0)   groupIdx  =cols.findIndex((_,i)=>i!==measureIdx&&i!==dateIdx&&i!==bgIdx);
+
+  if(measureIdx<0)return showMlError('לא נמצא מדד. שייך מדד לשדה "ערך מדד".');
+  if(dateIdx<0)   return showMlError('לא נמצא שדה תאריך. שייך תאריך לשדה "תאריך".');
+
+  const measureName=_mlCleanName(cols[measureIdx]._fieldName);
+  document.getElementById('ml-measure-name').textContent=measureName;
+
+  // Parameter: timeframe
+  const getP=(params,name)=>{const p=params.find(p=>p.name.toLowerCase()===name.toLowerCase());return p?String(p.currentValue.value||p.currentValue.formattedValue||'').trim():'';};
+  const tfRaw=getP(params,'parameter 1')||getP(params,'timeframe')||'month';
+  const isQuarter=tfRaw.toLowerCase().includes('quarter');
+  const numBuckets=isQuarter?4:12;
+  const xLabels=isQuarter?ML_QUARTER_LABELS:ML_MONTH_LABELS;
+  document.getElementById('ml-timeframe-badge').textContent=isQuarter?'רבעוני':'חודשי';
+
+  const groups={};
+  rows.forEach(r=>{
+    const d=new Date(r[dateIdx].value);
+    if(isNaN(d)||d.getFullYear()<1990)return;
+    const val=parseFloat(r[measureIdx].value)||0;
+    const grp=groupIdx>=0?(r[groupIdx].formattedValue||r[groupIdx].value||'(blank)'):measureName;
+    const bucket=isQuarter?Math.floor(d.getMonth()/3):d.getMonth();
+    if(!groups[grp])groups[grp]={};
+    groups[grp][bucket]=(groups[grp][bucket]||0)+val;
+  });
+
+  // BG field values
+  const bgValues=[];
+  if(bgIdx>=0){
+    rows.forEach(r=>{const v=r[bgIdx].formattedValue||r[bgIdx].value||'(blank)';if(!bgValues.includes(v))bgValues.push(v);});
+    _mlActiveBgValue=bgValues[0]||null;
+    _mlApplyBgFromMap();
+  } else {
+    _mlActiveBgValue=null;
+    document.getElementById('multiline-container').style.background='';
+    mlApp.style.background='';
+  }
+  _mlBuildBgLegend(bgValues);
+
+  const groupNames=Object.keys(groups);
+  if(!groupNames.length)return showMlError('אין נתונים. בדוק פילטרים ושדות.');
+
+  const datasets=groupNames.map((name,i)=>{
+    const color=state.mlColorMap[name]||ML_COLORS[i%ML_COLORS.length];
+    return {
+      label:name,data:Array.from({length:numBuckets},(_,b)=>groups[name][b]??null),
+      borderColor:color,backgroundColor:color+'22',borderWidth:2.5,
+      pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,
+      tension:0.3,fill:false,spanGaps:false,
+    };
+  });
+
+  _mlBuildLegend(datasets);
+
+  document.getElementById('ml-chart-wrap').innerHTML='<canvas id="ml-ch"></canvas>';
+  state.mlChartInstance=new Chart(document.getElementById('ml-ch'),{
+    type:'line',
+    data:{labels:xLabels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          titleAlign:'right',bodyAlign:'right',
+          backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,
+          titleColor:'#374151',titleFont:{size:12,weight:'600',family:"'NotoSansHebrew',sans-serif"},
+          bodyColor:'#374151',bodyFont:{size:12,family:"'NotoSansHebrew',sans-serif"},
+          padding:10,boxPadding:5,
+          callbacks:{
+            title:items=>items.length?items[0].label:'',
+            label:ctx=>ctx.raw==null?null:`${ctx.raw.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})} :${ctx.dataset.label}`,
+            labelColor:ctx=>{const c=ctx.dataset.borderColor||ML_COLORS[ctx.datasetIndex%ML_COLORS.length];return{borderColor:c,backgroundColor:c,borderWidth:2,borderRadius:2};}
+          }
+        }
+      },
+      scales:{
+        x:{grid:{display:false,drawBorder:false},border:{display:false},ticks:{color:'#9ca3af',font:{size:11,weight:'500',family:"'NotoSansHebrew',sans-serif"},padding:6}},
+        y:{grid:{display:false,drawBorder:false},border:{display:false},ticks:{color:'#9ca3af',font:{size:11,family:"'NotoSansHebrew',sans-serif"},callback:v=>v.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1}),maxTicksLimit:6,padding:8}}
+      }
+    }
+  });
+
+  mlApp.style.opacity='1';
+}
+
+// ═══════════════════════════════════════════════════
 // COLOR EDITOR
 // ═══════════════════════════════════════════════════
 const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
@@ -2126,6 +2717,11 @@ const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
 function openColorEditor() {
   const isTable = state.chart?.id === 'bantable2';
   const isBan   = ['ban1','ban2'].includes(state.chart?.id);
+  const isSpecial = ['kpi_card','multiline'].includes(state.chart?.id);
+  if (isSpecial) {
+    // These charts use inline color popovers on their legend — no modal needed
+    showError('לחץ על הקווים בגרף לשינוי צבע'); setTimeout(()=>hideError(),2500); return;
+  }
   if (isTable) {
     document.getElementById('color-modal-title').textContent = 'ערוך צבעי טבלה';
     renderTableColorSwatches();
@@ -2302,6 +2898,10 @@ function applyBorderRadius() {
   if (container) { container.style.borderRadius = val; container.style.overflow = 'hidden'; }
   const tbl = document.getElementById('table-container');
   if (tbl) { tbl.style.borderRadius = val; tbl.style.overflow = 'hidden'; }
+  const kpi = document.getElementById('kpi-container');
+  if (kpi) { kpi.style.borderRadius = val; kpi.style.overflow = 'hidden'; }
+  const ml = document.getElementById('multiline-container');
+  if (ml) { ml.style.borderRadius = val; ml.style.overflow = 'hidden'; }
 }
 
 function resetRadius() {
@@ -2413,11 +3013,15 @@ async function resetBgColor() { state.bgColor=null; applyBgColor(null); await sa
 function showPlaceholder() {
   document.getElementById('placeholder').style.display='flex';
   document.getElementById('table-container').style.display='none';
+  document.getElementById('kpi-container').style.display='none';
+  document.getElementById('multiline-container').style.display='none';
   const ec = document.getElementById('echarts-container');
   ec.style.display='block';
   // Fully wipe any BAN HTML and dispose ECharts instance
   if(state.echartsInstance) { try{state.echartsInstance.dispose();}catch(e){} state.echartsInstance=null; }
   ec.innerHTML='';
+  // Destroy Chart.js instance if any
+  if(state.mlChartInstance){try{state.mlChartInstance.destroy();}catch(e){} state.mlChartInstance=null;}
 }
 function showError(msg) { document.getElementById('error-msg').textContent=msg; document.getElementById('error-bar').classList.add('show'); }
 function hideError() { document.getElementById('error-bar').classList.remove('show'); }
