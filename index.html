@@ -2054,7 +2054,6 @@ function renderBanTable(rows, assignments) {
   const prevF    = assignments.prev?.fieldName;
   const prevperF = assignments.prevper?.fieldName;
 
-  // Group rows by KPI name — preserving insertion order = data order
   const groups = new Map();
   rows.forEach(r => {
     const key = nameF ? String(r[nameF] ?? '') : '';
@@ -2070,10 +2069,8 @@ function renderBanTable(rows, assignments) {
   const hebrew   = /[\u0590-\u05FF]/.test(firstKey);
   const nd       = hebrew ? 'rtl' : 'ltr';
   const cur      = hebrew ? '₪' : '$';
-  const chgWord  = hebrew ? 'שינוי' : 'change';
   const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
 
-  // Collect global period/prevper labels (first distinct value wins)
   const allPeriods = new Set(); const allPrevpers = new Set();
   groups.forEach(g => { g.periods.forEach(v=>allPeriods.add(v)); g.prevpers.forEach(v=>allPrevpers.add(v)); });
   const periodLabel  = [...allPeriods][0]  || '';
@@ -2093,55 +2090,59 @@ function renderBanTable(rows, assignments) {
     neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)', arrow:'—' },
   };
 
-  const rowsHTML = [...groups.entries()].map(([kpiName, g], idx) => {
+  // Grid: name=auto | val=1fr | badge=auto | prev=auto (if prevF)
+  const cols = prevF ? 'auto 1fr auto auto' : 'auto 1fr auto';
+  const cellBase = 'padding:12px 20px;display:contents';
+
+  const hStyle = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center`;
+
+  const headerCells = `
+    <div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
+    <div style="${hStyle};padding:8px 20px;justify-content:center">${periodLabel || 'ערך'}</div>
+    <div style="${hStyle};padding:8px 20px;justify-content:center">שינוי</div>
+    ${prevF ? `<div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
+
+  const dataRows = [...groups.entries()].map(([kpiName, g], idx) => {
     const hasPrev = !!prevF && g.prev !== 0;
     const pct     = hasPrev ? ((g.val - g.prev) / Math.abs(g.prev)) * 100 : null;
     const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
     const B       = BADGE[dir];
-    const isLast  = idx === groups.size - 1;
+    const border  = idx < groups.size - 1 ? `border-bottom:1px solid ${topCol}18` : '';
 
     const badgeHTML = pct !== null
       ? `<div style="display:inline-flex;align-items:center;gap:5px;border-radius:99px;
              border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
-             padding:4px 12px;white-space:nowrap;direction:ltr;flex-shrink:0">
+             padding:4px 12px;white-space:nowrap;direction:ltr">
            <span style="font-size:12px;color:${B.arrowFill};line-height:1">${B.arrow}</span>
            <span style="font-weight:700;color:#fff;font-size:13px">${Math.abs(pct).toFixed(1)}%</span>
-           <span style="font-weight:400;color:rgba(255,255,255,0.65);font-size:11px">${chgWord}</span>
          </div>`
-      : `<div style="width:80px"></div>`;
+      : '';
 
-    const prevCell = hasPrev
-      ? `<div style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;
-             direction:ltr;flex:0 0 auto;text-align:${hebrew?'right':'left'}">${fmt(g.prev)}</div>`
-      : (prevF ? `<div style="flex:0 0 auto"></div>` : '');
-
-    return `<div style="display:flex;align-items:center;justify-content:space-between;
-        gap:16px;padding:12px 20px;
-        ${isLast?'':'border-bottom:1px solid '+topCol+'18'};direction:${nd}">
-      <div style="font-weight:600;font-size:14px;letter-spacing:.03em;color:${topCol};opacity:.85;
-           flex:0 0 auto;min-width:60px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-           text-align:${hebrew?'right':'left'}">${kpiName}</div>
-      <div style="font-weight:800;font-size:24px;color:${topCol};direction:ltr;letter-spacing:-.02em;
-           flex:1;text-align:center">${fmt(g.val)}</div>
-      <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-width:110px">${badgeHTML}</div>
-      ${prevCell}
-    </div>`;
+    return `
+      <div style="display:flex;align-items:center;padding:12px 20px;${border};justify-content:${hebrew?'flex-end':'flex-start'}">
+        <span style="font-weight:600;font-size:14px;color:${topCol};opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kpiName}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
+        <span style="font-weight:800;font-size:22px;color:${topCol};direction:ltr;letter-spacing:-.02em">${fmt(g.val)}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
+        ${badgeHTML}
+      </div>
+      ${prevF ? `<div style="display:flex;align-items:center;justify-content:${hebrew?'flex-end':'flex-start'};padding:12px 20px;${border}">
+        <span style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;direction:ltr">${hasPrev ? fmt(g.prev) : ''}</span>
+      </div>` : ''}`;
   }).join('');
-
-  // Header
-  const hStyle = `font-size:10px;font-weight:500;color:${botCol};opacity:.5;letter-spacing:.08em;text-transform:uppercase`;
-  const header = `<div style="display:flex;align-items:center;justify-content:space-between;
-      gap:16px;padding:8px 20px 7px;border-bottom:1px solid ${topCol}35;direction:${nd}">
-    <div style="${hStyle};flex:0 0 140px;text-align:${hebrew?'right':'left'}">מדד</div>
-    <div style="${hStyle};flex:1;text-align:center">${periodLabel || 'ערך'}</div>
-    <div style="${hStyle};flex:0 0 auto;min-width:110px;text-align:center">שינוי</div>
-    ${prevF ? `<div style="${hStyle};flex:0 0 auto;min-width:70px;text-align:${hebrew?'right':'left'}">${prevperLabel || prevPerWord}</div>` : ''}
-  </div>`;
 
   container.innerHTML = `
     <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
-      ${header}
-      ${rowsHTML}
+      <div style="display:grid;grid-template-columns:${cols};width:100%">
+        <div style="display:contents;background:${hdrCol}">
+          <div style="grid-column:1/-1;background:${hdrCol};display:grid;grid-template-columns:${cols};border-bottom:1px solid ${topCol}35">
+            ${headerCells}
+          </div>
+        </div>
+        ${dataRows}
+      </div>
     </div>`;
 }
 
@@ -2205,53 +2206,54 @@ function renderBanTable2(rows, assignments, kpiNames) {
 
   const hasPrevCol = kpis.some(k => k.prev !== null);
 
-  const rowsHTML = kpis.map((k, idx) => {
+  const cols = hasPrevCol ? 'auto 1fr auto auto' : 'auto 1fr auto';
+  const hStyle = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center`;
+
+  const headerCells = `
+    <div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
+    <div style="${hStyle};padding:8px 20px;justify-content:center">${periodLabel || 'ערך'}</div>
+    <div style="${hStyle};padding:8px 20px;justify-content:center">שינוי</div>
+    ${hasPrevCol ? `<div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
+
+  const dataRows = kpis.map((k, idx) => {
     const hasPrev = k.prev !== null && k.prev !== 0;
     const pct     = hasPrev ? ((k.val - k.prev) / Math.abs(k.prev)) * 100 : null;
     const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
     const B       = BADGE[dir];
-    const isLast  = idx === kpis.length - 1;
+    const border  = idx < kpis.length - 1 ? `border-bottom:1px solid ${topCol}18` : '';
 
     const badgeHTML = pct !== null
       ? `<div style="display:inline-flex;align-items:center;gap:5px;border-radius:99px;
              border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
-             padding:4px 12px;white-space:nowrap;direction:ltr;flex-shrink:0">
+             padding:4px 12px;white-space:nowrap;direction:ltr">
            <span style="font-size:12px;color:${B.arrowFill};line-height:1">${B.arrow}</span>
            <span style="font-weight:700;color:#fff;font-size:13px">${Math.abs(pct).toFixed(1)}%</span>
          </div>`
-      : `<div style="min-width:80px"></div>`;
-
-    const prevCell = hasPrevCol
-      ? (hasPrev
-          ? `<div style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;direction:ltr;flex:0 0 auto;text-align:${hebrew?'right':'left'}">${fmt(k.prev)}</div>`
-          : `<div style="flex:0 0 auto"></div>`)
       : '';
 
-    return `<div style="display:flex;align-items:center;justify-content:space-between;
-        gap:16px;padding:12px 20px;${isLast?'':'border-bottom:1px solid '+topCol+'18'};direction:${nd}">
-      <div style="font-weight:600;font-size:14px;letter-spacing:.03em;color:${topCol};opacity:.85;
-           flex:0 0 auto;min-width:60px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-           text-align:${hebrew?'right':'left'}">${k.name}</div>
-      <div style="font-weight:800;font-size:24px;color:${topCol};direction:ltr;letter-spacing:-.02em;
-           flex:1;text-align:center">${fmt(k.val)}</div>
-      <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center">${badgeHTML}</div>
-      ${prevCell}
-    </div>`;
+    return `
+      <div style="display:flex;align-items:center;padding:12px 20px;${border};justify-content:${hebrew?'flex-end':'flex-start'}">
+        <span style="font-weight:600;font-size:14px;color:${topCol};opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${k.name}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
+        <span style="font-weight:800;font-size:22px;color:${topCol};direction:ltr;letter-spacing:-.02em">${fmt(k.val)}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
+        ${badgeHTML}
+      </div>
+      ${hasPrevCol ? `<div style="display:flex;align-items:center;justify-content:${hebrew?'flex-end':'flex-start'};padding:12px 20px;${border}">
+        <span style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;direction:ltr">${hasPrev ? fmt(k.prev) : ''}</span>
+      </div>` : ''}`;
   }).join('');
-
-  const hStyle = `font-size:10px;font-weight:500;color:${topCol};opacity:.7;letter-spacing:.08em;text-transform:uppercase`;
-  const header = `<div style="display:flex;align-items:center;justify-content:space-between;
-      gap:16px;padding:8px 20px 7px;border-bottom:1px solid ${topCol}35;background:${hdrCol};direction:${nd}">
-    <div style="${hStyle};flex:0 0 auto;min-width:60px;max-width:160px;text-align:${hebrew?'right':'left'}">מדד</div>
-    <div style="${hStyle};flex:1;text-align:center">${periodLabel || 'ערך'}</div>
-    <div style="${hStyle};flex:0 0 auto;text-align:center">שינוי</div>
-    ${hasPrevCol ? `<div style="${hStyle};flex:0 0 auto;text-align:${hebrew?'right':'left'}">${prevperLabel || prevPerWord}</div>` : ''}
-  </div>`;
 
   container.innerHTML = `
     <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
-      ${header}
-      ${rowsHTML}
+      <div style="display:grid;grid-template-columns:${cols};width:100%">
+        <div style="grid-column:1/-1;background:${hdrCol};display:grid;grid-template-columns:${cols};border-bottom:1px solid ${topCol}35">
+          ${headerCells}
+        </div>
+        ${dataRows}
+      </div>
     </div>`;
 }
 
