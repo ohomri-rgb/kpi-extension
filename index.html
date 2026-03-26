@@ -324,7 +324,13 @@ const CHARTS = [
   {id:'tree',        cat:'היררכיה',  name:'Tree Chart',         icon:'🌳', roles:[R.parent(), R.child(), R.val()]},
   {id:'radialtree',  cat:'היררכיה',  name:'Radial Tree',        icon:'🌐', roles:[R.parent(), R.child(), R.val()]},
   // KPI
-  {id:'ban',         cat:'KPI',      name:'KPI BAN Card',       icon:'📌', roles:[{id:'name',label:'שם KPI',accepts:'dim',required:true},{id:'val',label:'ערך נוכחי',accepts:'measure',required:true},{id:'prev',label:'ערך קודם',accepts:'measure',required:false}]},
+  {id:'ban', cat:'KPI', name:'KPI BAN Card', icon:'📌', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
   {id:'gauge',       cat:'KPI',      name:'Gauge Chart',        icon:'🎯', roles:[R.val(), R.opt('max','מקסימום','measure')]},
   {id:'gaugeprogress',cat:'KPI',     name:'Progress Bar',       icon:'📏', roles:[R.val(), R.opt('max','מקסימום','measure'), R.opt('dim','קטגוריה','dim')]},
   {id:'gaugemulti',  cat:'KPI',      name:'Multi Gauge',        icon:'🎯', roles:[R.val(), {id:'val2',label:'ערך 2',accepts:'measure',required:false},{id:'val3',label:'ערך 3',accepts:'measure',required:false}]},
@@ -755,7 +761,7 @@ function drawPreview(chart, container) {
   if (opt) { ec.setOption(opt); }
   else if (chart.id === 'ban') {
     ec.dispose();
-    container.innerHTML = `<div style="height:80px;display:flex;align-items:center;justify-content:center;padding:8px"><div style="background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:8px 12px;width:100%;position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:#639922"></div><div style="font-size:8px;color:#ababA0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Revenue</div><div style="font-size:20px;font-weight:800;color:#1c1b18;letter-spacing:-.02em;line-height:1;margin-bottom:6px">$84.2K</div><div style="display:flex;align-items:center;gap:4px"><span style="background:#EAF3DE;color:#3B6D11;font-size:9px;font-weight:600;padding:2px 6px 2px 4px;border-radius:99px;display:inline-flex;align-items:center;gap:3px"><svg width="6" height="6" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="#3B6D11"/></svg>+12.4%</span><span style="font-size:8px;color:#ababA0">vs prev</span></div></div></div>`;
+    container.innerHTML = '<div style="height:80px;display:flex;align-items:stretch;padding:6px"><div style="flex:1;background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:8px 10px;position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:#639922;border-radius:8px 8px 0 0"></div><div style="font-size:7px;color:#ababA0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;margin-top:2px">מכירות</div><div style="font-size:22px;font-weight:800;color:#1c1b18;letter-spacing:-.02em;line-height:1;margin-bottom:5px">$2.3M</div><div style="height:0.5px;background:#e0dfd8;margin-bottom:5px"></div><div style="display:flex;align-items:center;gap:4px"><span style="background:#EAF3DE;color:#3B6D11;font-size:8px;font-weight:600;padding:2px 5px 2px 4px;border-radius:99px;display:inline-flex;align-items:center;gap:2px"><svg width="5" height="5" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="#3B6D11"/></svg>+42.9%</span><span style="font-size:7px;color:#b4b2a9">vs 2023</span><span style="flex:1"></span><span style="font-size:7px;color:#888780">2024</span></div></div></div>';
   } else if (chart.id === 'rtltable') {
     ec.dispose();
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
@@ -1557,56 +1563,112 @@ async function renderECharts(chart, columns, rows, assignments) {
 // ═══════════════════════════════════════════════════
 function renderBan(rows, assignments) {
   const container = document.getElementById('echarts-container');
-  // Dispose ECharts instance if it exists — BAN is pure HTML
   if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
 
-  const nameF = assignments.name?.fieldName;
-  const valF  = assignments.val?.fieldName;
-  const prevF = assignments.prev?.fieldName;
+  const nameF   = assignments.name?.fieldName;
+  const valF    = assignments.val?.fieldName;
+  const periodF = assignments.period?.fieldName;
+  const prevF   = assignments.prev?.fieldName;
+  const prevperF= assignments.prevper?.fieldName;
 
-  // Aggregate: sum val (and prev if provided) per name
-  const map = {};
+  // Aggregate totals across all rows
+  let val = 0, prev = 0;
+  const periodVals = new Set(), prevperVals = new Set();
   rows.forEach(r => {
-    const k = String(r[nameF] ?? '');
-    if (!map[k]) map[k] = { val: 0, prev: 0, hasPrev: false };
-    map[k].val += (r[valF] ?? 0);
-    if (prevF !== undefined) { map[k].prev += (r[prevF] ?? 0); map[k].hasPrev = true; }
+    val  += (r[valF]  ?? 0);
+    if (prevF)   prev += (r[prevF]  ?? 0);
+    if (periodF  && r[periodF]  != null) periodVals.add(String(r[periodF]));
+    if (prevperF && r[prevperF] != null) prevperVals.add(String(r[prevperF]));
   });
+
+  // KPI name: first distinct value from the name dim
+  const kpiName = nameF ? String(rows.find(r => r[nameF] != null)?.[nameF] ?? '') : '';
+
+  // Period labels: collapse to first value (user controls via filter)
+  const periodLabel  = periodVals.size  ? [...periodVals][0]  : '';
+  const prevperLabel = prevperVals.size ? [...prevperVals][0] : '';
+
+  // % change
+  const hasPrev = !!prevF && prev !== 0;
+  const pct     = hasPrev ? ((val - prev) / Math.abs(prev)) * 100 : null;
+  const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
+
+  const C = {
+    pos: { bar:'#639922', bg:'#EAF3DE', txt:'#3B6D11' },
+    neg: { bar:'#E24B4A', bg:'#FCEBEB', txt:'#A32D2D' },
+    neu: { bar:'#B4B2A9', bg:'#F1EFE8', txt:'#5F5E5A' },
+  };
+  const c = C[dir];
+
+  // Responsive scaling via container size — recompute on every render + resize
+  function scale() {
+    const w = container.offsetWidth  || 300;
+    const h = container.offsetHeight || 200;
+    const base = Math.min(w, h * 1.6);   // drive scale from the smaller dimension
+    const u = base / 320;                // 1u = 320px baseline
+
+    const card = container.querySelector('.ban-inner');
+    if (!card) return;
+
+    card.style.padding        = `${Math.round(u*40)}px ${Math.round(u*48)}px ${Math.round(u*36)}px`;
+    card.querySelector('.ban-bar').style.height = `${Math.max(3, Math.round(u*5))}px`;
+    card.querySelector('.ban-kpi-lbl').style.fontSize  = `${Math.max(10, Math.round(u*13))}px`;
+    card.querySelector('.ban-kpi-lbl').style.marginBottom = `${Math.round(u*14)}px`;
+    card.querySelector('.ban-kpi-val').style.fontSize  = `${Math.max(28, Math.round(u*88))}px`;
+    card.querySelector('.ban-kpi-val').style.marginBottom = `${Math.round(u*24)}px`;
+    card.querySelector('.ban-divider').style.marginBottom = `${Math.round(u*18)}px`;
+    const badge = card.querySelector('.ban-badge');
+    if (badge) {
+      badge.style.fontSize = `${Math.max(11, Math.round(u*16))}px`;
+      badge.style.padding  = `${Math.round(u*4)}px ${Math.round(u*13)}px ${Math.round(u*4)}px ${Math.round(u*9)}px`;
+      badge.style.gap      = `${Math.round(u*5)}px`;
+      const svg = badge.querySelector('svg');
+      if (svg) { const s = Math.max(8, Math.round(u*11)); svg.style.width=s+'px'; svg.style.height=s+'px'; }
+    }
+    const pctRow = card.querySelectorAll('.ban-period-txt');
+    pctRow.forEach(el => { el.style.fontSize = `${Math.max(11, Math.round(u*14))}px`; });
+  }
 
   const fmtNum = n => {
     const abs = Math.abs(n);
-    if (abs >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
-    if (abs >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
-    if (abs >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
-    return n.toLocaleString(undefined, {maximumFractionDigits:2});
+    if (abs >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'')+'B';
+    if (abs >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
+    if (abs >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+    return n.toLocaleString(undefined,{maximumFractionDigits:2});
   };
 
-  const cards = Object.entries(map).map(([name, {val, prev, hasPrev}]) => {
-    let pct = null, dir = 'neu';
-    if (hasPrev && prev !== 0) {
-      pct = ((val - prev) / Math.abs(prev)) * 100;
-      dir = pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
-    }
-    const colors = { pos: { bar:'#639922', bg:'#EAF3DE', txt:'#3B6D11' }, neg: { bar:'#E24B4A', bg:'#FCEBEB', txt:'#A32D2D' }, neu: { bar:'#B4B2A9', bg:'#F1EFE8', txt:'#5F5E5A' } };
-    const c = colors[dir];
-    const arrow = dir==='pos'
-      ? `<svg width="8" height="8" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="${c.txt}"/></svg>`
-      : dir==='neg'
-      ? `<svg width="8" height="8" viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${c.txt}"/></svg>`
-      : `<svg width="10" height="8" viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${c.txt}"/></svg>`;
-    const badge = pct !== null
-      ? `<span style="background:${c.bg};color:${c.txt};font-size:11px;font-weight:600;padding:3px 9px 3px 6px;border-radius:99px;display:inline-flex;align-items:center;gap:4px;letter-spacing:.01em">${arrow}${dir==='neg'?'':'+'}${pct.toFixed(1)}%</span><span style="font-size:11px;color:var(--text3);margin-right:4px">vs קודם</span>`
-      : '';
-    return `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:16px;padding:1.5rem 1.75rem 1.25rem;flex:1;min-width:160px;max-width:280px;position:relative;overflow:hidden">
-      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${c.bar};border-radius:16px 16px 0 0"></div>
-      <div style="font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:14px">${name}</div>
-      <div style="font-size:42px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-.025em;margin-bottom:16px">${fmtNum(val)}</div>
-      <div style="height:0.5px;background:var(--border);margin-bottom:14px"></div>
-      <div style="display:flex;align-items:center;gap:6px">${badge}</div>
-    </div>`;
-  }).join('');
+  const arrow = dir==='pos'
+    ? `<svg viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="${c.txt}"/></svg>`
+    : dir==='neg'
+    ? `<svg viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${c.txt}"/></svg>`
+    : `<svg viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${c.txt}"/></svg>`;
 
-  container.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:16px;padding:1.5rem;box-sizing:border-box;overflow:auto">${cards}</div>`;
+  const badgeHTML = pct !== null
+    ? `<span class="ban-badge" style="background:${c.bg};color:${c.txt};font-weight:600;border-radius:99px;display:inline-flex;align-items:center;letter-spacing:.01em">${arrow}${dir==='neg'?'':'+'}${pct.toFixed(1)}%</span>`
+    : '';
+
+  const periodRowHTML = (periodLabel || prevperLabel || badgeHTML) ? `
+    <div style="display:flex;align-items:center;gap:.6em;flex-direction:row-reverse;flex-wrap:wrap">
+      ${badgeHTML}
+      ${(periodLabel||prevperLabel) ? `<span class="ban-period-txt" style="color:#888780">${periodLabel}</span>` : ''}
+      ${(periodLabel && prevperLabel) ? `<span class="ban-period-txt" style="color:#b4b2a9">vs</span>` : ''}
+      ${prevperLabel ? `<span class="ban-period-txt" style="color:#b4b2a9">${prevperLabel}</span>` : ''}
+    </div>` : '';
+
+  container.innerHTML = `
+    <div style="width:100%;height:100%;display:flex;align-items:stretch;justify-content:stretch">
+      <div class="ban-inner" style="flex:1;background:var(--surface,#fff);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center">
+        <div class="ban-bar" style="position:absolute;top:0;left:0;right:0;background:${c.bar}"></div>
+        <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#888780">${kpiName}</div>
+        <div class="ban-kpi-val" style="font-weight:800;color:#1c1b18;line-height:1;letter-spacing:-.025em">${fmtNum(val)}</div>
+        <div class="ban-divider" style="height:0.5px;background:#e0dfd8"></div>
+        ${periodRowHTML}
+      </div>
+    </div>`;
+
+  scale();
+  const ro = new ResizeObserver(scale);
+  ro.observe(container);
 }
 
 // ═══════════════════════════════════════════════════
