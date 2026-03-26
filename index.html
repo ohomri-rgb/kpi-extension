@@ -324,6 +324,7 @@ const CHARTS = [
   {id:'tree',        cat:'היררכיה',  name:'Tree Chart',         icon:'🌳', roles:[R.parent(), R.child(), R.val()]},
   {id:'radialtree',  cat:'היררכיה',  name:'Radial Tree',        icon:'🌐', roles:[R.parent(), R.child(), R.val()]},
   // KPI
+  {id:'ban',         cat:'KPI',      name:'KPI BAN Card',       icon:'📌', roles:[{id:'name',label:'שם KPI',accepts:'dim',required:true},{id:'val',label:'ערך נוכחי',accepts:'measure',required:true},{id:'prev',label:'ערך קודם',accepts:'measure',required:false}]},
   {id:'gauge',       cat:'KPI',      name:'Gauge Chart',        icon:'🎯', roles:[R.val(), R.opt('max','מקסימום','measure')]},
   {id:'gaugeprogress',cat:'KPI',     name:'Progress Bar',       icon:'📏', roles:[R.val(), R.opt('max','מקסימום','measure'), R.opt('dim','קטגוריה','dim')]},
   {id:'gaugemulti',  cat:'KPI',      name:'Multi Gauge',        icon:'🎯', roles:[R.val(), {id:'val2',label:'ערך 2',accepts:'measure',required:false},{id:'val3',label:'ערך 3',accepts:'measure',required:false}]},
@@ -752,7 +753,10 @@ function drawPreview(chart, container) {
 
   const opt = previewMap[chart.id];
   if (opt) { ec.setOption(opt); }
-  else if (chart.id === 'rtltable') {
+  else if (chart.id === 'ban') {
+    ec.dispose();
+    container.innerHTML = `<div style="height:80px;display:flex;align-items:center;justify-content:center;padding:8px"><div style="background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:8px 12px;width:100%;position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:#639922"></div><div style="font-size:8px;color:#ababA0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Revenue</div><div style="font-size:20px;font-weight:800;color:#1c1b18;letter-spacing:-.02em;line-height:1;margin-bottom:6px">$84.2K</div><div style="display:flex;align-items:center;gap:4px"><span style="background:#EAF3DE;color:#3B6D11;font-size:9px;font-weight:600;padding:2px 6px 2px 4px;border-radius:99px;display:inline-flex;align-items:center;gap:3px"><svg width="6" height="6" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="#3B6D11"/></svg>+12.4%</span><span style="font-size:8px;color:#ababA0">vs prev</span></div></div></div>`;
+  } else if (chart.id === 'rtltable') {
     ec.dispose();
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
   } else {
@@ -963,11 +967,24 @@ async function applyChart() {
   const chart = state.chart;
   if (!chart) return;
   const isTable = chart.id==='rtltable';
+  const isBan   = chart.id==='ban';
   document.getElementById('echarts-container').style.display = isTable?'none':'block';
   document.getElementById('table-container').style.display = isTable?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
   if (isTable) {
     try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isBan) {
+    const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
+    if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const {rows} = parseDataTable(dt);
+      renderBan(rows, state.assignments);
+      await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
   const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
@@ -1533,6 +1550,63 @@ async function renderECharts(chart, columns, rows, assignments) {
     ec.setOption(option, true);
     window.addEventListener('resize', ()=>ec.resize());
   }
+}
+
+// ═══════════════════════════════════════════════════
+// KPI BAN CARD RENDERER
+// ═══════════════════════════════════════════════════
+function renderBan(rows, assignments) {
+  const container = document.getElementById('echarts-container');
+  // Dispose ECharts instance if it exists — BAN is pure HTML
+  if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
+
+  const nameF = assignments.name?.fieldName;
+  const valF  = assignments.val?.fieldName;
+  const prevF = assignments.prev?.fieldName;
+
+  // Aggregate: sum val (and prev if provided) per name
+  const map = {};
+  rows.forEach(r => {
+    const k = String(r[nameF] ?? '');
+    if (!map[k]) map[k] = { val: 0, prev: 0, hasPrev: false };
+    map[k].val += (r[valF] ?? 0);
+    if (prevF !== undefined) { map[k].prev += (r[prevF] ?? 0); map[k].hasPrev = true; }
+  });
+
+  const fmtNum = n => {
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+    if (abs >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+    if (abs >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+    return n.toLocaleString(undefined, {maximumFractionDigits:2});
+  };
+
+  const cards = Object.entries(map).map(([name, {val, prev, hasPrev}]) => {
+    let pct = null, dir = 'neu';
+    if (hasPrev && prev !== 0) {
+      pct = ((val - prev) / Math.abs(prev)) * 100;
+      dir = pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
+    }
+    const colors = { pos: { bar:'#639922', bg:'#EAF3DE', txt:'#3B6D11' }, neg: { bar:'#E24B4A', bg:'#FCEBEB', txt:'#A32D2D' }, neu: { bar:'#B4B2A9', bg:'#F1EFE8', txt:'#5F5E5A' } };
+    const c = colors[dir];
+    const arrow = dir==='pos'
+      ? `<svg width="8" height="8" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="${c.txt}"/></svg>`
+      : dir==='neg'
+      ? `<svg width="8" height="8" viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${c.txt}"/></svg>`
+      : `<svg width="10" height="8" viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${c.txt}"/></svg>`;
+    const badge = pct !== null
+      ? `<span style="background:${c.bg};color:${c.txt};font-size:11px;font-weight:600;padding:3px 9px 3px 6px;border-radius:99px;display:inline-flex;align-items:center;gap:4px;letter-spacing:.01em">${arrow}${dir==='neg'?'':'+'}${pct.toFixed(1)}%</span><span style="font-size:11px;color:var(--text3);margin-right:4px">vs קודם</span>`
+      : '';
+    return `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:16px;padding:1.5rem 1.75rem 1.25rem;flex:1;min-width:160px;max-width:280px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${c.bar};border-radius:16px 16px 0 0"></div>
+      <div style="font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:14px">${name}</div>
+      <div style="font-size:42px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-.025em;margin-bottom:16px">${fmtNum(val)}</div>
+      <div style="height:0.5px;background:var(--border);margin-bottom:14px"></div>
+      <div style="display:flex;align-items:center;gap:6px">${badge}</div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:16px;padding:1.5rem;box-sizing:border-box;overflow:auto">${cards}</div>`;
 }
 
 // ═══════════════════════════════════════════════════
