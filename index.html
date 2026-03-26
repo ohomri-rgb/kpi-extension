@@ -1112,20 +1112,14 @@ async function ensureMap() {
 // ═══════════════════════════════════════════════════
 async function renderECharts(chart, columns, rows, assignments) {
   const container = document.getElementById('echarts-container');
-  // Always clear BAN HTML before initializing ECharts
-  if (!state.echartsInstance) {
-    container.innerHTML = '';
-    state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
-    state.echartsInstance.on('click', ()=>{});
-  } else {
-    // Verify instance is still attached to this container (not stale after BAN)
-    try { state.echartsInstance.resize(); }
-    catch(e) {
-      container.innerHTML = '';
-      state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
-      state.echartsInstance.on('click', ()=>{});
-    }
+  // Always dispose stale instance and clear HTML before re-initializing
+  if (state.echartsInstance) {
+    try { state.echartsInstance.dispose(); } catch(e) {}
+    state.echartsInstance = null;
   }
+  container.innerHTML = '';
+  state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
+  state.echartsInstance.on('click', ()=>{});
   COLORS = (state.customColors?.length>=4) ? state.customColors.slice() : DEFAULT_COLORS.slice();
   const ec = state.echartsInstance;
   const a  = assignments;
@@ -1758,8 +1752,9 @@ function renderBan(rows, assignments, banStyle) {
       </div>
     </div>`;
 
-  // STYLE 1: badge inline-start (RIGHT in RTL), value fills remaining space to the LEFT
-  // STYLE 2: value full-width, badge on own row inline-start (RIGHT in RTL)
+  // STYLE 1: badge and value same row
+  // RTL: badge RIGHT (inline-start), value fills LEFT
+  // LTR: value LEFT, badge RIGHT (inline-end)
   const midBlock = banStyle === 2
     ? `<div style="text-align:${align};direction:ltr">
          <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;text-align:${align}">${fmt(val)}</div>
@@ -1767,9 +1762,10 @@ function renderBan(rows, assignments, banStyle) {
        <div style="display:flex;align-items:center;direction:${nd}">
          ${badgeHTML}
        </div>`
-    : `<div style="display:flex;align-items:center;direction:${nd};gap:16px">
-         ${badgeHTML}
+    : `<div style="display:flex;align-items:center;gap:16px;direction:${nd}">
+         ${hebrew ? badgeHTML : ''}
          <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:${align}">${fmt(val)}</div>
+         ${hebrew ? '' : badgeHTML}
        </div>`;
 
   container.innerHTML = `
@@ -1926,8 +1922,11 @@ async function resetBgColor() { state.bgColor=null; applyBgColor(null); await sa
 function showPlaceholder() {
   document.getElementById('placeholder').style.display='flex';
   document.getElementById('table-container').style.display='none';
-  document.getElementById('echarts-container').style.display='block';
-  if(state.echartsInstance) state.echartsInstance.clear();
+  const ec = document.getElementById('echarts-container');
+  ec.style.display='block';
+  // Fully wipe any BAN HTML and dispose ECharts instance
+  if(state.echartsInstance) { try{state.echartsInstance.dispose();}catch(e){} state.echartsInstance=null; }
+  ec.innerHTML='';
 }
 function showError(msg) { document.getElementById('error-msg').textContent=msg; document.getElementById('error-bar').classList.add('show'); }
 function hideError() { document.getElementById('error-bar').classList.remove('show'); }
