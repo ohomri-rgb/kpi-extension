@@ -373,7 +373,14 @@ const CHARTS = [
   {id:'tree',        cat:'היררכיה',  name:'Tree Chart',         icon:'🌳', roles:[R.parent(), R.child(), R.val()]},
   {id:'radialtree',  cat:'היררכיה',  name:'Radial Tree',        icon:'🌐', roles:[R.parent(), R.child(), R.val()]},
   // KPI
-  {id:'ban', cat:'KPI', name:'KPI BAN Card', icon:'📌', roles:[
+  {id:'ban1', cat:'KPI', name:'BAN Card — Style 1', icon:'📌', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
+  {id:'ban2', cat:'KPI', name:'BAN Card — Style 2', icon:'📌', roles:[
     {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
     {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
     {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
@@ -812,9 +819,13 @@ function drawPreview(chart, container) {
 
   const opt = previewMap[chart.id];
   if (opt) { ec.setOption(opt); }
-  else if (chart.id === 'ban') {
+  else if (['ban1','ban2'].includes(chart.id)) {
     ec.dispose();
-    container.innerHTML = '<div style="height:80px;display:flex;align-items:stretch;padding:6px"><div style="flex:1;background:#fff;border:1px solid #e0dfd8;border-radius:8px;padding:8px 10px;position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:#639922;border-radius:8px 8px 0 0"></div><div style="font-size:7px;color:#ababA0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;margin-top:2px">מכירות</div><div style="font-size:22px;font-weight:800;color:#1c1b18;letter-spacing:-.02em;line-height:1;margin-bottom:5px">$2.3M</div><div style="height:0.5px;background:#e0dfd8;margin-bottom:5px"></div><div style="display:flex;align-items:center;gap:4px"><span style="background:#EAF3DE;color:#3B6D11;font-size:8px;font-weight:600;padding:2px 5px 2px 4px;border-radius:99px;display:inline-flex;align-items:center;gap:2px"><svg width="5" height="5" viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="#3B6D11"/></svg>+42.9%</span><span style="font-size:7px;color:#b4b2a9">vs 2023</span><span style="flex:1"></span><span style="font-size:7px;color:#888780">2024</span></div></div></div>';
+    const isBan2 = chart.id === 'ban2';
+    container.innerHTML = `<div style="height:80px;display:flex;align-items:stretch;padding:6px"><div style="flex:1;background:#1c1c1c;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;direction:rtl"><div style="font-size:7px;color:rgba(255,255,255,.35);text-align:right">מכירות</div>${isBan2
+      ? `<div style="font-size:19px;font-weight:800;color:#fff;direction:ltr;text-align:right">₪2.3M</div><div style="display:flex;justify-content:flex-end"><div style="border:1px solid rgba(80,200,60,.55);border-radius:99px;padding:2px 8px;font-size:8px;color:#fff;background:rgba(255,255,255,.04);direction:ltr">▲ 42.9% שינוי</div></div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;direction:rtl"><div style="font-size:19px;font-weight:800;color:#fff;direction:ltr">₪2.3M</div><div style="border:1px solid rgba(80,200,60,.55);border-radius:99px;padding:2px 8px;font-size:8px;color:#fff;background:rgba(255,255,255,.04);direction:ltr">▲ 42.9% שינוי</div></div>`
+    }<div style="height:.5px;background:rgba(255,255,255,.1)"></div><div style="font-size:7px;color:rgba(255,255,255,.4);text-align:right">₪1.6M</div></div></div>`;
   } else if (chart.id === 'rtltable') {
     ec.dispose();
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
@@ -1033,7 +1044,7 @@ async function applyChart() {
   const chart = state.chart;
   if (!chart) return;
   const isTable = chart.id==='rtltable';
-  const isBan   = chart.id==='ban';
+  const isBan   = ['ban1','ban2'].includes(chart.id);
   document.getElementById('echarts-container').style.display = isTable?'none':'block';
   document.getElementById('table-container').style.display = isTable?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
@@ -1048,7 +1059,7 @@ async function applyChart() {
       const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
       const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
       const {rows} = parseDataTable(dt);
-      renderBan(rows, state.assignments);
+      renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
       applyBorderRadius();
       await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
@@ -1623,7 +1634,7 @@ async function renderECharts(chart, columns, rows, assignments) {
 // ═══════════════════════════════════════════════════
 // KPI BAN CARD RENDERER
 // ═══════════════════════════════════════════════════
-function renderBan(rows, assignments) {
+function renderBan(rows, assignments, banStyle) {
   const container = document.getElementById('echarts-container');
   if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
 
@@ -1647,6 +1658,7 @@ function renderBan(rows, assignments) {
   const kpiName     = nameF ? String(rows.find(r => r[nameF] != null)?.[nameF] ?? '') : '';
   const hebrew      = /[\u0590-\u05FF]/.test(kpiName) || /[\u0590-\u05FF]/.test(String([...periodVals][0]||''));
   const nd          = hebrew ? 'rtl' : 'ltr';
+  const align       = hebrew ? 'right' : 'left';
   const cur         = hebrew ? '₪' : '$';
   const chgWord     = hebrew ? 'שינוי' : 'change';
   const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
@@ -1659,9 +1671,9 @@ function renderBan(rows, assignments) {
   const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
 
   const BADGE = {
-    pos: { bar:'#3d8c1a', border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)'  },
-    neg: { bar:'#b52a1a', border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)'  },
-    neu: { bar:'#444',    border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)' },
+    pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)'  },
+    neg: { border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)'  },
+    neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)' },
   };
   const B = BADGE[dir];
 
@@ -1678,18 +1690,15 @@ function renderBan(rows, assignments) {
     const h = container.offsetHeight || 200;
     const u = Math.min(w, h * 2.2) / 460;
     const s = (b, m=10) => Math.max(m, Math.round(u * b));
-
     const card = container.querySelector('.ban-inner');
     if (!card) return;
-
     card.style.padding = `${s(20)}px ${s(30)}px ${s(18)}px`;
-
     const lbl = card.querySelector('.ban-kpi-lbl');
-    if (lbl) lbl.style.fontSize = `${s(14,10)}px`;
-
+    if (lbl) { lbl.style.fontSize = `${s(13,10)}px`; lbl.style.marginBottom = `${s(2)}px`; }
+    const per = card.querySelector('.ban-period-lbl');
+    if (per) per.style.fontSize = `${s(11,10)}px`;
     const valEl = card.querySelector('.ban-kpi-val');
     if (valEl) valEl.style.fontSize = `${s(72,22)}px`;
-
     const badge = card.querySelector('.ban-badge');
     if (badge) {
       badge.style.padding = `${s(7)}px ${s(18)}px`;
@@ -1697,15 +1706,13 @@ function renderBan(rows, assignments) {
       const pctEl = badge.querySelector('.ban-pct');
       if (pctEl) pctEl.style.fontSize = `${s(15,11)}px`;
       const chgEl = badge.querySelector('.ban-chg');
-      if (chgEl) chgEl.style.fontSize = `${s(13,10)}px`;
+      if (chgEl) chgEl.style.fontSize = `${s(12,10)}px`;
       const svg = badge.querySelector('svg');
       if (svg) { const sz=Math.max(7,s(9)); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
     }
-
     const botVal = card.querySelector('.ban-bot-val');
-    if (botVal) botVal.style.fontSize = `${s(16,11)}px`;
-    const botLbls = card.querySelectorAll('.ban-bot-lbl');
-    botLbls.forEach(el => el.style.fontSize = `${s(12,10)}px`);
+    if (botVal) botVal.style.fontSize = `${s(15,11)}px`;
+    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s(11,10)}px`);
   }
 
   const arwSVG = dir === 'pos'
@@ -1714,53 +1721,55 @@ function renderBan(rows, assignments) {
     ? `<svg viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${B.arrowFill}"/></svg>`
     : `<svg viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${B.arrowFill}"/></svg>`;
 
-  // Badge internals: RTL = שינוי | % | arrow  /  LTR = arrow | % | change
-  const badgeInner = hebrew
-    ? `<span class="ban-chg" style="font-weight:400;color:rgba(255,255,255,0.7)">${chgWord}</span>
-       <span class="ban-pct" style="font-weight:700;color:#fff">${Math.abs(pct).toFixed(1)}%</span>
-       ${arwSVG}`
-    : `${arwSVG}
-       <span class="ban-pct" style="font-weight:700;color:#fff">${Math.abs(pct).toFixed(1)}%</span>
-       <span class="ban-chg" style="font-weight:400;color:rgba(255,255,255,0.7)">${chgWord}</span>`;
-
+  // Badge: always direction:ltr internally, arrow | % | label
   const badgeHTML = pct !== null ? `
-    <div class="ban-badge" style="
-      display:inline-flex;align-items:center;border-radius:99px;
-      border:1.5px solid ${B.border};
-      background:rgba(255,255,255,0.04);
-      white-space:nowrap;flex-shrink:0">
-      ${badgeInner}
+    <div class="ban-badge" style="display:inline-flex;align-items:center;border-radius:99px;
+      border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
+      white-space:nowrap;flex-shrink:0;direction:ltr">
+      ${arwSVG}
+      <span class="ban-pct" style="font-weight:700;color:#fff">${Math.abs(pct).toFixed(1)}%</span>
+      <span class="ban-chg" style="font-weight:400;color:rgba(255,255,255,0.65)">${chgWord}</span>
     </div>` : '';
+
+  // TOP block: KPI name + current period stacked, both inline-start (right in RTL)
+  const topBlock = `
+    <div style="text-align:${align}">
+      <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;color:${topCol};opacity:.38">${kpiName}</div>
+      ${periodLabel ? `<div class="ban-period-lbl" style="color:${botCol};opacity:.4">${periodLabel}</div>` : ''}
+    </div>`;
+
+  // BOTTOM block: prev value + prevper stacked, inline-start (right in RTL)
+  const bottomBlock = `
+    <div>
+      <div style="height:1px;background:${topCol}20;margin-bottom:8px"></div>
+      <div style="text-align:${align}">
+        ${hasPrev ? `<div class="ban-bot-val" style="font-weight:700;color:${botCol};direction:ltr;display:inline-block">${fmt(prev)}</div>` : ''}
+        ${hasPrev ? `<div class="ban-bot-lbl" style="color:${botCol};opacity:.5">${prevperLabel||prevPerWord}</div>` : ''}
+      </div>
+    </div>`;
+
+  // STYLE 1: badge inline-end (left in RTL) + value inline-start (right in RTL), same row
+  // STYLE 2: value full-width inline-start, badge on own row inline-end (left in RTL)
+  const midBlock = banStyle === 2
+    ? `<div style="text-align:${align};direction:ltr">
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;text-align:${align}">${fmt(val)}</div>
+       </div>
+       <div style="display:flex;direction:${nd}">
+         <span style="flex:1"></span>
+         ${badgeHTML}
+       </div>`
+    : `<div style="display:flex;align-items:center;justify-content:space-between;direction:${nd}">
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr">${fmt(val)}</div>
+         ${badgeHTML}
+       </div>`;
 
   container.innerHTML = `
     <div style="width:100%;height:100%;display:flex">
-      <div class="ban-inner" style="
-        flex:1;background:${boxCol};position:relative;overflow:hidden;
-        display:flex;flex-direction:column;justify-content:space-between;
-        direction:${nd};padding:20px 30px 18px">
-
-        <!-- KPI name: top, inline-start -->
-        <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;color:${topCol};opacity:.38">${kpiName}</div>
-
-        <!-- Middle: value inline-start, badge inline-end — same row -->
-        <div style="display:flex;align-items:center;justify-content:space-between;direction:${nd}">
-          <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr">${fmt(val)}</div>
-          ${badgeHTML}
-        </div>
-
-        <!-- Divider -->
-        <div style="height:1px;background:${topCol}20"></div>
-
-        <!-- Bottom: prev value + label stacked inline-start, current period inline-end -->
-        <div style="display:flex;align-items:flex-end;direction:${nd}">
-          <div style="display:flex;flex-direction:column;gap:2px;align-items:${nd==='rtl'?'flex-end':'flex-start'}">
-            ${hasPrev ? `<span class="ban-bot-val" style="font-weight:700;color:${botCol};direction:ltr;display:inline-block">${fmt(prev)}</span>` : ''}
-            ${hasPrev ? `<span class="ban-bot-lbl" style="color:${botCol};opacity:.5">${prevperLabel||prevPerWord}</span>` : ''}
-          </div>
-          <span style="flex:1"></span>
-          ${periodLabel ? `<span class="ban-bot-lbl" style="color:${botCol};opacity:.4">${periodLabel}</span>` : ''}
-        </div>
-
+      <div class="ban-inner" style="flex:1;background:${boxCol};overflow:hidden;
+        display:flex;flex-direction:column;justify-content:space-between;direction:${nd}">
+        ${topBlock}
+        ${midBlock}
+        ${bottomBlock}
       </div>
     </div>`;
 
@@ -1774,7 +1783,7 @@ function renderBan(rows, assignments) {
 const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
 
 function openColorEditor() {
-  const isBan = state.chart?.id === 'ban';
+  const isBan = ['ban1','ban2'].includes(state.chart?.id);
   document.getElementById('color-modal-title').textContent = isBan ? 'ערוך צבעי BAN' : 'ערוך צבעי גרף';
   renderColorSwatches();
   document.getElementById('color-modal-overlay').classList.add('open');
@@ -1783,7 +1792,7 @@ function closeColorEditor() { document.getElementById('color-modal-overlay').cla
 function onColorOverlayClick(e) { if(e.target===document.getElementById('color-modal-overlay')) closeColorEditor(); }
 
 function renderColorSwatches() {
-  const isBan    = state.chart?.id === 'ban';
+  const isBan    = ['ban1','ban2'].includes(state.chart?.id);
   const colors   = isBan ? (state.banColors || BAN_COLOR_DEFAULTS.slice()) : COLORS;
   const labels   = isBan ? BAN_COLOR_LABELS : COLOR_LABELS;
   const container = document.getElementById('color-swatches');
@@ -1809,12 +1818,12 @@ function renderColorSwatches() {
 }
 
 function resetColors() {
-  if(state.chart?.id==='ban') { state.banColors=null; }
+  if(['ban1','ban2'].includes(state.chart?.id)) { state.banColors=null; }
   else { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; }
   renderColorSwatches();
 }
 function applyColors() {
-  if(state.chart?.id==='ban') { /* banColors already updated live in oninput */ }
+  if(['ban1','ban2'].includes(state.chart?.id)) { /* banColors already updated live in oninput */ }
   else { state.customColors=COLORS.slice(); }
   closeColorEditor();
   applyChart();
