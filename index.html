@@ -1692,31 +1692,33 @@ function renderBan(rows, assignments, banStyle) {
   function scale() {
     const w = container.offsetWidth  || 300;
     const h = container.offsetHeight || 200;
-    const u = Math.min(w, h * 2.2) / 460;
-    const s = (b, m=10) => Math.max(m, Math.round(u * b));
+    // Use a balanced unit: don't let height dominate on tall/square cards
+    const u = Math.min(w / 400, h / 220);
+    const s = (b, m=10, mx=9999) => Math.min(mx, Math.max(m, Math.round(u * b)));
     const card = container.querySelector('.ban-inner');
     if (!card) return;
-    card.style.padding = `${s(20)}px ${s(30)}px ${s(18)}px`;
+    card.style.padding = `${s(16,10)}px ${s(24,12)}px ${s(14,10)}px`;
     const lbl = card.querySelector('.ban-kpi-lbl');
-    if (lbl) { lbl.style.fontSize = `${s(13,10)}px`; lbl.style.marginBottom = `${s(2)}px`; }
+    if (lbl) { lbl.style.fontSize = `${s(13,10,20)}px`; lbl.style.marginBottom = `${s(3,2)}px`; }
     const per = card.querySelector('.ban-period-lbl');
-    if (per) per.style.fontSize = `${s(11,10)}px`;
+    if (per) per.style.fontSize = `${s(11,9,16)}px`;
     const valEl = card.querySelector('.ban-kpi-val');
-    if (valEl) valEl.style.fontSize = `${s(72,22)}px`;
+    // Cap value font: never exceed 42% of card height
+    if (valEl) valEl.style.fontSize = `${s(58,20,Math.round(h*0.42))}px`;
     const badge = card.querySelector('.ban-badge');
     if (badge) {
-      badge.style.padding = `${s(7)}px ${s(18)}px`;
-      badge.style.gap     = `${s(8)}px`;
+      badge.style.padding = `${s(5,4)}px ${s(13,9)}px`;
+      badge.style.gap     = `${s(6,4)}px`;
       const pctEl = badge.querySelector('.ban-pct');
-      if (pctEl) pctEl.style.fontSize = `${s(15,11)}px`;
+      if (pctEl) pctEl.style.fontSize = `${s(13,10,20)}px`;
       const chgEl = badge.querySelector('.ban-chg');
-      if (chgEl) chgEl.style.fontSize = `${s(12,10)}px`;
+      if (chgEl) chgEl.style.fontSize = `${s(11,9,16)}px`;
       const svg = badge.querySelector('svg');
-      if (svg) { const sz=Math.max(7,s(9)); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
+      if (svg) { const sz=Math.max(6,s(8,6,14)); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
     }
     const botVal = card.querySelector('.ban-bot-val');
-    if (botVal) botVal.style.fontSize = `${s(15,11)}px`;
-    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s(11,10)}px`);
+    if (botVal) botVal.style.fontSize = `${s(14,10,20)}px`;
+    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s(10,9,15)}px`);
   }
 
   const arwSVG = dir === 'pos'
@@ -1738,17 +1740,17 @@ function renderBan(rows, assignments, banStyle) {
   // TOP block: KPI name + current period stacked, both inline-start (right in RTL)
   const topBlock = `
     <div style="text-align:${align}">
-      <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;color:${topCol};opacity:.38">${kpiName}</div>
-      ${periodLabel ? `<div class="ban-period-lbl" style="color:${botCol};opacity:.4">${periodLabel}</div>` : ''}
+      <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${topCol};opacity:.65">${kpiName}</div>
+      ${periodLabel ? `<div class="ban-period-lbl" style="color:${botCol};opacity:.55">${periodLabel}</div>` : ''}
     </div>`;
 
   // BOTTOM block: prev value + prevper stacked, inline-start (right in RTL)
   const bottomBlock = `
     <div>
-      <div style="height:1px;background:${topCol}20;margin-bottom:8px"></div>
+      <div style="height:1px;background:${topCol}25;margin-bottom:7px"></div>
       <div style="text-align:${align}">
-        ${hasPrev ? `<div class="ban-bot-val" style="font-weight:700;color:${botCol};direction:ltr;display:inline-block">${fmt(prev)}</div>` : ''}
-        ${hasPrev ? `<div class="ban-bot-lbl" style="color:${botCol};opacity:.5">${prevperLabel||prevPerWord}</div>` : ''}
+        ${hasPrev ? `<div class="ban-bot-val" style="font-weight:700;color:${botCol};opacity:.9;direction:ltr;display:inline-block">${fmt(prev)}</div>` : ''}
+        ${hasPrev ? `<div class="ban-bot-lbl" style="color:${botCol};opacity:.6">${prevperLabel||prevPerWord}</div>` : ''}
       </div>
     </div>`;
 
@@ -1772,9 +1774,11 @@ function renderBan(rows, assignments, banStyle) {
   container.innerHTML = `
     <div style="width:100%;height:100%;display:flex">
       <div class="ban-inner" style="flex:1;background:${boxCol};overflow:hidden;
-        display:flex;flex-direction:column;justify-content:space-between;direction:${nd}">
+        display:flex;flex-direction:column;justify-content:space-between;gap:4px;direction:${nd}">
         ${topBlock}
-        ${midBlock}
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0">
+          ${midBlock}
+        </div>
         ${bottomBlock}
       </div>
     </div>`;
