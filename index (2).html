@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ECharts Extension</title>
+<script src="tableau.extensions.js"></script>
+<script src="echarts.min.js"></script>
+<script src="world.js"></script>
+<style>
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-ExtraBold.ttf') format('truetype');font-weight:700 800}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f2f1ed;--surface:#fff;--surface2:#f7f6f2;--border:#e0dfd8;--border2:#ccc;
+  --text:#1c1b18;--text2:#6e6c63;--text3:#ababA0;
+  --teal:#17a589;--teal-dark:#0e8070;--teal-light:#e0f2ef;
+  --accent:#e8006a;--blue:#0057e8;--blue-light:#e8f0ff;
+  --green:#00a651;--green-light:#e6f7ee;
+  --radius:8px;--radius-sm:5px;
+}
+html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transparent;color:var(--text);font-size:13px;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh;background:transparent}
+
+/* MARKS CARD */
+.marks-card{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.marks-top{display:flex;align-items:center;gap:8px}
+.chart-type-btn{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;transition:all .15s;font-family:inherit;flex:1}
+.chart-type-btn:hover{border-color:var(--teal);color:var(--teal)}
+.chart-type-btn .chevron{margin-right:auto;color:var(--text3);font-size:10px}
+.apply-btn{background:var(--teal);color:#fff;border:none;border-radius:var(--radius-sm);padding:5px 12px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s;white-space:nowrap}
+.apply-btn:hover{background:var(--teal-dark)}
+.apply-btn:disabled{background:var(--border2);cursor:not-allowed}
+.refresh-btn,.close-mc-btn,.color-edit-btn{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;flex-shrink:0}
+.refresh-btn{font-size:14px;color:var(--text2)}
+.refresh-btn:hover{border-color:var(--teal);color:var(--teal);transform:rotate(30deg)}
+.close-mc-btn{width:26px;height:26px;color:var(--text3);font-size:12px}
+.close-mc-btn:hover{border-color:var(--accent);color:var(--accent)}
+.color-edit-btn{font-size:15px;color:var(--text2)}
+.color-edit-btn:hover{border-color:var(--teal);transform:scale(1.1)}
+.roles-list{display:flex;flex-direction:column;gap:3px}
+.role-row{display:flex;align-items:center;gap:6px;min-height:28px}
+.role-label{font-size:10px;color:var(--text3);width:58px;flex-shrink:0;font-weight:500}
+.role-required{color:var(--accent)}
+.slot-empty{flex:1;display:flex;align-items:center;padding:4px 8px;border:1.5px dashed #b0cfc9;border-radius:4px;background:var(--teal-light);color:var(--teal);font-size:11px;cursor:pointer;transition:all .12s;position:relative}
+.slot-empty:hover,.slot-empty.drag-over{border-color:var(--teal);border-style:solid;background:#c5e8e3}
+.slot-filled{flex:1;display:flex;align-items:center;justify-content:space-between;padding:4px 6px 4px 8px;border-radius:4px;background:var(--teal);color:#fff;font-size:11px;font-weight:500}
+.slot-filled .slot-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.slot-remove{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;padding:0 2px;font-size:12px;line-height:1}
+.slot-remove:hover{color:#fff}
+.slot-dropdown{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;min-width:180px;overflow:hidden}
+.slot-dropdown-item{padding:7px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s;color:var(--text)}
+.slot-dropdown-item:hover{background:var(--surface2)}
+.slot-dropdown-item .tag{font-size:10px;padding:1px 6px;border-radius:3px}
+.slot-dropdown-sep{height:1px;background:var(--border);margin:3px 0}
+.slot-dropdown-label{font-size:10px;color:var(--text3);padding:6px 12px 2px;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.error-bar{background:#fff0f0;border-bottom:1px solid #ffd0d0;padding:7px 12px;font-size:12px;color:#c0392b;display:none;align-items:center;gap:8px;flex-shrink:0}
+.error-bar.show{display:flex}
+
+/* CHART AREA */
+.chart-area{flex:1;position:relative;min-height:0;background:transparent}
+#echarts-container{width:100%;height:100%}
+.chart-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text3);font-size:12px;pointer-events:none}
+.chart-placeholder .ph-icon{font-size:32px;opacity:.4}
+.color-swatch-row{display:flex;align-items:center;gap:10px}
+.color-swatch{width:30px;height:30px;border-radius:6px;border:2px solid rgba(0,0,0,.1);cursor:pointer;flex-shrink:0;transition:transform .15s,box-shadow .15s}
+.color-swatch:hover{transform:scale(1.12);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.color-swatch-label{font-size:12px;color:var(--text2)}
+
+/* GALLERY MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none}
+.modal-overlay.open{display:block}
+.modal{position:fixed;top:0;right:0;bottom:0;width:720px;max-width:95vw;background:var(--surface);display:flex;flex-direction:column;z-index:1001;transform:translateX(100%);transition:transform .28s cubic-bezier(.22,1,.36,1)}
+.modal-overlay.open .modal{transform:translateX(0)}
+.modal-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-header h2{font-size:15px;font-weight:600}
+.modal-close{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:14px}
+.modal-close:hover{background:var(--surface2)}
+.modal-controls{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.modal-search{flex:1;min-width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none}
+.modal-search:focus{border-color:var(--teal)}
+.modal-body{flex:1;overflow-y:auto;padding:12px 18px 18px}
+.chip{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);font-size:11px;color:var(--text2);cursor:pointer;transition:all .12s;white-space:nowrap}
+.chip:hover{border-color:var(--teal);color:var(--teal)}
+.chip.active{background:var(--teal);border-color:var(--teal);color:#fff}
+.gallery-section-label{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;margin:14px 0 8px}
+.gallery-section-label:first-child{margin-top:4px}
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.gallery-card{border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;transition:border-color .15s,transform .12s,box-shadow .15s;overflow:hidden}
+.gallery-card:hover{border-color:var(--teal);transform:translateY(-2px);box-shadow:0 4px 14px rgba(23,165,137,.1)}
+.gallery-card.selected{border-color:var(--teal);border-width:2px;box-shadow:0 0 0 3px rgba(23,165,137,.12)}
+.gallery-preview{height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center}
+.gallery-info{padding:7px 9px 9px}
+.gallery-name{font-size:12px;font-weight:600;margin-bottom:3px}
+.gallery-dims{display:flex;flex-wrap:wrap;gap:3px}
+.dim-tag{font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500}
+.dim-tag.dim{background:var(--blue-light);color:var(--blue)}
+.dim-tag.measure{background:var(--green-light);color:var(--green)}
+.dim-tag.optional{background:var(--surface2);color:var(--text3)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* RADIUS POPOVER */
+.radius-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:192px;display:none;direction:ltr}
+.radius-popover.open{display:block}
+
+/* FONT SIZE POPOVER */
+.fontsize-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:220px;display:none;direction:rtl}
+.fontsize-popover.open{display:block}
+.fontsize-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
+.fs-row{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.fs-row-header{font-size:10px;color:var(--text3);display:flex;justify-content:space-between;align-items:center}
+.fs-row-header span.fs-val{color:var(--teal);font-weight:700;font-size:11px;min-width:26px;text-align:left;direction:ltr}
+.fs-row input[type=range]{width:100%;accent-color:var(--teal);cursor:pointer;height:4px;margin:0}
+.radius-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
+.radius-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.radius-cell{display:flex;flex-direction:column;gap:3px}
+.radius-cell label{font-size:10px;color:var(--text3)}
+.radius-cell input[type=number]{width:100%;padding:3px 6px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none;-moz-appearance:textfield}
+.radius-cell input[type=number]::-webkit-inner-spin-button{opacity:1}
+.radius-cell input[type=number]:focus{border-color:var(--teal)}
+.radius-corner-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 auto 6px}
+
+/* ONBOARDING */
+.onboarding{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}
+.ob-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px 20px;width:100%;max-width:340px;text-align:center}
+.ob-icon{font-size:28px;margin-bottom:10px}
+.ob-title{font-size:16px;font-weight:600;margin-bottom:4px}
+.ob-sub{font-size:12px;color:var(--text2);margin-bottom:18px}
+.ob-steps{text-align:right;display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.ob-step{display:flex;gap:10px;align-items:flex-start}
+.ob-num{width:20px;height:20px;border-radius:50%;background:var(--teal-light);color:var(--teal-dark);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.ob-step-text{font-size:12px;color:var(--text);line-height:1.6}
+.ob-step-text strong{color:var(--teal-dark)}
+.ob-note{font-size:11px;color:var(--text3);margin-top:2px}
+.ob-marks-preview{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:16px;text-align:right}
+.ob-marks-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.ob-marks-label{font-size:10px;color:var(--text3);width:44px;flex-shrink:0}
+.ob-pill{font-size:10px;font-weight:500;padding:2px 8px;border-radius:3px;background:var(--teal);color:#fff}
+.ob-pill-dim{opacity:.75}
+.ob-btn{width:100%;background:var(--teal);color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s;margin-bottom:8px}
+.ob-btn:hover{background:var(--teal-dark)}
+.ob-skip{font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline}
+.ob-skip:hover{color:var(--text2)}
+
+/* RTL TABLE */
+#table-container{width:100%;height:100%;overflow:auto;direction:rtl;display:none}
+#table-container table{border-collapse:collapse;direction:rtl;table-layout:fixed}
+#table-container thead tr:first-child th,#table-container thead tr:nth-child(2) th{position:sticky;z-index:3;background:#f3f4f6;text-align:right;white-space:nowrap;border-bottom:1px solid #e5e7eb}
+#table-container thead tr:first-child th{top:0;padding:8px 12px 7px;font-size:13px;font-weight:600;color:#374151;user-select:none}
+#table-container thead tr:nth-child(2) th{top:35px;padding:3px 6px 4px;border-bottom:2px solid #c7d2fe}
+#table-container td{padding:7px 12px;font-size:12px;color:#111;text-align:right;border-bottom:1px solid #f3f4f6;white-space:nowrap;vertical-align:top}
+#table-container td.num{text-align:right}
+#table-container td.wrap{white-space:normal;word-break:break-word;line-height:1.6}
+#table-container tbody tr:nth-child(even){background:#f9fafb}
+#table-container tbody tr:hover{background:#eef2ff}
+#table-container tbody tr.hidden-row{display:none}
+.tbl-filter-btn{display:flex;align-items:center;gap:4px;font-size:11px;font-family:'NotoSansHebrew',sans-serif;border:1px solid #d1d5db;border-radius:5px;padding:2px 7px 2px 5px;background:#fff;color:#374151;direction:rtl;cursor:pointer;white-space:nowrap;width:100%;transition:border-color .15s}
+.tbl-filter-btn:hover{border-color:#6366f1;color:#6366f1}
+.tbl-filter-btn.active{border-color:#6366f1;background:#eef2ff;color:#4338ca;font-weight:600}
+.tbl-filter-btn .arrow{font-size:9px;opacity:.6;flex-shrink:0;margin-right:auto}
+.tbl-filter-btn .btn-label{flex:1;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.tbl-dd-panel{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.13);min-width:160px;max-width:220px;display:none;flex-direction:column;overflow:hidden}
+.tbl-dd-panel.open{display:flex}
+.tbl-dd-search{padding:6px 8px;border-bottom:1px solid #f3f4f6}
+.tbl-dd-search input{width:100%;font-size:11px;font-family:'NotoSansHebrew',sans-serif;border:1px solid #e5e7eb;border-radius:4px;padding:3px 7px;direction:rtl;outline:none}
+.tbl-dd-search input:focus{border-color:#6366f1}
+.tbl-dd-list{max-height:200px;overflow-y:auto;padding:4px 0}
+.tbl-dd-item{display:flex;align-items:center;gap:7px;padding:5px 10px;font-size:12px;color:#374151;cursor:pointer;direction:rtl;user-select:none}
+.tbl-dd-item:hover{background:#f5f3ff}
+.tbl-dd-item input[type=checkbox]{accent-color:#6366f1;width:13px;height:13px;flex-shrink:0;cursor:pointer}
+.tbl-dd-item label{cursor:pointer;flex:1;text-align:right}
+.tbl-dd-footer{display:flex;gap:6px;padding:6px 8px;border-top:1px solid #f3f4f6}
+.tbl-dd-footer button{flex:1;font-size:11px;font-family:'NotoSansHebrew',sans-serif;border-radius:5px;padding:3px 0;cursor:pointer;border:1px solid;transition:background .12s}
+.tbl-btn-all{background:#fff;border-color:#d1d5db;color:#374151}
+.tbl-btn-all:hover{background:#f9fafb}
+.tbl-btn-apply{background:#6366f1;border-color:#6366f1;color:#fff;font-weight:600}
+.tbl-btn-apply:hover{background:#4338ca}
+</style>
+</head>
+<body>
+<!-- Onboarding -->
+<div class="onboarding" id="onboarding" style="display:none">
+  <div class="ob-card">
+    <div class="ob-icon">📊</div>
+    <h2 class="ob-title">ECharts Extension</h2>
+    <p class="ob-sub">לפני שמתחילים — שלב אחד קטן</p>
+    <div class="ob-steps">
+      <div class="ob-step"><div class="ob-num">1</div><div class="ob-step-text">גרור ממדים ל-<strong>Detail</strong> ב-Marks Card<div class="ob-note">קובעים את רמת הפירוט של הגרף</div></div></div>
+      <div class="ob-step"><div class="ob-num">2</div><div class="ob-step-text">גרור מדדים גם ל-<strong>Detail</strong><div class="ob-note">Sales, Profit וכו׳</div></div></div>
+      <div class="ob-step"><div class="ob-num">3</div><div class="ob-step-text">לחץ <strong>המשך</strong> — בחר גרף ושייך שדות</div></div>
+    </div>
+    <div class="ob-marks-preview">
+      <div class="ob-marks-row">
+        <span class="ob-marks-label">Detail</span>
+        <span class="ob-pill ob-pill-dim">Segment</span><span class="ob-pill ob-pill-dim">Category</span>
+        <span class="ob-pill">Sales</span><span class="ob-pill">Profit</span>
+      </div>
+      <div class="ob-marks-row" style="margin-top:4px">
+        <span class="ob-marks-label" style="font-size:9px;color:#c0392b">⚠ חשוב</span>
+        <span style="font-size:10px;color:#c0392b">רמת הפירוט = הממדים שעל Detail</span>
+      </div>
+    </div>
+    <button class="ob-btn" onclick="dismissOnboarding()">המשך →</button>
+    <p class="ob-skip" onclick="dismissOnboarding()">כבר הוספתי שדות, דלג</p>
+  </div>
+</div>
+
+<div class="app" id="app" style="display:none">
+  <div class="marks-card" id="marks-card" style="display:none">
+    <div class="marks-top">
+      <button class="close-mc-btn" onclick="toggleMarksCard()" title="סגור">✕</button>
+      <button class="refresh-btn" id="refresh-btn" onclick="reloadFields()" title="רענן שדות">↺</button>
+      <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
+      <button class="color-edit-btn" onclick="openColorEditor()" title="ערוך צבעים">🎨</button>
+      <button class="color-edit-btn" onclick="openBgColorPicker()" ondblclick="resetBgColor()" title="צבע רקע (כפול=שקוף)">🖼</button>
+      <button class="color-edit-btn" id="radius-btn" onclick="toggleRadiusPopover(event)" title="עיגול פינות">⌐</button>
+      <button class="color-edit-btn" id="fontsize-btn" onclick="toggleFontsizePopover(event)" title="גודל טקסט BAN" style="display:none">Aa</button>
+      <button class="chart-type-btn" onclick="openGallery()">
+        <span id="mc-name">בחר סוג גרף</span>
+        <span id="mc-icon">📈</span>
+      </button>
+    </div>
+    <div class="roles-list" id="roles-list"></div>
+  </div>
+
+  <div class="error-bar" id="error-bar"><span>⚠</span><span id="error-msg"></span></div>
+
+  <div class="chart-area">
+    <div id="echarts-container"></div>
+    <div id="table-container">
+      <table><thead><tr id="tbl-hrow"></tr><tr id="tbl-frow"></tr></thead><tbody id="tbl-tbody"></tbody></table>
+    </div>
+    <div class="chart-placeholder" id="placeholder">
+      <span class="ph-icon">📊</span><span>בחר סוג גרף ושייך שדות</span>
+    </div>
+  </div>
+</div>
+
+<!-- Gallery Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="onOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header"><h2>בחר סוג גרף</h2><button class="modal-close" onclick="closeGallery()">✕</button></div>
+    <div class="modal-controls">
+      <input class="modal-search" type="text" placeholder="חפש..." oninput="renderGallery()" id="gallery-search"/>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="gallery-chips"></div>
+    </div>
+    <div class="modal-body" id="gallery-body"></div>
+  </div>
+</div>
+
+<div class="slot-dropdown" id="slot-dropdown" style="display:none"></div>
+
+<!-- Color Editor Modal -->
+<div class="modal-overlay" id="color-modal-overlay" onclick="onColorOverlayClick(event)">
+  <div class="modal" style="width:320px;max-width:95vw">
+    <div class="modal-header"><h2 id="color-modal-title">ערוך צבעי גרף</h2><button class="modal-close" onclick="closeColorEditor()">✕</button></div>
+    <div class="modal-body" style="padding:16px 18px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">לחץ על צבע לעריכה.</p>
+      <div id="color-swatches" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button class="apply-btn" onclick="resetColors()" style="background:var(--border2);color:var(--text)">אפס</button>
+        <button class="apply-btn" onclick="applyColors()">שמור וצייר</button>
+      </div>
+    </div>
+  </div>
+</div>
+<input type="color" id="native-color-input" style="position:fixed;opacity:0;width:0;height:0;pointer-events:none"/>
+<input type="color" id="native-bg-input" style="position:fixed;opacity:0;width:0;height:0;pointer-events:none"/>
+
+<!-- RADIUS POPOVER -->
+<div class="radius-popover" id="radius-popover">
+  <div class="radius-popover-title">עיגול פינות (px)</div>
+  <div style="display:flex;justify-content:center;margin-bottom:10px">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <rect x="2" y="2" width="60" height="60" rx="8" stroke="var(--border2)" stroke-width="1.5" fill="none"/>
+      <circle cx="10" cy="10" r="3" fill="var(--teal)" id="rc-tl-dot"/>
+      <circle cx="54" cy="10" r="3" fill="var(--teal)" id="rc-tr-dot"/>
+      <circle cx="10" cy="54" r="3" fill="var(--teal)" id="rc-bl-dot"/>
+      <circle cx="54" cy="54" r="3" fill="var(--teal)" id="rc-br-dot"/>
+    </svg>
+  </div>
+  <div class="radius-grid">
+    <div class="radius-cell">
+      <label>↖ עליון שמאל</label>
+      <input type="number" id="rc-tl" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↗ עליון ימין</label>
+      <input type="number" id="rc-tr" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↙ תחתון שמאל</label>
+      <input type="number" id="rc-bl" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↘ תחתון ימין</label>
+      <input type="number" id="rc-br" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px">
+    <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetRadius()">אפס</button>
+    <button class="apply-btn" style="flex:1" onclick="saveRadiusAndClose()">שמור</button>
+  </div>
+</div>
+
+<!-- FONT SIZE POPOVER (BAN only) -->
+<div class="fontsize-popover" id="fontsize-popover">
+  <div class="fontsize-popover-title">גודל טקסט — BAN</div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>שם KPI</span><span class="fs-val" id="fs-name-val">—</span></div>
+    <input type="range" id="fs-name" min="8" max="36" step="1" oninput="onFsInput('name',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>ערך ראשי</span><span class="fs-val" id="fs-value-val">—</span></div>
+    <input type="range" id="fs-value" min="20" max="120" step="2" oninput="onFsInput('value',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>תג שינוי</span><span class="fs-val" id="fs-badge-val">—</span></div>
+    <input type="range" id="fs-badge" min="8" max="32" step="1" oninput="onFsInput('badge',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>תקופה / ערך קודם</span><span class="fs-val" id="fs-bot-val">—</span></div>
+    <input type="range" id="fs-bot" min="8" max="28" step="1" oninput="onFsInput('bot',this.value)"/>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px">
+    <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetFontSizes()">אפס</button>
+    <button class="apply-btn" style="flex:1" onclick="saveFontsizeAndClose()">שמור</button>
+  </div>
+</div>
+
+<!-- Table filter dropdown -->
+<div class="tbl-dd-panel" id="tbl-dd-panel">
+  <div class="tbl-dd-search"><input type="text" id="tbl-dd-search-input" placeholder="חיפוש..."/></div>
+  <div class="tbl-dd-list" id="tbl-dd-list"></div>
+  <div class="tbl-dd-footer">
+    <button class="tbl-btn-all" id="tbl-btn-all">הכל</button>
+    <button class="tbl-btn-apply" id="tbl-btn-apply">החל</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CHART DEFINITIONS  (roles defined once via helpers)
+// ═══════════════════════════════════════════════════
+const R = {
+  x:    (a='dim')  => ({id:'x',    label:'ציר X',   accepts:a, required:true}),
+  y:    (a='measure')=>({id:'y',   label:'ערך Y',   accepts:a, required:true}),
+  y1:          ()  => ({id:'y1',   label:'עמודות',  accepts:'measure',required:true}),
+  y2:          ()  => ({id:'y2',   label:'קו',      accepts:'measure',required:true}),
+  group:       ()  => ({id:'group',label:'Group',   accepts:'dim', required:false}),
+  color:       ()  => ({id:'color',label:'Color',   accepts:'dim', required:false}),
+  stack:       ()  => ({id:'stack',label:'Stack',   accepts:'dim', required:true}),
+  dim:  (lbl='ממד')=>({id:'dim',   label:lbl,       accepts:'dim', required:true}),
+  val:  (lbl='ערך')=>({id:'val',   label:lbl,       accepts:'measure',required:true}),
+  src:         ()  => ({id:'src',  label:'מקור',    accepts:'dim', required:true}),
+  tgt:         ()  => ({id:'tgt',  label:'יעד',     accepts:'dim', required:true}),
+  parent:      ()  => ({id:'parent',label:'רמה 1',  accepts:'dim', required:true}),
+  child:       ()  => ({id:'child',label:'רמה 2',   accepts:'dim', required:true}),
+  opt: (id,lbl,a)  => ({id,        label:lbl,       accepts:a,     required:false}),
+};
+
+const CHARTS = [
+  // קו ושטח
+  {id:'line',        cat:'קו ושטח',  name:'Line Chart',         icon:'📈', roles:[R.x(), R.y(), R.group()]},
+  {id:'area',        cat:'קו ושטח',  name:'Area Chart',         icon:'🏔', roles:[R.x(), R.y(), R.group()]},
+  {id:'stepline',    cat:'קו ושטח',  name:'Step Line',          icon:'📶', roles:[R.x(), R.y(), R.group()]},
+  {id:'stackedarea', cat:'קו ושטח',  name:'Stacked Area',       icon:'🏔', roles:[R.x(), R.y(), {...R.group(), required:true}]},
+  {id:'stackedline', cat:'קו ושטח',  name:'Stacked Line',       icon:'📈', roles:[R.x(), R.y(), {...R.group(), required:true}]},
+  {id:'confidenceband',cat:'קו ושטח',name:'Confidence Band',    icon:'📉', roles:[R.x(), {id:'mid',label:'קו מרכזי',accepts:'measure',required:true},{id:'upper',label:'גבול עליון',accepts:'measure',required:true},{id:'lower',label:'גבול תחתון',accepts:'measure',required:true}]},
+  // עמודות
+  {id:'bar',         cat:'עמודות',   name:'Bar Chart',          icon:'📊', roles:[R.x(), R.y(), R.color()]},
+  {id:'hbar',        cat:'עמודות',   name:'Horizontal Bar',     icon:'📊', roles:[R.x('dim'), {id:'y',label:'ציר Y',accepts:'dim',required:true}, R.opt('x2','ערך X','measure')]},
+  {id:'stackedbar',  cat:'עמודות',   name:'Stacked Bar',        icon:'📊', roles:[R.x(), R.y(), R.stack()]},
+  {id:'dualaxis',    cat:'עמודות',   name:'Dual Axis',          icon:'📊', roles:[R.x(), R.y1(), R.y2()]},
+  {id:'waterfall',   cat:'עמודות',   name:'Waterfall',          icon:'🌊', roles:[R.x(), R.y()]},
+  {id:'pictorialbar',cat:'עמודות',   name:'Pictorial Bar',      icon:'🎭', roles:[R.x(), R.y()]},
+  {id:'histogram',   cat:'עמודות',   name:'Histogram',          icon:'📊', roles:[{id:'x',label:'Bin / קטגוריה',accepts:'dim',required:true}, R.y()]},
+  {id:'polarbar',    cat:'עמודות',   name:'Polar Bar',          icon:'🎡', roles:[R.dim('קטגוריה'), R.val(), R.color()]},
+  // עוגה
+  {id:'pie',         cat:'עוגה',     name:'Pie Chart',          icon:'🥧', roles:[R.dim(), R.val()]},
+  {id:'donut',       cat:'עוגה',     name:'Donut Chart',        icon:'🍩', roles:[R.dim(), R.val()]},
+  {id:'rose',        cat:'עוגה',     name:'Nightingale Rose',   icon:'🌹', roles:[R.dim(), R.val()]},
+  {id:'nestedpie',   cat:'עוגה',     name:'Nested Pie',         icon:'🥧', roles:[{id:'outer',label:'חיצוני',accepts:'dim',required:true},{id:'inner',label:'פנימי',accepts:'dim',required:true}, R.val()]},
+  // פיזור
+  {id:'scatter',     cat:'פיזור',    name:'Scatter Plot',       icon:'🔵', roles:[R.x('measure'), R.y('measure'), R.color()]},
+  {id:'bubble',      cat:'פיזור',    name:'Bubble Chart',       icon:'🫧', roles:[R.x('measure'), R.y('measure'), {id:'size',label:'גודל',accepts:'measure',required:true}, R.color()]},
+  {id:'effectscatter',cat:'פיזור',   name:'Effect Scatter',     icon:'✨', roles:[R.x('measure'), R.y('measure'), R.color()]},
+  // מפות חום
+  {id:'heatmap',     cat:'מפות חום', name:'Heatmap',            icon:'🔥', roles:[R.x(), {id:'y',label:'ציר Y',accepts:'dim',required:true}, R.val()]},
+  {id:'calendar',    cat:'מפות חום', name:'Calendar Heatmap',   icon:'📅', roles:[{id:'date',label:'תאריך',accepts:'dim',required:true}, R.val()]},
+  {id:'multicalendar',cat:'מפות חום',name:'Multi-year Calendar',icon:'📅', roles:[{id:'date',label:'תאריך',accepts:'dim',required:true}, R.val()]},
+  // מיוחד
+  {id:'radar',       cat:'מיוחד',    name:'Radar Chart',        icon:'🕸', roles:[R.dim('מדדים'), R.val()]},
+  {id:'radargroup',  cat:'מיוחד',    name:'Multi-series Radar', icon:'🕸', roles:[R.dim('מדדים'), R.val(), {...R.group(), required:true, label:'סדרה'}]},
+  {id:'funnel',      cat:'מיוחד',    name:'Funnel Chart',       icon:'🔽', roles:[R.dim('שלב'), R.val()]},
+  {id:'treemap',     cat:'מיוחד',    name:'Treemap',            icon:'🗺', roles:[R.dim(), R.val(), R.opt('parent','Parent','dim')]},
+  {id:'parallel',    cat:'מיוחד',    name:'Parallel Coordinates',icon:'🔀',roles:[R.dim('קטגוריה'), R.val('מדד 1'), {id:'val2',label:'מדד 2',accepts:'measure',required:true},{id:'val3',label:'מדד 3',accepts:'measure',required:false},{id:'val4',label:'מדד 4',accepts:'measure',required:false},{id:'val5',label:'מדד 5',accepts:'measure',required:false}]},
+  // זרימה
+  {id:'sankey',      cat:'זרימה',    name:'Sankey Diagram',     icon:'🌊', roles:[R.src(), R.tgt(), R.val()]},
+  {id:'themeriver',  cat:'זרימה',    name:'ThemeRiver',         icon:'🌊', roles:[{id:'time',label:'זמן',accepts:'dim',required:true},{id:'theme',label:'נושא',accepts:'dim',required:true}, R.val()]},
+  {id:'graph',       cat:'זרימה',    name:'Network Graph',      icon:'🕸️', roles:[R.src(), R.tgt(), R.opt('val','משקל','measure')]},
+  {id:'graphcirc',   cat:'זרימה',    name:'Circular Graph',     icon:'⭕', roles:[R.src(), R.tgt(), R.opt('val','משקל','measure')]},
+  // היררכיה
+  {id:'sunburst',    cat:'היררכיה',  name:'Sunburst',           icon:'☀️', roles:[R.parent(), R.child(), R.val()]},
+  {id:'tree',        cat:'היררכיה',  name:'Tree Chart',         icon:'🌳', roles:[R.parent(), R.child(), R.val()]},
+  {id:'radialtree',  cat:'היררכיה',  name:'Radial Tree',        icon:'🌐', roles:[R.parent(), R.child(), R.val()]},
+  // KPI
+  {id:'ban1', cat:'KPI', name:'BAN Card — Style 1', icon:'📌', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
+  {id:'ban2', cat:'KPI', name:'BAN Card — Style 2', icon:'📌', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
+  {id:'bantable', cat:'KPI', name:'KPI Table', icon:'📊', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
+  {id:'gauge',       cat:'KPI',      name:'Gauge Chart',        icon:'🎯', roles:[R.val(), R.opt('max','מקסימום','measure')]},
+  {id:'gaugeprogress',cat:'KPI',     name:'Progress Bar',       icon:'📏', roles:[R.val(), R.opt('max','מקסימום','measure'), R.opt('dim','קטגוריה','dim')]},
+  {id:'gaugemulti',  cat:'KPI',      name:'Multi Gauge',        icon:'🎯', roles:[R.val(), {id:'val2',label:'ערך 2',accepts:'measure',required:false},{id:'val3',label:'ערך 3',accepts:'measure',required:false}]},
+  // מפה
+  {id:'worldmap',    cat:'מפה',      name:'World Map',          icon:'🌍', roles:[{id:'country',label:'מדינה',accepts:'dim',required:true}, R.val()]},
+  {id:'usmap',       cat:'מפה',      name:'US States Map',      icon:'🇺🇸', roles:[{id:'state',label:'מדינה (US)',accepts:'dim',required:true}, R.val()]},
+  {id:'geomap',      cat:'מפה',      name:'Geo Bubble Map',     icon:'📍', roles:[{id:'lat',label:'Latitude',accepts:'measure',required:true},{id:'lon',label:'Longitude',accepts:'measure',required:true}, R.val('ערך (גודל)'), R.opt('dim','תווית','dim'), R.opt('color','צבע','dim')]},
+  {id:'linesmap',    cat:'מפה',      name:'Lines Map',          icon:'✈️', roles:[{id:'slat',label:'Lat מקור',accepts:'measure',required:true},{id:'slon',label:'Lon מקור',accepts:'measure',required:true},{id:'tlat',label:'Lat יעד',accepts:'measure',required:true},{id:'tlon',label:'Lon יעד',accepts:'measure',required:true}, R.opt('val','עוצמה','measure'), R.opt('dim','תווית','dim')]},
+  // פיננסי
+  {id:'candlestick', cat:'פיננסי',   name:'Candlestick',        icon:'📉', roles:[R.x('dim'), {id:'open',label:'פתיחה',accepts:'measure',required:true},{id:'close',label:'סגירה',accepts:'measure',required:true},{id:'low',label:'מינימום',accepts:'measure',required:true},{id:'high',label:'מקסימום',accepts:'measure',required:true}]},
+  {id:'candlevolume',cat:'פיננסי',   name:'Candlestick + Volume',icon:'📈',roles:[R.x('dim'), {id:'open',label:'פתיחה',accepts:'measure',required:true},{id:'close',label:'סגירה',accepts:'measure',required:true},{id:'low',label:'מינימום',accepts:'measure',required:true},{id:'high',label:'מקסימום',accepts:'measure',required:true}, R.opt('vol','נפח','measure')]},
+  // טבלה
+  {id:'rtltable',    cat:'טבלה',     name:'RTL Table',          icon:'📋', roles:[]},
+];
+
+const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
+
+const BAN_COLOR_DEFAULTS = ['#1e1e1e','#ffffff','#8a8a8a'];
+const BAN_COLOR_LABELS   = ['רקע כרטיס','טקסט עליון','טקסט תחתון'];
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let state = {
+  chart:null, assignments:{}, worksheetFields:[], worksheet:null,
+  echartsInstance:null, activeDropdownRole:null, galleryFilter:'הכל',
+  customColors:null, bgColor:null, banColors:null, banStyle:1,
+  borderRadius:{tl:0,tr:0,bl:0,br:0},
+};
+
+// ═══════════════════════════════════════════════════
+// ONBOARDING
+// ═══════════════════════════════════════════════════
+function dismissOnboarding() {
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('marks-card').style.display = '';
+  if (state.worksheet) loadFields(state.worksheet);
+}
+
+async function reloadFields() {
+  const btn = document.getElementById('refresh-btn');
+  btn.style.transform = 'rotate(360deg)';
+  btn.style.transition = 'transform 0.4s ease';
+  setTimeout(() => { btn.style.transform=''; btn.style.transition=''; }, 450);
+  if (!state.worksheet) return;
+  await loadFields(state.worksheet);
+  const validNames = new Set(state.worksheetFields.map(f=>f.fieldName));
+  Object.keys(state.assignments).forEach(rid => {
+    if (!validNames.has(state.assignments[rid]?.fieldName)) delete state.assignments[rid];
+  });
+  renderMarksCard();
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await tableau.extensions.initializeAsync({ configure: () => {
+      document.getElementById('marks-card').style.display = '';
+    }});
+    const ws = tableau.extensions.worksheetContent.worksheet;
+    state.worksheet = ws;
+    const hasSaved = loadSettings();
+    await loadFields(ws);
+    document.getElementById('onboarding').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    if (hasSaved && state.chart) {
+      renderMarksCard();
+      await applyChart();
+    } else {
+      document.getElementById('onboarding').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    }
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
+      await loadFields(ws); renderMarksCard(); await applyChart();
+    });
+    ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
+    buildGalleryChips();
+  } catch(e) { showError('שגיאת אתחול: ' + e); }
+});
+
+async function loadFields(ws) {
+  try {
+    const dt = await ws.getSummaryDataAsync({maxRows:1, ignoreAliases:false, ignoreSelection:true});
+    if (dt.columns?.length > 0) {
+      state.worksheetFields = dt.columns.map(col => ({
+        fieldName: col._fieldName,
+        displayName: cleanFieldName(col._fieldName),
+        dataType: (col._dataType||'string').toLowerCase(),
+        fieldId: col._fieldId,
+      }));
+      return;
+    }
+  } catch(e) {}
+  try {
+    const tables = await ws.getUnderlyingTablesAsync();
+    if (tables?.length > 0) {
+      const td = await ws.getUnderlyingTableDataAsync(tables[0].id, {maxRows:1, ignoreAliases:false, ignoreSelection:true, includeAllColumns:true});
+      if (td.columns?.length > 0) {
+        state.worksheetFields = td.columns.map(col => ({
+          fieldName: col._fieldName,
+          displayName: cleanFieldName(col._fieldName),
+          dataType: (col._dataType||'string').toLowerCase(),
+          fieldId: col._fieldId,
+        }));
+        return;
+      }
+    }
+  } catch(e) { showError('לא ניתן לקרוא שדות: ' + e); }
+}
+
+// ═══════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════
+const cleanFieldName = fn => fn.replace(/^[A-Z_]+\((.+)\)$/, '$1');
+const DATE_FUNC_RE = /^(YEAR|MONTH|QUARTER|DAY|WEEK|HOUR|MINUTE|SECOND|DATETRUNC|DATEPART)\s*\(/i;
+
+function getFieldType(dataType, fieldName) {
+  if (dataType === 'float') return 'measure';
+  if (dataType === 'int') return (fieldName && DATE_FUNC_RE.test(String(fieldName).trim())) ? 'dim' : 'measure';
+  return 'dim';
+}
+
+function canAssign(accepts, dataType, fieldName) {
+  return accepts === 'both' || accepts === getFieldType(dataType, fieldName);
+}
+
+function normalizeDate(val) {
+  const m = String(val).match(/^(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}:\d{2}$/);
+  return m ? m[1] : String(val);
+}
+
+function normalizeValue(val, dataType) {
+  if (val === null || val === undefined || val === '%null%') return null;
+  if (dataType === 'date' || dataType === 'date-time') return normalizeDate(val);
+  if (dataType === 'float' || dataType === 'int') {
+    const n = parseFloat(String(val).replace(/[$,%\s]/g, ''));
+    return isNaN(n) ? null : n;
+  }
+  return String(val);
+}
+
+// ═══════════════════════════════════════════════════
+// MARKS CARD
+// ═══════════════════════════════════════════════════
+function renderMarksCard() {
+  const chart = state.chart;
+  if (!chart) return;
+  document.getElementById('mc-icon').textContent = chart.icon;
+  document.getElementById('mc-name').textContent = chart.name;
+  // Show font-size button only for BAN charts
+  document.getElementById('fontsize-btn').style.display = ['ban1','ban2'].includes(chart.id) ? '' : 'none';
+  const list = document.getElementById('roles-list');
+  list.innerHTML = '';
+  if (chart.id === 'rtltable') {
+    list.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:4px 2px">כל השדות מה-Detail יוצגו בטבלה.</div>';
+    document.getElementById('apply-btn').disabled = false;
+    return;
+  }
+  chart.roles.forEach(role => {
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    const label = document.createElement('span');
+    label.className = 'role-label';
+    label.innerHTML = role.label + (role.required ? '<span class="role-required"> *</span>' : '');
+    const assigned = state.assignments[role.id];
+    const slot = document.createElement('div');
+    if (assigned) {
+      slot.className = 'slot-filled';
+      slot.innerHTML = `<span class="slot-name" title="${assigned.fieldName}">${assigned.displayName}</span><button class="slot-remove" onclick="unassign('${role.id}')">✕</button>`;
+      slot.addEventListener('click', e => { if (!e.target.classList.contains('slot-remove')) openSlotDropdown(role, slot); });
+    } else {
+      slot.className = 'slot-empty';
+      slot.textContent = role.required ? 'גרור או לחץ לבחירה' : 'אופציונלי';
+      slot.dataset.roleId = role.id;
+      slot.addEventListener('click', () => openSlotDropdown(role, slot));
+      slot.addEventListener('dragover', e => {
+        const f = getDragField();
+        if (f && canAssign(role.accepts, f.dataType, f.fieldName)) { e.preventDefault(); slot.classList.add('drag-over'); }
+      });
+      slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+      slot.addEventListener('drop', e => {
+        e.preventDefault(); slot.classList.remove('drag-over');
+        const f = getDragField();
+        if (f && canAssign(role.accepts, f.dataType, f.fieldName)) assign(role.id, f);
+      });
+    }
+    row.appendChild(label); row.appendChild(slot); list.appendChild(row);
+  });
+  const allFilled = chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id]);
+  document.getElementById('apply-btn').disabled = !allFilled;
+}
+
+let _dragField = null;
+const getDragField = () => _dragField;
+
+function openSlotDropdown(role, anchorEl) {
+  const dd = document.getElementById('slot-dropdown');
+  state.activeDropdownRole = role;
+  const compatible = state.worksheetFields.filter(f => canAssign(role.accepts, f.dataType, f.fieldName));
+  const dims     = compatible.filter(f => getFieldType(f.dataType, f.fieldName) === 'dim');
+  const measures = compatible.filter(f => getFieldType(f.dataType, f.fieldName) === 'measure');
+  let html = '';
+  const renderGroup = (fields, tagClass, tagLabel, headerLabel) => {
+    if (!fields.length) return;
+    html += `<div class="slot-dropdown-label">${headerLabel}</div>`;
+    fields.forEach(f => {
+      const idx = state.worksheetFields.indexOf(f);
+      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown(${idx})"><span class="tag dim-tag ${tagClass}">${tagLabel}</span>${f.displayName}</div>`;
+    });
+  };
+  renderGroup(dims, 'dim', 'ממד', 'ממדים');
+  if (dims.length && measures.length) html += '<div class="slot-dropdown-sep"></div>';
+  renderGroup(measures, 'measure', 'מדד', 'מדדים');
+  if (!compatible.length) html = '<div class="slot-dropdown-item" style="color:var(--text3)">אין שדות מתאימים</div>';
+  dd.innerHTML = html;
+  const rect = anchorEl.getBoundingClientRect();
+  dd.style.cssText = `display:block;top:${rect.bottom+4}px;right:${window.innerWidth-rect.right}px;left:auto`;
+  setTimeout(() => document.addEventListener('mousedown', closeDropdownOutside), 100);
+}
+
+function assignFromDropdown(idx) {
+  const f = state.worksheetFields[idx];
+  if (f && state.activeDropdownRole) assign(state.activeDropdownRole.id, f);
+  closeSlotDropdown();
+}
+
+function closeDropdownOutside(e) {
+  const dd = document.getElementById('slot-dropdown');
+  if (!dd.contains(e.target)) { closeSlotDropdown(); document.removeEventListener('mousedown', closeDropdownOutside); }
+}
+
+function closeSlotDropdown() {
+  document.getElementById('slot-dropdown').style.display = 'none';
+  state.activeDropdownRole = null;
+}
+
+function assign(roleId, field) { state.assignments[roleId] = field; renderMarksCard(); }
+function unassign(roleId) { delete state.assignments[roleId]; renderMarksCard(); }
+
+// ═══════════════════════════════════════════════════
+// GALLERY
+// ═══════════════════════════════════════════════════
+function buildGalleryChips() {
+  document.getElementById('gallery-chips').innerHTML = CATS.map(c =>
+    `<div class="chip${c==='הכל'?' active':''}" onclick="setGalleryFilter('${c}',this)">${c}</div>`
+  ).join('');
+}
+
+function openGallery() { document.getElementById('modal-overlay').classList.add('open'); renderGallery(); }
+function closeGallery() { document.getElementById('modal-overlay').classList.remove('open'); }
+function onOverlayClick(e) { if (e.target===document.getElementById('modal-overlay')) closeGallery(); }
+function setGalleryFilter(cat, el) {
+  state.galleryFilter = cat;
+  document.querySelectorAll('#gallery-chips .chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderGallery();
+}
+
+function renderGallery() {
+  const q = document.getElementById('gallery-search').value.toLowerCase();
+  const body = document.getElementById('gallery-body');
+  body.innerHTML = '';
+  [...new Set(CHARTS.map(c=>c.cat))].forEach(cat => {
+    if (state.galleryFilter !== 'הכל' && state.galleryFilter !== cat) return;
+    const items = CHARTS.filter(c => c.cat===cat && (!q || c.name.toLowerCase().includes(q)));
+    if (!items.length) return;
+    const label = document.createElement('div');
+    label.className = 'gallery-section-label';
+    label.textContent = cat;
+    body.appendChild(label);
+    const grid = document.createElement('div');
+    grid.className = 'gallery-grid';
+    items.forEach(chart => {
+      const card = document.createElement('div');
+      card.className = 'gallery-card' + (state.chart?.id===chart.id?' selected':'');
+      card.innerHTML = `
+        <div class="gallery-preview" id="prev-${chart.id}"></div>
+        <div class="gallery-info">
+          <div class="gallery-name">${chart.icon} ${chart.name}</div>
+          <div class="gallery-dims">${chart.roles.map(r=>`<span class="dim-tag ${r.accepts==='measure'?'measure':'dim'}">${r.label}${r.required?'':' *'}</span>`).join('')}</div>
+        </div>`;
+      card.addEventListener('click', () => selectChart(chart));
+      grid.appendChild(card);
+      requestAnimationFrame(() => drawPreview(chart, document.getElementById('prev-'+chart.id)));
+    });
+    body.appendChild(grid);
+  });
+}
+
+function selectChart(chart) {
+  state.chart = chart; state.assignments = {};
+  closeGallery(); renderMarksCard(); showPlaceholder();
+}
+
+// ═══════════════════════════════════════════════════
+// MINI PREVIEWS — factory functions
+// ═══════════════════════════════════════════════════
+const DEFAULT_COLORS = ['#0057e8','#e8006a','#00a651','#f5a623'];
+let COLORS = DEFAULT_COLORS.slice();
+const getColors = () => state.customColors || DEFAULT_COLORS;
+
+const XD = ['A','B','C','D','E'];
+const V1 = [12,19,8,22,15];
+const V2 = [8,14,10,16,11];
+const BASE = {animation:false, tooltip:{show:false}, legend:{show:false}};
+const GRID = {top:4,right:4,bottom:4,left:4};
+const XAX  = (data=XD) => ({type:'category',data,show:false});
+const YAX  = () => ({show:false});
+const VMAP = (col='#0057e8') => ({show:false,min:0,max:9,inRange:{color:['#e8f0ff',col]}});
+
+// helpers that return preview option objects
+const mkLine = (data=V1, step, area) => ({...BASE, grid:GRID,
+  xAxis:XAX(), yAxis:YAX(),
+  series:[{type:'line', data, smooth:!step, step:step||undefined,
+    areaStyle:area?{color:COLORS[0],opacity:.2}:undefined,
+    lineStyle:{color:COLORS[0],width:2}, itemStyle:{color:COLORS[0]}, symbolSize:0}]});
+
+const mkBar = (horiz, stacked) => {
+  const s1 = {type:'bar', data:V1, itemStyle:{color:COLORS[0], borderRadius:horiz?[0,3,3,0]:[3,3,0,0]}, barMaxWidth:horiz?14:20, stack:stacked?'t':undefined};
+  const s2 = stacked ? {type:'bar',stack:'t',data:V2,itemStyle:{color:COLORS[1],borderRadius:[3,3,0,0]},barMaxWidth:20} : null;
+  return {...BASE, grid:GRID,
+    xAxis:horiz?{type:'value',show:false}:XAX(), yAxis:horiz?XAX():YAX(),
+    series: stacked ? [s1,s2] : [s1]};
+};
+
+const mkPie = (radius, rose) => ({...BASE,
+  series:[{type:'pie', radius, roseType:rose?'area':undefined,
+    data:[0,1,2].map((i)=>({value:[48,28,24][i],itemStyle:{color:COLORS[i]}})),
+    label:{show:false}, emphasis:{scale:false}}]});
+
+const mkScatter = (size) => ({...BASE, grid:GRID,
+  xAxis:{type:'value',show:false}, yAxis:{type:'value',show:false},
+  series:[{type:'scatter',
+    data:size?[[10,8,20],[14,12,35],[8,6,15],[18,15,40]]:[[10,8],[14,12],[8,6],[18,15],[12,10]],
+    symbolSize:size?d=>d[2]*.8:6, itemStyle:{color:COLORS[0],opacity:.75}}]});
+
+const mkGauge = (col=0, val=72) => ({...BASE,
+  series:[{type:'gauge', radius:'85%', center:['50%','60%'],
+    startAngle:210, endAngle:-30, min:0, max:100,
+    progress:{show:true,width:8,itemStyle:{color:COLORS[col]}},
+    axisLine:{lineStyle:{width:8,color:[[1,'#e0dfd8']]}},
+    axisTick:{show:false}, splitLine:{show:false}, axisLabel:{show:false},
+    pointer:{show:true,length:'55%',width:3,itemStyle:{color:COLORS[col]}},
+    detail:{show:false}, data:[{value:val}]}]});
+
+const mkGraph = (layout='circular') => ({...BASE,
+  series:[{type:'graph', layout, roam:false, symbol:'circle', symbolSize:10,
+    data:['A','B','C','D','E'].map((n,i)=>({name:n,itemStyle:{color:COLORS[i%4]}})),
+    links:[{source:'A',target:'B'},{source:'A',target:'C'},{source:'B',target:'D'},{source:'C',target:'D'},{source:'D',target:'E'},{source:'E',target:'A'}],
+    label:{show:false}, lineStyle:{color:'#ccc',width:1}}]});
+
+const mkTree = (layout='orthogonal') => ({...BASE,
+  series:[{type:'tree', layout, orient:layout==='orthogonal'?'LR':undefined,
+    data:[{name:'Root',children:[{name:'A',children:[{name:'A1'},{name:'A2'}]},{name:'B',children:[{name:'B1'}]},{name:'C'}]}],
+    top:6,bottom:6,left:16,right:16, symbol:'emptyCircle', symbolSize:5,
+    label:{show:false}, lineStyle:{color:'#ccc',width:1}}]});
+
+const RADAR_BASE = {center:['50%','52%'],radius:'60%',indicator:[{max:10},{max:10},{max:10},{max:10},{max:10}],axisLine:{lineStyle:{color:'#e0dfd8'}},splitLine:{lineStyle:{color:'#e0dfd8'}},splitArea:{show:false}};
+const mkRadar = (data) => ({...BASE, radar:RADAR_BASE,
+  series:[{type:'radar', data: data.map((v,i)=>({value:v, lineStyle:{color:COLORS[i],width:1.5}, areaStyle:{color:COLORS[i],opacity:.2}, itemStyle:{color:COLORS[i]}}))}]});
+
+const _mapCache = {};
+const mkMapOpt = (extraGeo={}, series=[]) => _mapCache['world'] ? ({...BASE,
+  geo:{map:'world',roam:false,silent:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#fff',borderWidth:.5},emphasis:{disabled:true},...extraGeo},
+  series}) : null;
+
+function drawPreview(chart, container) {
+  if (!container || container.children.length) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = 150; canvas.height = 80;
+  canvas.style.cssText = 'width:150px;height:80px';
+  container.appendChild(canvas);
+  const ec = echarts.init(canvas, null, {renderer:'canvas', width:150, height:80});
+
+  const C = COLORS;
+  const PIE3 = [0,1,2].map(i=>({value:[48,28,24][i],itemStyle:{color:C[i]}}));
+
+  const previewMap = {
+    line:       mkLine(),
+    area:       mkLine(V1, false, true),
+    stepline:   mkLine(V1, 'end'),
+    stackedarea:{...BASE,grid:GRID,xAxis:XAX(),yAxis:YAX(),series:[{type:'line',data:V1,stack:'t',areaStyle:{color:C[0],opacity:.6},lineStyle:{color:C[0],width:1},symbolSize:0},{type:'line',data:V2,stack:'t',areaStyle:{color:C[1],opacity:.6},lineStyle:{color:C[1],width:1},symbolSize:0}]},
+    stackedline:{...BASE,grid:GRID,xAxis:XAX(),yAxis:YAX(),series:[{type:'line',data:V1,stack:'total',lineStyle:{color:C[0],width:2},itemStyle:{color:C[0]},symbolSize:0},{type:'line',data:V2,stack:'total',lineStyle:{color:C[1],width:2},itemStyle:{color:C[1]},symbolSize:0}]},
+    confidenceband:{...BASE,grid:GRID,xAxis:XAX(),yAxis:YAX(),series:[
+      {type:'line',data:[1,2,1.5,2.5,1.8],stack:'u',lineStyle:{opacity:0},areaStyle:{color:C[0],opacity:.15},symbolSize:0},
+      {type:'line',data:[3,4,3.8,5,4.2],  stack:'u',lineStyle:{opacity:0},areaStyle:{color:C[0],opacity:.15},symbolSize:0},
+      {type:'line',data:V1,lineStyle:{color:C[0],width:2},itemStyle:{color:C[0]},symbolSize:3}]},
+    bar:        mkBar(false),
+    hbar:       mkBar(true),
+    stackedbar: mkBar(false, true),
+    waterfall:  {...BASE,grid:GRID,xAxis:XAX(),yAxis:YAX(),series:[{type:'bar',stack:'w',itemStyle:{borderColor:'transparent',color:'transparent'},data:[0,12,6,19,10]},{type:'bar',stack:'w',data:[12,7,13,5,8],itemStyle:{color:C[0],borderRadius:[3,3,0,0]}}]},
+    dualaxis:   {...BASE,grid:GRID,xAxis:XAX(),yAxis:[{show:false},{show:false}],series:[{type:'bar',data:V1,yAxisIndex:0,itemStyle:{color:C[0],borderRadius:[3,3,0,0]},barMaxWidth:20},{type:'line',data:V2,yAxisIndex:1,smooth:true,lineStyle:{color:C[1],width:2},itemStyle:{color:C[1]},symbolSize:4}]},
+    pictorialbar:{...BASE,grid:GRID,xAxis:XAX(),yAxis:YAX(),series:[{type:'pictorialBar',data:V1,symbol:'roundRect',symbolSize:['80%',8],symbolRepeat:true,symbolMargin:2,itemStyle:{color:C[0]}}]},
+    histogram:  {...BASE,grid:GRID,xAxis:{type:'category',data:['0-10','10-20','20-30','30-40','40-50'],show:false},yAxis:YAX(),series:[{type:'bar',data:[5,18,32,24,12],barGap:'0%',barCategoryGap:'0%',itemStyle:{color:C[0],borderRadius:[2,2,0,0]}}]},
+    polarbar:   {...BASE,polar:{radius:'65%'},angleAxis:{type:'category',data:XD,show:false},radiusAxis:{show:false},series:[{type:'bar',data:[7,5,9,4,8,6].map((v,i)=>({value:v,itemStyle:{color:C[i%4]}})),coordinateSystem:'polar',roundCap:true,barMaxWidth:12}]},
+    pie:        mkPie('65%'),
+    donut:      mkPie(['35%','65%']),
+    rose:       {...BASE,series:[{type:'pie',radius:['15%','65%'],roseType:'area',data:[0,1,2,3,4].map((i)=>({value:[40,28,18,32,22][i],itemStyle:{color:C[i%4]}})),label:{show:false}}]},
+    nestedpie:  {...BASE,series:[{type:'pie',radius:['0%','35%'],data:PIE3,label:{show:false}},{type:'pie',radius:['42%','65%'],data:[C[0],C[0],C[1],C[1],C[2]].map((col,i)=>({value:[25,25,18,12,20][i],itemStyle:{color:col+'bb'}})),label:{show:false}}]},
+    scatter:    mkScatter(),
+    bubble:     mkScatter(true),
+    effectscatter:{...BASE,grid:GRID,xAxis:{type:'value',show:false},yAxis:{type:'value',show:false},series:[{type:'effectScatter',data:[[10,8],[14,12],[8,6],[18,15],[12,10]],symbolSize:8,rippleEffect:{scale:3,period:1.5},itemStyle:{color:C[0]}}]},
+    heatmap:    {...BASE,grid:GRID,xAxis:{type:'category',data:['A','B','C','D'],show:false},yAxis:{type:'category',data:['1','2','3'],show:false},visualMap:VMAP('#0057e8'),series:[{type:'heatmap',data:[[0,0,5],[1,0,3],[2,0,8],[3,0,1],[0,1,2],[1,1,7],[2,1,4],[3,1,9],[0,2,6],[1,2,1],[2,2,3],[3,2,5]]}]},
+    calendar:   {...BASE,calendar:{top:10,left:10,right:10,bottom:10,range:'2024-01',cellSize:[10,10],itemStyle:{borderWidth:1,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}},visualMap:VMAP('#0057e8'),series:[{type:'heatmap',coordinateSystem:'calendar',data:[['2024-01-01',3],['2024-01-07',7],['2024-01-14',9],['2024-01-21',4],['2024-01-28',6]]}]},
+    multicalendar:{...BASE,calendar:[{top:4,left:8,right:8,bottom:'52%',range:'2023',cellSize:[6,6],itemStyle:{borderWidth:.5,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}},{top:'52%',left:8,right:8,bottom:4,range:'2024',cellSize:[6,6],itemStyle:{borderWidth:.5,borderColor:'#fff'},splitLine:{show:false},dayLabel:{show:false},monthLabel:{show:false},yearLabel:{show:false}}],visualMap:VMAP('#0057e8'),series:[{type:'heatmap',coordinateSystem:'calendar',calendarIndex:0,data:[['2023-03-12',8],['2023-09-15',7]]},{type:'heatmap',coordinateSystem:'calendar',calendarIndex:1,data:[['2024-04-22',9],['2024-10-31',7]]}]},
+    radar:      mkRadar([[7,5,9,6,8]]),
+    radargroup: mkRadar([[7,5,9,6,8],[4,8,5,9,4]]),
+    funnel:     {...BASE,series:[{type:'funnel',left:'15%',width:'70%',top:6,bottom:6,data:[0,1,2,3].map(i=>({value:[100,70,45,20][i],itemStyle:{color:C[i]}})),label:{show:false},gap:2}]},
+    treemap:    {...BASE,series:[{type:'treemap',top:4,right:4,bottom:4,left:4,roam:false,nodeClick:false,data:[['A',40],['B',28],['C',18],['D',14]].map(([n,v],i)=>({name:n,value:v,itemStyle:{color:C[i]}})),label:{show:false},breadcrumb:{show:false}}]},
+    sankey:     {...BASE,series:[{type:'sankey',top:8,right:8,bottom:8,left:8,nodeWidth:6,nodeGap:4,data:[{name:'A'},{name:'B'},{name:'C'},{name:'D'}],links:[{source:'A',target:'C',value:8},{source:'A',target:'D',value:5},{source:'B',target:'C',value:6},{source:'B',target:'D',value:9}],label:{show:false},lineStyle:{color:'gradient',opacity:.4}}]},
+    themeriver: {...BASE,grid:GRID,singleAxis:{top:8,bottom:8,left:8,right:8,type:'time',show:false},series:[{type:'themeRiver',data:[['2024-01',5,'A'],['2024-02',8,'A'],['2024-03',6,'A'],['2024-01',3,'B'],['2024-02',4,'B'],['2024-03',7,'B'],['2024-01',2,'C'],['2024-02',5,'C'],['2024-03',3,'C']],label:{show:false},itemStyle:{opacity:.8}}]},
+    parallel:   {...BASE,parallelAxis:[0,1,2,3].map(dim=>({dim,name:'ABCD'[dim],nameTextStyle:{fontSize:8}})),parallel:{top:14,bottom:10,left:16,right:16},series:[{type:'parallel',lineStyle:{width:1,opacity:.6},data:[[1,4,7,2],[4,2,8,5],[7,5,3,8],[3,8,4,6],[6,3,9,3]].map((d,i)=>({value:d,lineStyle:{color:C[i%4]}}))}]},
+    gauge:      mkGauge(0,72),
+    gaugeprogress:mkGauge(2,58),
+    gaugemulti: {...BASE,series:[{type:'gauge',radius:'85%',center:['50%','60%'],startAngle:210,endAngle:-30,min:0,max:100,axisLine:{lineStyle:{width:6,color:[[1,'#e0dfd8']]}},axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:false},detail:{show:false},data:[{value:72,itemStyle:{color:C[0]}},{value:45,itemStyle:{color:C[1]}},{value:88,itemStyle:{color:C[2]}}]}]},
+    graph:      mkGraph('circular'),
+    graphcirc:  mkGraph('circular'),
+    tree:       mkTree('orthogonal'),
+    radialtree: mkTree('radial'),
+    sunburst:   {...BASE,series:[{type:'sunburst',radius:[0,'90%'],center:['50%','50%'],nodeClick:false,data:[0,1,2].map(pi=>({value:10,itemStyle:{color:C[pi]},children:[{value:4,itemStyle:{color:C[pi]+'bb'}},{value:6,itemStyle:{color:C[pi]+'77'}}]})),label:{show:false},emphasis:{focus:'ancestor'}}]},
+    candlestick:{...BASE,grid:GRID,xAxis:XAX(['1','2','3','4','5']),yAxis:YAX(),series:[{type:'candlestick',data:[[18,24,16,22],[22,20,17,19],[19,26,18,25],[25,23,20,21],[21,28,19,27]],itemStyle:{color:C[1],color0:C[2],borderColor:C[1],borderColor0:C[2]}}]},
+    candlevolume:{...BASE,grid:[{top:4,right:4,bottom:'35%',left:4},{top:'68%',right:4,bottom:4,left:4}],xAxis:[{type:'category',data:['1','2','3','4','5'],show:false,gridIndex:0},{type:'category',data:['1','2','3','4','5'],show:false,gridIndex:1}],yAxis:[{show:false,gridIndex:0},{show:false,gridIndex:1}],series:[{type:'candlestick',data:[[18,24,16,22],[22,20,17,19],[19,26,18,25],[25,23,20,21],[21,28,19,27]],itemStyle:{color:C[1],color0:C[2],borderColor:C[1],borderColor0:C[2]},xAxisIndex:0,yAxisIndex:0},{type:'bar',data:[120,85,200,140,180],xAxisIndex:1,yAxisIndex:1,itemStyle:{color:C[0],opacity:.6},barMaxWidth:20}]},
+    worldmap:   mkMapOpt({}, [{type:'map',map:'world',geoIndex:0,data:[{name:'China',value:80},{name:'United States',value:100}],label:{show:false}}]),
+    usmap:      mkMapOpt({center:[-96,38],zoom:3.5}, [{type:'map',map:'world',geoIndex:0,data:[{name:'California',value:90}],label:{show:false}}]),
+    geomap:     mkMapOpt({itemStyle:{areaColor:'#f0f0f0',borderColor:'#fff',borderWidth:.3}}, [{type:'scatter',coordinateSystem:'geo',data:[{value:[-74,40.7]},{value:[2.35,48.85]},{value:[139.7,35.7]}],symbolSize:6,itemStyle:{color:C[1],opacity:.75}}]),
+    linesmap:   mkMapOpt({}, [{type:'lines',coordinateSystem:'geo',data:[[[-74,40.7],[2.35,48.85]],[[-74,40.7],[139.7,35.7]]].map((coords,i)=>({coords,lineStyle:{color:C[i],width:1.5,opacity:.7,curveness:.3}})),effect:{show:true,period:4,trailLength:.2,symbolSize:4}}]),
+    polarbar:   {...BASE,polar:{radius:'65%'},angleAxis:{type:'category',data:XD,show:false},radiusAxis:{show:false},series:[{type:'bar',data:[7,5,9,4,8,6].map((v,i)=>({value:v,itemStyle:{color:C[i%4]}})),coordinateSystem:'polar',roundCap:true,barMaxWidth:12}]},
+  };
+
+  const opt = previewMap[chart.id];
+  if (opt) { ec.setOption(opt); }
+  else if (['ban1','ban2'].includes(chart.id)) {
+    ec.dispose();
+    const isBan2 = chart.id === 'ban2';
+    container.innerHTML = `<div style="height:80px;display:flex;align-items:stretch;padding:6px"><div style="flex:1;background:#1c1c1c;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;direction:rtl"><div style="font-size:7px;color:rgba(255,255,255,.35);text-align:right">מכירות</div>${isBan2
+      ? `<div style="font-size:19px;font-weight:800;color:#fff;direction:ltr;text-align:right">₪2.3M</div><div style="display:flex;justify-content:flex-end"><div style="border:1px solid rgba(80,200,60,.55);border-radius:99px;padding:2px 8px;font-size:8px;color:#fff;background:rgba(255,255,255,.04);direction:ltr">▲ 42.9% שינוי</div></div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;direction:rtl"><div style="font-size:19px;font-weight:800;color:#fff;direction:ltr">₪2.3M</div><div style="border:1px solid rgba(80,200,60,.55);border-radius:99px;padding:2px 8px;font-size:8px;color:#fff;background:rgba(255,255,255,.04);direction:ltr">▲ 42.9% שינוי</div></div>`
+    }<div style="height:.5px;background:rgba(255,255,255,.1)"></div><div style="font-size:7px;color:rgba(255,255,255,.4);text-align:right">₪1.6M</div></div></div>`;
+  } else if (chart.id === 'bantable') {
+    ec.dispose();
+    container.innerHTML = `<div style="height:80px;overflow:hidden;direction:rtl;background:#141414;border-radius:6px;margin:4px;font-family:inherit">
+      ${[['מכירות','₪2.3M','+42.9%','pos'],['רוחים','₪2.3M','+42.9%','pos'],['הוצאות','₪2.3M','-42.9%','neg']].map((r,i)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.07)">
+        <span style="font-size:7.5px;color:#fff;font-weight:600">${r[0]}</span>
+        <span style="font-size:10px;font-weight:800;color:#fff;direction:ltr">${r[1]}</span>
+        <span style="font-size:7px;padding:1px 5px;border-radius:99px;border:1px solid ${r[3]==='pos'?'rgba(80,200,60,.55)':'rgba(220,60,50,.55)'};color:#fff;direction:ltr">${r[2]}</span>
+        <span style="font-size:7px;color:rgba(255,255,255,.4)">₪1.6M</span>
+      </div>`).join('')}
+    </div>`;
+  } else if (chart.id === 'rtltable') {
+    ec.dispose();
+    container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
+  } else {
+    container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa">טוען...</div>';
+    ec.dispose();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════
+async function saveSettings() {
+  try {
+    tableau.extensions.settings.set('chartId', state.chart?.id||'');
+    tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments||{}));
+    tableau.extensions.settings.set('customColors', JSON.stringify(state.customColors||null));
+    tableau.extensions.settings.set('banColors', JSON.stringify(state.banColors||null));
+    tableau.extensions.settings.set('borderRadius', JSON.stringify(state.borderRadius||{tl:0,tr:0,bl:0,br:0}));
+    tableau.extensions.settings.set('bgColor', state.bgColor||'');
+    tableau.extensions.settings.set('banFontSizes', JSON.stringify(state.banFontSizes||null));
+    await tableau.extensions.settings.saveAsync();
+  } catch(e) { console.warn('[ECharts] save failed:', e); }
+}
+
+function loadSettings() {
+  try {
+    const chartId = tableau.extensions.settings.get('chartId');
+    const assignmentsRaw = tableau.extensions.settings.get('assignments');
+    const colorsRaw = tableau.extensions.settings.get('customColors');
+    if (chartId) {
+      const chart = CHARTS.find(c=>c.id===chartId);
+      if (chart) {
+        state.chart = chart;
+        state.assignments = assignmentsRaw ? JSON.parse(assignmentsRaw) : {};
+        state.customColors = colorsRaw ? JSON.parse(colorsRaw) : null;
+        COLORS = state.customColors || DEFAULT_COLORS.slice();
+        state.bgColor = tableau.extensions.settings.get('bgColor')||null;
+        const banColorsRaw = tableau.extensions.settings.get('banColors');
+        state.banColors = banColorsRaw ? JSON.parse(banColorsRaw) : null;
+        const brRaw = tableau.extensions.settings.get('borderRadius');
+        state.borderRadius = brRaw ? JSON.parse(brRaw) : {tl:0,tr:0,bl:0,br:0};
+        const bfsRaw = tableau.extensions.settings.get('banFontSizes');
+        state.banFontSizes = bfsRaw ? JSON.parse(bfsRaw) : null;
+        applyBorderRadius();
+        applyBgColor(state.bgColor);
+        return true;
+      }
+    }
+  } catch(e) { console.warn('[ECharts] load failed:', e); }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════
+// VIEW / EDIT
+// ═══════════════════════════════════════════════════
+function toggleMarksCard() {
+  const mc = document.getElementById('marks-card');
+  mc.style.display = mc.style.display==='none' ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════════════
+// RTL TABLE
+// ═══════════════════════════════════════════════════
+const tblNorm = s => {
+  let r = String(s||'');
+  for(let i=0;i<6;i++) r = r.replace(/^(sum|avg|count|min|max|attr|median|year|month|day|quarter|week|cnt|truncated)\s*\(/i,'').replace(/\)$/,'').trim();
+  return r.toLowerCase().replace(/[\s_]/g,'');
+};
+const tblFmtCell = (val, fval, dataType) => {
+  if (val==null||val===''||val==='%null%') return {text:'—',num:false};
+  const t=(dataType||'').toLowerCase();
+  if (t.includes('date')) return {text:fval||String(val),num:false};
+  if (/float|real|double|number/.test(t)){const n=parseFloat(val);return {text:isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'),num:true};}
+  if (/int/.test(t)){const n=parseInt(val,10);return {text:isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'),num:true};}
+  return {text:fval||String(val),num:false};
+};
+const tblApplyParamOrder = (rawCols, paramValue) => {
+  if (!paramValue?.trim()) return rawCols;
+  const ordered = paramValue.split(',').map(s=>s.trim()).filter(Boolean);
+  const normMap = Object.fromEntries(rawCols.map(c=>[tblNorm(c.fieldName),c]));
+  const used=new Set(), mapped=[];
+  ordered.forEach(name=>{ const col=normMap[tblNorm(name)]; if(col&&!used.has(col.fieldName)){mapped.push(col);used.add(col.fieldName);}});
+  return mapped.length ? mapped : rawCols;
+};
+
+let _tblDdCi=-1, _tblDdVals=[], _tblDdSelected=null, _tblDdBtnEl=null, _tblActiveFilters={};
+const tblCloseDd = () => { document.getElementById('tbl-dd-panel').classList.remove('open'); _tblDdCi=-1; };
+const tblRenderDdList = (vals, search) => {
+  const q=search.toLowerCase();
+  document.getElementById('tbl-dd-list').innerHTML=vals.filter(v=>v.toLowerCase().includes(q)).map((v,i)=>{
+    const esc=v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    return `<div class="tbl-dd-item" data-v="${esc}"><input type="checkbox" ${_tblDdSelected.has(v)?'checked':''} id="tchk_${i}"/><label for="tchk_${i}">${esc}</label></div>`;
+  }).join('');
+};
+
+document.getElementById('tbl-dd-list').addEventListener('change', e=>{
+  if(e.target.type!=='checkbox') return;
+  const v=e.target.closest('.tbl-dd-item').dataset.v;
+  e.target.checked ? _tblDdSelected.add(v) : _tblDdSelected.delete(v);
+});
+document.getElementById('tbl-dd-search-input').addEventListener('input', e=>tblRenderDdList(_tblDdVals, e.target.value));
+document.getElementById('tbl-btn-all').addEventListener('click', ()=>{
+  if(_tblDdCi<0) return; _tblActiveFilters[_tblDdCi]=new Set(); tblUpdateFilterBtn(_tblDdCi); tblApplyFilters(); tblCloseDd();
+});
+document.getElementById('tbl-btn-apply').addEventListener('click', ()=>{
+  if(_tblDdCi<0) return; _tblActiveFilters[_tblDdCi]=new Set(_tblDdSelected); tblUpdateFilterBtn(_tblDdCi); tblApplyFilters(); tblCloseDd();
+});
+document.addEventListener('click', e=>{
+  const panel=document.getElementById('tbl-dd-panel');
+  if(!panel.classList.contains('open')) return;
+  if(!panel.contains(e.target)&&!_tblDdBtnEl?.contains(e.target)) tblCloseDd();
+});
+
+const tblUpdateFilterBtn = ci => {
+  const btn=document.querySelector(`.tbl-filter-btn[data-ci="${ci}"]`);
+  if(!btn) return;
+  const sel=_tblActiveFilters[ci], active=sel?.size>0;
+  btn.classList.toggle('active',active);
+  btn.querySelector('.btn-label').textContent=active?(sel.size===1?[...sel][0]:`${sel.size} נבחרו`):'הכל';
+};
+const tblApplyFilters = () => {
+  document.getElementById('tbl-tbody').querySelectorAll('tr').forEach(tr=>{
+    const hide=Object.entries(_tblActiveFilters).some(([ci,sel])=>{
+      if(!sel?.size) return false;
+      const td=tr.children[parseInt(ci)];
+      return td&&!sel.has(td.textContent);
+    });
+    tr.classList.toggle('hidden-row',hide);
+  });
+};
+
+async function renderTable() {
+  _tblActiveFilters={}; tblCloseDd();
+  const ws=state.worksheet;
+  let paramValue='';
+  try {
+    const params=await ws.getParametersAsync();
+    const p=params.find(p=>p.name.toLowerCase()==='columns');
+    if(p){
+      const cv=p.currentValue;
+      paramValue=String(cv.value??cv.formattedValue??cv.nativeValue??'').trim();
+      if(!paramValue&&p.allowableValues?.list?.length)
+        paramValue=String(p.allowableValues.list[0].value||p.allowableValues.list[0].formattedValue||'').trim();
+    }
+  } catch(e){}
+  const dt=await ws.getSummaryDataAsync({ignoreSelection:true,maxRows:0});
+  const rawCols=dt.columns, rows=dt.data;
+  if(!rawCols.length){showError('אין שדות — גרור שדות ל-Detail'); return;}
+  const cols=tblApplyParamOrder(rawCols,paramValue);
+  const colIdxMap=cols.map(c=>rawCols.findIndex(rc=>rc.fieldName===c.fieldName));
+  const uniqueVals=cols.map(()=>new Set());
+  rows.forEach(r=>cols.forEach((_,ci)=>uniqueVals[ci].add(tblFmtCell(r[colIdxMap[ci]].value,r[colIdxMap[ci]].formattedValue,cols[ci].dataType).text)));
+  const isStrCol=cols.map(c=>!(/float|real|double|number|int|date|bool/.test((c.dataType||'').toLowerCase())));
+  const colW=cols.map((c,ci)=>{
+    const hW=cleanFieldName(c.fieldName).length*9+28;
+    const maxLen=Array.from(uniqueVals[ci]).reduce((mx,v)=>Math.max(mx,String(v).length),0);
+    const dW=Math.min(maxLen,30)*8+24;
+    if(isStrCol[ci]&&maxLen>40) return 280;
+    return Math.min(Math.max(80,hW,dW),400);
+  });
+  const tbl=document.querySelector('#table-container table');
+  const oldCg=tbl.querySelector('colgroup'); if(oldCg) oldCg.remove();
+  const cg=document.createElement('colgroup');
+  colW.forEach(w=>{const col=document.createElement('col');col.style.width=w+'px';cg.appendChild(col);});
+  tbl.insertBefore(cg,tbl.firstChild);
+  tbl.style.width=colW.reduce((s,w)=>s+w,0)+'px';
+  const hrow=document.getElementById('tbl-hrow'), frow=document.getElementById('tbl-frow');
+  hrow.innerHTML=''; frow.innerHTML='';
+  cols.forEach((c,ci)=>{
+    const th=document.createElement('th');
+    th.textContent=cleanFieldName(c.fieldName);
+    hrow.appendChild(th);
+    const vals=Array.from(uniqueVals[ci]).sort((a,b)=>{
+      const na=parseFloat(a.replace(/,/g,'')), nb=parseFloat(b.replace(/,/g,''));
+      return(!isNaN(na)&&!isNaN(nb))?na-nb:String(a).localeCompare(String(b),'he');
+    });
+    const btn=document.createElement('button');
+    btn.className='tbl-filter-btn'; btn.dataset.ci=ci;
+    btn.innerHTML='<span class="arrow">▼</span><span class="btn-label">הכל</span>';
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const panel=document.getElementById('tbl-dd-panel');
+      if(panel.classList.contains('open')&&_tblDdCi===ci){tblCloseDd();return;}
+      _tblDdCi=ci; _tblDdVals=vals; _tblDdSelected=new Set(_tblActiveFilters[ci]||[]); _tblDdBtnEl=btn;
+      document.getElementById('tbl-dd-search-input').value='';
+      tblRenderDdList(vals,'');
+      const rect=btn.getBoundingClientRect();
+      panel.classList.add('open');
+      let top=rect.bottom+2, left=rect.left;
+      if(left+220>window.innerWidth) left=window.innerWidth-224;
+      if(top+250>window.innerHeight) top=rect.top-254;
+      panel.style.top=top+'px'; panel.style.left=left+'px';
+    });
+    const fth=document.createElement('th'); fth.appendChild(btn); frow.appendChild(fth);
+  });
+  const tbody=document.getElementById('tbl-tbody');
+  tbody.innerHTML='';
+  const frag=document.createDocumentFragment();
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    cols.forEach((_,ci)=>{
+      const cell=r[colIdxMap[ci]], td=document.createElement('td');
+      const fmt=tblFmtCell(cell.value,cell.formattedValue,cols[ci].dataType);
+      if(fmt.num){td.className='num';td.innerHTML=`<span style="direction:ltr;unicode-bidi:embed">${fmt.text}</span>`;}
+      else{td.textContent=fmt.text; if(isStrCol[ci])td.classList.add('wrap');}
+      tr.appendChild(td);
+    });
+    frag.appendChild(tr);
+  });
+  tbody.appendChild(frag);
+}
+
+// ═══════════════════════════════════════════════════
+// FETCH + RENDER
+// ═══════════════════════════════════════════════════
+async function applyChart() {
+  hideError();
+  const chart = state.chart;
+  if (!chart) return;
+  const isTable    = chart.id==='rtltable';
+  const isBanTable = chart.id==='bantable';
+  const isBan      = ['ban1','ban2'].includes(chart.id);
+  document.getElementById('echarts-container').style.display = isTable?'none':'block';
+  document.getElementById('table-container').style.display = isTable?'block':'none';
+  document.getElementById('placeholder').style.display = 'none';
+  if (isTable) {
+    try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isBanTable) {
+    const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
+    if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const {rows} = parseDataTable(dt);
+      renderBanTable(rows, state.assignments);
+      applyBorderRadius();
+      await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isBan) {
+    const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
+    if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const {rows} = parseDataTable(dt);
+      renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
+      applyBorderRadius();
+      await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
+  if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
+  try {
+    const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+    const {columns, rows} = parseDataTable(dt);
+    if (rows.some(row=>Object.values(row).some(v=>v!==null&&String(v).includes('%many%')))||rows.length===0) {
+      showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
+      return;
+    }
+    renderECharts(chart, columns, rows, state.assignments);
+    applyBorderRadius();
+    await saveSettings();
+  } catch(e) { showError('שגיאת טעינה: '+e); }
+}
+
+async function refreshChart() {
+  if (!state.chart||!state.echartsInstance) return;
+  if (state.chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id])) await applyChart();
+}
+
+function parseDataTable(dt) {
+  const columns = dt.columns.map(col=>({
+    fieldName: col._fieldName,
+    displayName: cleanFieldName(col._fieldName),
+    dataType: col._dataType,
+  }));
+  const rows = dt.data.map(row=>
+    Object.fromEntries(columns.map((col,i)=>[col.fieldName, normalizeValue(row[i]?.value??row[i], col.dataType)]))
+  );
+  return {columns, rows};
+}
+
+// ═══════════════════════════════════════════════════
+// MAP LOADER
+// ═══════════════════════════════════════════════════
+async function ensureMap() {
+  if (_mapCache['world']) return;
+  try { echarts.getMap('world'); _mapCache['world']=true; }
+  catch(e) { throw new Error('world.js לא נטען'); }
+}
+
+// ═══════════════════════════════════════════════════
+// ECHARTS RENDERER
+// ═══════════════════════════════════════════════════
+async function renderECharts(chart, columns, rows, assignments) {
+  const container = document.getElementById('echarts-container');
+  // Always dispose stale instance and clear HTML before re-initializing
+  if (state.echartsInstance) {
+    try { state.echartsInstance.dispose(); } catch(e) {}
+    state.echartsInstance = null;
+  }
+  container.innerHTML = '';
+  state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
+  state.echartsInstance.on('click', ()=>{});
+  COLORS = (state.customColors?.length>=4) ? state.customColors.slice() : DEFAULT_COLORS.slice();
+  const ec = state.echartsInstance;
+  const a  = assignments;
+  let option = null;
+
+  // Field name shorthands
+  const xField     = a.x?.fieldName;
+  const yField     = a.y?.fieldName;
+  const groupField = a.group?.fieldName;
+  const colorField = a.color?.fieldName;
+  const dimField   = a.dim?.fieldName;
+  const valField   = a.val?.fieldName;
+  const stackField = a.stack?.fieldName;
+  const sizeField  = a.size?.fieldName;
+  const srcField   = a.src?.fieldName;
+  const tgtField   = a.tgt?.fieldName;
+  const parentField= a.parent?.fieldName;
+
+  // Shared builders
+  const uniqSorted = (arr) => [...new Set(arr)].sort();
+  const findRow = (rows, key, val, key2, val2) =>
+    rows.find(r => r[key]===val && (key2===undefined || r[key2]===val2));
+  const gridBase = (bottom=30, right=16, left=50, top=20) => ({bottom, top, right, left});
+
+  const lineOrArea = (isArea) => {
+    const xVals = uniqSorted(rows.map(r=>r[xField]));
+    const rotate = xVals.length>8?30:0;
+    const mkSeries = (data, name, i) => ({
+      name, type:'line', smooth:true,
+      areaStyle: isArea?{opacity:.15}:undefined,
+      data, itemStyle:{color:COLORS[i%COLORS.length]}, symbolSize:4,
+    });
+    if (groupField) {
+      const groups = uniqSorted(rows.map(r=>r[groupField]));
+      return {
+        tooltip:{trigger:'axis'}, legend:{bottom:0,type:'scroll'},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate}},
+        yAxis:{type:'value'}, grid:gridBase(xVals.length>8?50:30),
+        series: groups.map((g,i) => mkSeries(
+          xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;}),
+          String(g), i
+        )),
+      };
+    }
+    return {
+      tooltip:{trigger:'axis'},
+      xAxis:{type:'category',data:xVals,axisLabel:{rotate}},
+      yAxis:{type:'value'}, grid:gridBase(xVals.length>8?50:30),
+      series:[mkSeries(xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[yField]:null;}),'',0)],
+    };
+  };
+
+  const barChart = (horiz) => {
+    const catF = horiz ? yField : xField;
+    const valF = horiz ? xField : yField;
+    const cats = [...new Set(rows.map(r=>r[catF]))];
+    const mkSeries = (data, name, i, radius) => ({
+      name, type:'bar', data,
+      itemStyle:{color:COLORS[i%COLORS.length], borderRadius:radius},
+    });
+    if (colorField) {
+      const groups = [...new Set(rows.map(r=>r[colorField]))];
+      return {
+        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}}, legend:{bottom:0},
+        xAxis:horiz?{type:'value'}:{type:'category',data:cats},
+        yAxis:horiz?{type:'category',data:cats}:{type:'value'},
+        grid:gridBase(40,16,horiz?80:50),
+        series:groups.map((g,i)=>mkSeries(
+          cats.map(c=>{const r=findRow(rows,catF,c,colorField,g);return r?r[valF]:null;}),
+          String(g), i, horiz?[0,4,4,0]:[4,4,0,0]
+        )),
+      };
+    }
+    return {
+      tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+      xAxis:horiz?{type:'value'}:{type:'category',data:cats},
+      yAxis:horiz?{type:'category',data:cats}:{type:'value'},
+      grid:gridBase(30,16,horiz?80:50),
+      series:[mkSeries(cats.map(c=>{const r=findRow(rows,catF,c);return r?r[valF]:null;}),'',0,horiz?[0,4,4,0]:[4,4,0,0])],
+    };
+  };
+
+  const pieDonutRose = (radius, rose) => ({
+    tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%}'},
+    legend:{bottom:0,type:'scroll'},
+    series:[{type:'pie', radius, roseType:rose?'area':undefined,
+      data: rows.filter(r=>r[dimField]!=null&&r[valField]!=null)
+                .map((r,i)=>({name:String(r[dimField]),value:r[valField],itemStyle:{color:COLORS[i%COLORS.length]}})),
+      label:{formatter:'{b}'}}],
+  });
+
+  const scatterOrBubble = (isEffect) => {
+    const filtered = rows.filter(r=>r[xField]!=null&&r[yField]!=null);
+    const type = isEffect?'effectScatter':'scatter';
+    const symSize = isEffect ? 12 : (chart.id==='bubble'&&sizeField ? d=>Math.sqrt(d[2])*3 : 7);
+    const mkSeries = (data, name, i) => ({
+      name, type, data,
+      symbolSize: symSize,
+      ...(isEffect?{rippleEffect:{scale:3,period:1.5,brushType:'stroke'}}:{}),
+      itemStyle:{color:COLORS[i%COLORS.length],opacity:.75},
+    });
+    const mapRow = r => (chart.id==='bubble'&&sizeField) ? [r[xField],r[yField],r[sizeField]] : [r[xField],r[yField]];
+    if (colorField) {
+      const groups = [...new Set(filtered.map(r=>r[colorField]))];
+      return {
+        tooltip:{trigger:'item'}, legend:{bottom:0},
+        xAxis:{type:'value',name:a.x.displayName}, yAxis:{type:'value',name:a.y.displayName},
+        grid:gridBase(40,16,60),
+        series:groups.map((g,i)=>mkSeries(filtered.filter(r=>r[colorField]===g).map(mapRow),String(g),i)),
+      };
+    }
+    return {
+      tooltip:{trigger:'item'},
+      xAxis:{type:'value',name:a.x.displayName}, yAxis:{type:'value',name:a.y.displayName},
+      grid:gridBase(30,16,60),
+      series:[mkSeries(filtered.map(mapRow),'',0)],
+    };
+  };
+
+  const graphNet = (layout) => {
+    const weightField = a.val?.fieldName;
+    const nodeSet = new Set([...rows.map(r=>String(r[srcField])),...rows.map(r=>String(r[tgtField]))]);
+    const nodeArr = [...nodeSet];
+    const maxW = weightField ? Math.max(...rows.map(r=>r[weightField]||0))||1 : 1;
+    const links = rows.filter(r=>r[srcField]!=null&&r[tgtField]!=null).map(r=>({
+      source:String(r[srcField]), target:String(r[tgtField]),
+      lineStyle:{width:weightField?Math.max(1,(r[weightField]/maxW)*6):1.5, color:'#aaa', opacity:.6},
+      value:weightField?r[weightField]:1,
+    }));
+    return {
+      tooltip:{trigger:'item', formatter:p=>p.dataType==='edge'?`${p.data.source} → ${p.data.target}${weightField?': '+p.data.value:''}`:p.name},
+      series:[{
+        type:'graph', layout, roam:true,
+        data:nodeArr.map((n,i)=>({name:n,symbolSize:layout==='circular'?14:12,itemStyle:{color:COLORS[i%COLORS.length]},label:{show:true,fontSize:11}})),
+        links,
+        force:layout==='force'?{repulsion:120,edgeLength:[40,120],gravity:.05}:undefined,
+        lineStyle:{curveness:layout==='circular'?.3:.1},
+        emphasis:{focus:'adjacency'},
+        circular:layout==='circular'?{rotateLabel:true}:undefined,
+        label:{position:layout==='circular'?'outside':'right'},
+      }],
+    };
+  };
+
+  const treeChart = (radial) => {
+    const childField = a.child?.fieldName;
+    const parentMap = new Map();
+    rows.forEach(r=>{
+      const p=String(r[parentField]??'(ללא)'), c=String(r[childField]??'(ללא)'), v=r[valField]||0;
+      if(!parentMap.has(p)) parentMap.set(p,new Map());
+      const cm=parentMap.get(p); cm.set(c,(cm.get(c)||0)+v);
+    });
+    const allChildren = new Set(); parentMap.forEach(cm=>cm.forEach((_,c)=>allChildren.add(c)));
+    const roots = [...parentMap.keys()].filter(p=>!allChildren.has(p));
+    const buildNode = (name) => {
+      const childMap=parentMap.get(name);
+      const node={name};
+      if(childMap?.size>0) node.children=[...childMap.entries()].map(([c,v])=>({...buildNode(c),value:v}));
+      return node;
+    };
+    const treeData = roots.length===1 ? buildNode(roots[0]) : {name:'(שורש)',children:(roots.length?roots:[...parentMap.keys()].slice(0,1)).map(buildNode)};
+    return {
+      tooltip:{trigger:'item',formatter:'{b}: {c}'},
+      series:[{
+        type:'tree', data:[treeData],
+        top:'5%',bottom:'5%',left:'15%',right:'15%',
+        layout:radial?'radial':'orthogonal', orient:radial?undefined:'LR',
+        symbol:'emptyCircle', symbolSize:8,
+        label:{position:radial?'radial':'left',fontSize:11},
+        leaves:{label:{position:radial?'radial':'right'}},
+        emphasis:{focus:'descendant'}, expandAndCollapse:true, initialTreeDepth:3,
+        lineStyle:{color:'#ccc',width:1.5},
+        itemStyle:{color:COLORS[0],borderColor:COLORS[0]},
+      }],
+    };
+  };
+
+  const sunburstChart = () => {
+    const childField = a.child?.fieldName;
+    const parentMap = new Map();
+    rows.forEach(r=>{
+      const p=String(r[parentField]??'(ללא)'), c=String(r[childField]??'(ללא)'), v=r[valField]||0;
+      if(!parentMap.has(p)) parentMap.set(p,new Map());
+      const cm=parentMap.get(p); cm.set(c,(cm.get(c)||0)+v);
+    });
+    return {
+      tooltip:{trigger:'item',formatter:'{b}: {c}'},
+      series:[{type:'sunburst', data:[...parentMap.entries()].map(([p,childMap],pi)=>({
+        name:p, itemStyle:{color:COLORS[pi%COLORS.length]},
+        children:[...childMap.entries()].map(([c,v],ci)=>({name:c,value:v,itemStyle:{color:COLORS[pi%COLORS.length]+(ci%2===0?'bb':'77')}})),
+      })), radius:[0,'90%'], label:{rotate:'radial',fontSize:11}, emphasis:{focus:'ancestor'}, nodeClick:'zoomToNode',
+      levels:[{},{itemStyle:{borderWidth:2,borderColor:'#fff'}},{itemStyle:{borderWidth:1,borderColor:'#fff'}}]}],
+    };
+  };
+
+  switch(chart.id) {
+    case 'line': case 'area': option = lineOrArea(chart.id==='area'); break;
+    case 'stepline': {
+      const xVals=uniqSorted(rows.map(r=>r[xField])), rotate=xVals.length>8?30:0;
+      if (groupField) {
+        const groups=uniqSorted(rows.map(r=>r[groupField]));
+        option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
+          series:groups.map((g,i)=>({name:String(g),type:'line',step:'end',data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;}),itemStyle:{color:COLORS[i%COLORS.length]}}))};
+      } else {
+        option={tooltip:{trigger:'axis'},xAxis:{type:'category',data:xVals,axisLabel:{rotate}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?50:30),
+          series:[{type:'line',step:'end',data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[yField]:null;}),itemStyle:{color:COLORS[0]}}]};
+      }
+      break;
+    }
+    case 'stackedarea': {
+      const xVals=uniqSorted(rows.map(r=>r[xField])), groups=uniqSorted(rows.map(r=>r[groupField]));
+      option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
+        series:groups.map((g,i)=>({name:String(g),type:'line',stack:'total',smooth:true,areaStyle:{opacity:.6},itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{width:1},symbolSize:0,
+          data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;})}))};
+      break;
+    }
+    case 'stackedline': {
+      const xVals=uniqSorted(rows.map(r=>r[xField])), groups=uniqSorted(rows.map(r=>r[groupField]));
+      option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
+        series:groups.map((g,i)=>({name:String(g),type:'line',stack:'total',data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;}),
+          itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{color:COLORS[i%COLORS.length],width:2},symbolSize:4}))};
+      break;
+    }
+    case 'confidenceband': {
+      const midF=a.mid?.fieldName, upperF=a.upper?.fieldName, lowerF=a.lower?.fieldName;
+      const xVals=uniqSorted(rows.map(r=>r[xField]));
+      option={
+        tooltip:{trigger:'axis',formatter:params=>{const x=params[0]?.axisValue,row=rows.find(r=>r[xField]===x);return row?`${x}<br/>${a.upper.displayName}: ${row[upperF]}<br/>${a.mid.displayName}: ${row[midF]}<br/>${a.lower.displayName}: ${row[lowerF]}`:x;}},
+        legend:{bottom:0,data:[a.mid.displayName]},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40,16,55),
+        series:[
+          {name:'lower',type:'line',data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[lowerF]:null;}),stack:'band',lineStyle:{opacity:0},areaStyle:{color:'transparent'},symbolSize:0,silent:true,tooltip:{show:false}},
+          {name:'band', type:'line',data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?((r[upperF]??0)-(r[lowerF]??0)):null;}),stack:'band',lineStyle:{opacity:0},areaStyle:{color:COLORS[0],opacity:.15},symbolSize:0,silent:true,tooltip:{show:false}},
+          {name:a.mid.displayName,type:'line',data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[midF]:null;}),smooth:true,lineStyle:{color:COLORS[0],width:2.5},itemStyle:{color:COLORS[0]},symbolSize:4},
+        ]};
+      break;
+    }
+    case 'bar': case 'hbar': option = barChart(chart.id==='hbar'); break;
+    case 'stackedbar': {
+      const cats=uniqSorted(rows.map(r=>r[xField])), stacks=uniqSorted(rows.map(r=>r[stackField]));
+      option={tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},legend:{bottom:0},xAxis:{type:'category',data:cats},yAxis:{type:'value'},grid:gridBase(40),
+        series:stacks.map((s,i)=>({name:String(s),type:'bar',stack:'total',itemStyle:{color:COLORS[i%COLORS.length]},data:cats.map(c=>{const r=findRow(rows,xField,c,stackField,s);return r?r[yField]:null;})}))};
+      break;
+    }
+    case 'dualaxis': {
+      const y1F=a.y1?.fieldName, y2F=a.y2?.fieldName;
+      const xVals=uniqSorted(rows.map(r=>r[xField]));
+      option={tooltip:{trigger:'axis',axisPointer:{type:'cross'}},legend:{bottom:0,data:[a.y1.displayName,a.y2.displayName]},
+        xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},
+        yAxis:[{type:'value',name:a.y1.displayName,nameTextStyle:{color:COLORS[0]},axisLine:{lineStyle:{color:COLORS[0]}},axisTick:{lineStyle:{color:COLORS[0]}},axisLabel:{color:COLORS[0]}},
+               {type:'value',name:a.y2.displayName,nameTextStyle:{color:COLORS[1]},axisLine:{lineStyle:{color:COLORS[1]}},axisTick:{lineStyle:{color:COLORS[1]}},axisLabel:{color:COLORS[1]},splitLine:{show:false}}],
+        grid:gridBase(xVals.length>8?55:40,60,60,30),
+        series:[{name:a.y1.displayName,type:'bar',yAxisIndex:0,data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[y1F]:null;}),itemStyle:{color:COLORS[0],borderRadius:[4,4,0,0]}},
+                {name:a.y2.displayName,type:'line',yAxisIndex:1,smooth:true,data:xVals.map(x=>{const r=findRow(rows,xField,x);return r?r[y2F]:null;}),itemStyle:{color:COLORS[1]},lineStyle:{color:COLORS[1],width:2},symbolSize:5}]};
+      break;
+    }
+    case 'waterfall': {
+      const cats=[...new Set(rows.map(r=>r[xField]))];
+      let cum=0; const baseData=[], barData=[];
+      cats.forEach(c=>{const row=findRow(rows,xField,c), v=row?(row[yField]||0):0;
+        baseData.push(cum<0?Math.min(cum,cum+v):Math.max(0,Math.min(cum,cum+v))); barData.push(Math.abs(v)); cum+=v;});
+      option={tooltip:{trigger:'axis',axisPointer:{type:'shadow'},formatter:params=>{const b=params.find(p=>p.seriesIndex===1);return b?`${b.name}: ${b.value}`:''}},
+        xAxis:{type:'category',data:cats,axisLabel:{rotate:cats.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(cats.length>8?55:30,16,60),
+        series:[{type:'bar',stack:'w',itemStyle:{borderColor:'transparent',color:'transparent'},data:baseData,tooltip:{show:false}},
+                {type:'bar',stack:'w',data:barData,itemStyle:{color:p=>{const row=findRow(rows,xField,cats[p.dataIndex]);return row&&row[yField]<0?COLORS[1]:COLORS[2];},borderRadius:[4,4,0,0]}}]};
+      break;
+    }
+    case 'pictorialbar': {
+      const cats=[...new Set(rows.map(r=>r[xField]))];
+      option={tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},xAxis:{type:'category',data:cats,axisLabel:{rotate:cats.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(cats.length>8?55:30,16,55),
+        series:[{type:'pictorialBar',data:cats.map((c,i)=>({value:(findRow(rows,xField,c)||{})[yField],itemStyle:{color:COLORS[i%COLORS.length]}})),symbol:'roundRect',symbolSize:['80%',10],symbolRepeat:true,symbolMargin:'20%',symbolClip:true}]};
+      break;
+    }
+    case 'histogram': {
+      const cats=[...new Set(rows.map(r=>r[xField]))];
+      option={tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},xAxis:{type:'category',data:cats,axisLabel:{rotate:cats.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(cats.length>8?55:30,16,55),
+        series:[{type:'bar',data:cats.map(c=>{const r=findRow(rows,xField,c);return r?r[yField]:null;}),barGap:'0%',barCategoryGap:'0%',itemStyle:{color:COLORS[0],borderRadius:[3,3,0,0]}}]};
+      break;
+    }
+    case 'polarbar': {
+      const dimF=a.dim?.fieldName, cats=[...new Set(rows.map(r=>r[dimF]))];
+      if(colorField){
+        const groups=[...new Set(rows.map(r=>r[colorField]))];
+        option={tooltip:{trigger:'item'},legend:{bottom:0,type:'scroll'},polar:{radius:'65%'},angleAxis:{type:'category',data:cats},radiusAxis:{},
+          series:groups.map((g,i)=>({name:String(g),type:'bar',data:cats.map(c=>{const r=findRow(rows,dimF,c,colorField,g);return r?r[valField]:null;}),coordinateSystem:'polar',itemStyle:{color:COLORS[i%COLORS.length]},stack:'polar'}))};
+      } else {
+        option={tooltip:{trigger:'item'},polar:{radius:'65%'},angleAxis:{type:'category',data:cats},radiusAxis:{},
+          series:[{type:'bar',data:cats.map((c,i)=>({value:(findRow(rows,dimF,c)||{})[valField],itemStyle:{color:COLORS[i%COLORS.length]}})),coordinateSystem:'polar',roundCap:true}]};
+      }
+      break;
+    }
+    case 'pie': case 'donut': option = pieDonutRose(chart.id==='donut'?['38%','65%']:'65%', false); break;
+    case 'rose': option = pieDonutRose(['15%','65%'], true); break;
+    case 'nestedpie': {
+      const outerF=a.outer?.fieldName, innerF=a.inner?.fieldName;
+      const outerGroups=[...new Set(rows.map(r=>String(r[outerF])))];
+      const outerData=outerGroups.map((g,i)=>({name:g,value:rows.filter(r=>String(r[outerF])===g).reduce((s,r)=>s+(r[valField]||0),0),itemStyle:{color:COLORS[i%COLORS.length]}}));
+      const innerData=[];
+      outerGroups.forEach((og,oi)=>{
+        const innerGroups=[...new Set(rows.filter(r=>String(r[outerF])===og).map(r=>String(r[innerF])))];
+        const alphas=['ff','cc','aa','88','66'];
+        innerGroups.forEach((ig,ii)=>{
+          const v=rows.filter(r=>String(r[outerF])===og&&String(r[innerF])===ig).reduce((s,r)=>s+(r[valField]||0),0);
+          innerData.push({name:`${og} › ${ig}`,value:v,itemStyle:{color:COLORS[oi%COLORS.length]+alphas[ii%5]}});
+        });
+      });
+      option={tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},legend:{bottom:0,type:'scroll'},
+        series:[{name:a.outer.displayName,type:'pie',radius:['0','38%'],data:outerData,label:{position:'inner',fontSize:11},labelLine:{show:false}},
+                {name:a.inner.displayName,type:'pie',radius:['45%','68%'],data:innerData,label:{formatter:'{b}',fontSize:10},labelLine:{length:6,length2:4}}]};
+      break;
+    }
+    case 'scatter': case 'bubble': option = scatterOrBubble(false); break;
+    case 'effectscatter': option = scatterOrBubble(true); break;
+    case 'heatmap': {
+      const xs=uniqSorted(rows.map(r=>r[xField])), ys=uniqSorted(rows.map(r=>r[a.y.fieldName]));
+      const vals=rows.map(r=>[xs.indexOf(r[xField]),ys.indexOf(r[a.y.fieldName]),r[valField]]);
+      option={tooltip:{},xAxis:{type:'category',data:xs},yAxis:{type:'category',data:ys},
+        visualMap:{min:0,max:Math.max(...vals.map(v=>v[2]||0)),calculable:true,orient:'horizontal',bottom:0},
+        grid:gridBase(60,16,60),series:[{type:'heatmap',data:vals,label:{show:false}}]};
+      break;
+    }
+    case 'radar': {
+      const dims=uniqSorted(rows.map(r=>r[dimField])), maxVal=Math.max(...rows.map(r=>r[valField]||0));
+      option={tooltip:{},radar:{indicator:dims.map(d=>({name:d,max:maxVal}))},
+        series:[{type:'radar',data:[{value:dims.map(d=>{const r=findRow(rows,dimField,d);return r?r[valField]:0;}),itemStyle:{color:COLORS[0]},areaStyle:{opacity:.2}}]}]};
+      break;
+    }
+    case 'radargroup': {
+      const dims=[...new Set(rows.map(r=>r[dimField]))], groups=[...new Set(rows.map(r=>r[groupField]))];
+      const maxVal=Math.max(...rows.map(r=>r[valField]||0));
+      option={tooltip:{},legend:{bottom:0,type:'scroll',data:groups.map(String)},radar:{indicator:dims.map(d=>({name:d,max:maxVal})),radius:'60%'},
+        series:[{type:'radar',data:groups.map((g,i)=>({name:String(g),value:dims.map(d=>{const r=findRow(rows,dimField,d,groupField,g);return r?r[valField]:0;}),
+          itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{color:COLORS[i%COLORS.length]},areaStyle:{color:COLORS[i%COLORS.length],opacity:.15}}))}]};
+      break;
+    }
+    case 'funnel': {
+      option={tooltip:{trigger:'item'},
+        series:[{type:'funnel',left:'10%',width:'80%',
+          data:rows.filter(r=>r[dimField]!=null).sort((a,b)=>(b[valField]||0)-(a[valField]||0))
+                   .map((r,i)=>({name:String(r[dimField]),value:r[valField],itemStyle:{color:COLORS[i%COLORS.length]}})),
+          label:{position:'inside'}}]};
+      break;
+    }
+    case 'treemap': {
+      option={tooltip:{},series:[{type:'treemap',breadcrumb:{show:false},
+        data:rows.filter(r=>r[dimField]!=null&&r[valField]!=null).map(r=>({name:String(r[dimField]),value:r[valField]}))}]};
+      break;
+    }
+    case 'sankey': {
+      const nodes=[...new Set([...rows.map(r=>String(r[srcField])),...rows.map(r=>String(r[tgtField]))])].map(n=>({name:n}));
+      option={tooltip:{trigger:'item'},series:[{type:'sankey',data:nodes,
+        links:rows.filter(r=>r[srcField]!=null&&r[tgtField]!=null&&r[valField]!=null).map(r=>({source:String(r[srcField]),target:String(r[tgtField]),value:r[valField]})),
+        lineStyle:{color:'gradient',opacity:.4}}]};
+      break;
+    }
+    case 'themeriver': {
+      const themeF=a.theme?.fieldName, timeF=a.time?.fieldName;
+      option={tooltip:{trigger:'axis',axisPointer:{type:'line'}},
+        legend:{data:[...new Set(rows.map(r=>String(r[themeF])))],bottom:0,type:'scroll'},
+        singleAxis:{top:20,bottom:50,left:50,right:16,type:'time'},
+        series:[{type:'themeRiver',emphasis:{focus:'series'},label:{show:false},
+          data:rows.filter(r=>r[timeF]!=null&&r[themeF]!=null&&r[valField]!=null).map(r=>[String(r[timeF]),r[valField],String(r[themeF])])}]};
+      break;
+    }
+    case 'parallel': {
+      const measures=['val','val2','val3','val4','val5'].map(id=>a[id]?{id,field:a[id].fieldName,label:a[id].displayName}:null).filter(Boolean);
+      const dimF3=a.dim?.fieldName, categories=[...new Set(rows.map(r=>String(r[dimF3])))];
+      if(rows.length>1000) showError('אזהרה: יותר מ-1,000 שורות');
+      option={tooltip:{trigger:'item',formatter:p=>`${p.data.name}`},
+        legend:{bottom:0,type:'scroll',data:categories.map(String)},
+        parallelAxis:measures.map((m,i)=>({dim:i,name:m.label})),
+        parallel:{top:30,bottom:50,left:40,right:40},
+        series:[{type:'parallel',smooth:false,lineStyle:{width:2,opacity:.7},emphasis:{lineStyle:{width:3,opacity:1}},
+          data:categories.map((cat,ci)=>{const catRows=rows.filter(r=>String(r[dimF3])===cat);
+            return {value:measures.map(m=>{const vs=catRows.map(r=>r[m.field]||0);return vs.length?vs.reduce((s,v)=>s+v,0)/vs.length:0;}),
+              lineStyle:{color:COLORS[ci%COLORS.length],width:2,opacity:.75},name:cat};})}]};
+      break;
+    }
+    case 'gauge': {
+      const total=rows.reduce((s,r)=>s+(r[valField]||0),0);
+      const maxVal=a.max?rows.reduce((s,r)=>s+(r[a.max.fieldName]||0),0):null;
+      const gaugeMax=maxVal&&maxVal>0?maxVal:Math.ceil(total*1.5/10)*10||100;
+      const pct=Math.min(total,gaugeMax), displayVal=Number.isInteger(pct)?pct:parseFloat(pct.toFixed(1));
+      option={tooltip:{formatter:p=>`${a.val.displayName}: ${displayVal}`},series:[{type:'gauge',name:a.val.displayName,radius:'80%',center:['50%','55%'],startAngle:210,endAngle:-30,min:0,max:gaugeMax,
+        progress:{show:true,width:16,itemStyle:{color:COLORS[0]}},axisLine:{lineStyle:{width:16,color:[[1,'#e8e8e8']]}},
+        axisTick:{show:true,splitNumber:5,distance:-20,length:5,lineStyle:{color:'#999'}},splitLine:{show:true,distance:-26,length:10,lineStyle:{color:'#999',width:2}},
+        axisLabel:{distance:-40,color:'#666',fontSize:11},pointer:{show:true,length:'58%',width:5,itemStyle:{color:COLORS[0]}},anchor:{show:true,size:10,itemStyle:{color:COLORS[0]}},
+        detail:{valueAnimation:true,formatter:v=>{const d=Number.isInteger(v)?v:v.toFixed(1);return `{val|${d}}\n{name|${a.val.displayName}}`;},
+          rich:{val:{fontSize:26,fontWeight:'bold',color:COLORS[0],lineHeight:36},name:{fontSize:12,color:'#666',lineHeight:20}},offsetCenter:[0,'30%']},
+        data:[{value:pct}]}]};
+      break;
+    }
+    case 'gaugeprogress': {
+      if(a.dim?.fieldName){
+        const dimF=a.dim.fieldName, cats=[...new Set(rows.map(r=>r[dimF]))].slice(0,5);
+        const series=cats.map((cat,i)=>{const catRows=rows.filter(r=>r[dimF]===cat),val=catRows.reduce((s,r)=>s+(r[valField]||0),0),gaugeMax=Math.ceil(val*1.5/10)*10||100;
+          return {type:'gauge',radius:'100%',center:[`${(i/cats.length)*100+50/cats.length}%`,'60%'],startAngle:200,endAngle:-20,min:0,max:gaugeMax,
+            progress:{show:true,width:6,itemStyle:{color:COLORS[i%COLORS.length]}},axisLine:{lineStyle:{width:6,color:[[1,'#e8e8e8']]}},
+            axisTick:{show:false},splitLine:{show:false},axisLabel:{show:false},pointer:{show:false},
+            detail:{valueAnimation:true,fontSize:12,fontWeight:'bold',color:COLORS[i%COLORS.length],formatter:v=>Number.isInteger(v)?v:v.toFixed(1),offsetCenter:[0,'60%']},
+            title:{show:true,fontSize:10,color:'#666',offsetCenter:[0,'90%']},
+            data:[{value:Math.min(val,gaugeMax),name:String(cat),itemStyle:{color:COLORS[i%COLORS.length]}}]};
+        });
+        option={tooltip:{formatter:'{a} <br/>{b}: {c}'},series};
+      } else {
+        const total=rows.reduce((s,r)=>s+(r[valField]||0),0),maxVal=a.max?rows.reduce((s,r)=>s+(r[a.max.fieldName]||0),0):null,gaugeMax=maxVal&&maxVal>0?maxVal:Math.ceil(total*1.5/10)*10||100;
+        option={tooltip:{formatter:'{a} <br/>{b}: {c}'},series:[{type:'gauge',radius:'85%',startAngle:180,endAngle:0,min:0,max:gaugeMax,
+          progress:{show:true,width:20,itemStyle:{color:COLORS[2]}},axisLine:{lineStyle:{width:20,color:[[1,'#e8e8e8']]}},
+          axisTick:{show:false},splitLine:{show:false},axisLabel:{distance:-40,color:'#666',fontSize:10},pointer:{show:false},
+          detail:{valueAnimation:true,formatter:v=>Number.isInteger(v)?v:v.toFixed(1),fontSize:22,fontWeight:'bold',color:COLORS[2],offsetCenter:[0,'-20%']},
+          title:{show:true,fontSize:12,color:'#666',offsetCenter:[0,'15%']},
+          data:[{value:Math.min(total,gaugeMax),name:a.val.displayName,itemStyle:{color:COLORS[2]}}]}]};
+      }
+      break;
+    }
+    case 'gaugemulti': {
+      const vals=[['val',0],['val2',1],['val3',2]].map(([id,i])=>a[id]?{label:a[id].displayName,val:rows.reduce((s,r)=>s+(r[a[id].fieldName]||0),0),color:COLORS[i]}:null).filter(Boolean);
+      const gaugeMax=Math.ceil(Math.max(...vals.map(v=>v.val))*1.2/10)*10||100;
+      option={tooltip:{trigger:'item'},series:[{type:'gauge',radius:'85%',startAngle:210,endAngle:-30,min:0,max:gaugeMax,
+        axisLine:{lineStyle:{width:18,color:[[1,'#e8e8e8']]}},splitLine:{distance:-25,length:14,lineStyle:{color:'#999',width:2}},
+        axisTick:{distance:-18,length:8,lineStyle:{color:'#999'}},axisLabel:{distance:-50,color:'#666',fontSize:10},
+        pointer:{show:false},detail:{show:false},
+        data:vals.map((v,i)=>({value:v.val,name:v.label,itemStyle:{color:v.color},
+          title:{show:true,offsetCenter:[0,(i-1)*30+'%'],color:v.color,fontSize:11},
+          detail:{show:true,offsetCenter:[(i===0?-30:i===1?0:30)+'%','70%'],formatter:vv=>Number.isInteger(vv)?vv:vv.toFixed(1),color:v.color,fontSize:14,fontWeight:'bold',valueAnimation:true},
+          pointer:{show:true,length:'55%',width:4+i,itemStyle:{color:v.color}}}))}]};
+      break;
+    }
+    case 'candlestick': case 'candlevolume': {
+      const openF=a.open?.fieldName, closeF=a.close?.fieldName, lowF=a.low?.fieldName, highF=a.high?.fieldName, volF=a.vol?.fieldName;
+      const sorted=[...rows].sort((a,b)=>String(a[xField]).localeCompare(String(b[xField])));
+      const xVals=sorted.map(r=>r[xField]);
+      const candleData=sorted.map(r=>[r[openF],r[closeF],r[lowF],r[highF]]);
+      const hasVol=chart.id==='candlevolume'&&volF;
+      const volData=hasVol?sorted.map(r=>({value:r[volF],itemStyle:{color:(r[closeF]??0)>=(r[openF]??0)?COLORS[1]:COLORS[2],opacity:.6}})):null;
+      option={tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+        grid:[{bottom:hasVol?'32%':'5%',top:20,right:16,left:60},...(hasVol?[{top:'72%',bottom:'5%',right:16,left:60}]:[])],
+        xAxis:[{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?40:0},gridIndex:0},...(hasVol?[{type:'category',data:xVals,show:false,gridIndex:1}]:[])],
+        yAxis:[{type:'value',scale:true,gridIndex:0},...(hasVol?[{type:'value',gridIndex:1,splitNumber:2,axisLabel:{fontSize:10}}]:[])],
+        dataZoom:[{type:'inside',xAxisIndex:hasVol?[0,1]:[0]},{type:'slider',xAxisIndex:hasVol?[0,1]:[0],bottom:0,height:20}],
+        series:[{type:'candlestick',data:candleData,xAxisIndex:0,yAxisIndex:0,itemStyle:{color:COLORS[1],color0:COLORS[2],borderColor:COLORS[1],borderColor0:COLORS[2]}},...(hasVol?[{name:a.vol.displayName,type:'bar',data:volData,xAxisIndex:1,yAxisIndex:1,barMaxWidth:20}]:[])],
+      };
+      break;
+    }
+    case 'sunburst': option = sunburstChart(); break;
+    case 'graph': option = graphNet('force'); break;
+    case 'graphcirc': option = graphNet('circular'); break;
+    case 'tree': option = treeChart(false); break;
+    case 'radialtree': option = treeChart(true); break;
+    case 'calendar': case 'multicalendar': {
+      const dateF=a.date?.fieldName;
+      const calData=rows.filter(r=>r[dateF]!=null&&r[valField]!=null).map(r=>[String(r[dateF]).slice(0,10),r[valField]]);
+      if(!calData.length){showError('אין נתוני תאריך תקינים');return;}
+      const maxV=Math.max(...calData.map(d=>d[1]));
+      const vmap={min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#e8f0ff','#0057e8']}};
+      if(chart.id==='calendar'){
+        const year=calData[0][0].slice(0,4);
+        option={tooltip:{formatter:p=>`${p.data[0]}: ${p.data[1]}`},visualMap:vmap,
+          calendar:{top:30,left:30,right:30,bottom:50,range:year,itemStyle:{borderWidth:.5,borderColor:'#e0dfd8'},dayLabel:{nameMap:'he',color:'#888',fontSize:10},monthLabel:{nameMap:'he',color:'#555',fontSize:11},yearLabel:{color:'#555',fontSize:12},splitLine:{lineStyle:{color:'#ddd',width:.5}}},
+          series:[{type:'heatmap',coordinateSystem:'calendar',data:calData}]};
+      } else {
+        const years=[...new Set(calData.map(d=>d[0].slice(0,4)))].sort(), calH=years.length<=2?150:120;
+        option={tooltip:{formatter:p=>`${p.data[0]}: ${p.data[1]}`},visualMap:vmap,
+          calendar:years.map((yr,i)=>({top:30+i*calH,left:30,right:30,height:calH-20,range:yr,itemStyle:{borderWidth:.5,borderColor:'#e0dfd8'},dayLabel:{nameMap:'he',color:'#888',fontSize:9},monthLabel:{nameMap:'he',color:'#555',fontSize:10},yearLabel:{color:'#555',fontSize:12}})),
+          series:years.map((yr,i)=>({type:'heatmap',coordinateSystem:'calendar',calendarIndex:i,data:calData.filter(d=>d[0].startsWith(yr))}))};
+      }
+      break;
+    }
+    case 'worldmap': case 'usmap': {
+      try{await ensureMap();}catch(e){showError('לא ניתן לטעון מפה: '+e.message);return;}
+      const fieldName=chart.id==='worldmap'?a.country?.fieldName:a.state?.fieldName;
+      const mapData=rows.filter(r=>r[fieldName]!=null&&r[valField]!=null).map(r=>({name:String(r[fieldName]),value:r[valField]}));
+      const maxV=Math.max(...mapData.map(d=>d.value));
+      const geoExtra=chart.id==='usmap'?{center:[-96,38],zoom:4}:{};
+      option={tooltip:{trigger:'item',formatter:'{b}: {c}'},
+        visualMap:{min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#b3d1ff','#0057e8']}},
+        ...(chart.id==='usmap'?{geo:{map:'world',roam:true,...geoExtra,itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},emphasis:{label:{show:true,fontSize:10},itemStyle:{areaColor:'#ffcc66'}}}}:{}),
+        series:[{type:'map',map:'world',...(chart.id==='usmap'?{geoIndex:0}:{}),
+          ...(chart.id==='worldmap'?{roam:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},emphasis:{label:{show:true},itemStyle:{areaColor:'#ffcc66'}}}:{}),
+          data:mapData,label:{show:false}}]};
+      break;
+    }
+    case 'geomap': {
+      try{await ensureMap();}catch(e){showError('לא ניתן לטעון מפה: '+e.message);return;}
+      const latF=a.lat?.fieldName, lonF=a.lon?.fieldName, dimFld=a.dim?.fieldName, colorFld=a.color?.fieldName;
+      const filtered=rows.filter(r=>r[latF]!=null&&r[lonF]!=null&&r[valField]!=null);
+      const maxV=Math.max(...filtered.map(r=>r[valField]));
+      const colorGroups=colorFld?[...new Set(filtered.map(r=>String(r[colorFld])))]:null;
+      const makeData=subset=>subset.map(r=>({value:[r[lonF],r[latF],r[valField]],name:dimFld?String(r[dimFld]):''}));
+      option={tooltip:{trigger:'item',formatter:p=>`${p.data.name||''}<br/>${a.val.displayName}: ${p.data.value[2]}`},
+        geo:{map:'world',roam:true,itemStyle:{areaColor:'#f0f4ff',borderColor:'#c8d8f0',borderWidth:.4},emphasis:{disabled:true}},
+        visualMap:{show:!colorFld,min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#91caff','#0057e8']}},
+        legend:colorGroups?{bottom:0,type:'scroll',data:colorGroups}:{show:false},
+        series:colorGroups?colorGroups.map((g,i)=>({name:g,type:'scatter',coordinateSystem:'geo',data:makeData(filtered.filter(r=>String(r[colorFld])===g)),symbolSize:d=>Math.max(5,Math.sqrt(d[2]/maxV)*40),itemStyle:{color:COLORS[i%COLORS.length],opacity:.75},label:{show:false},emphasis:{label:{show:true,formatter:p=>p.data.name}}}))
+          :[{type:'scatter',coordinateSystem:'geo',data:makeData(filtered),symbolSize:d=>Math.max(5,Math.sqrt(d[2]/maxV)*40),itemStyle:{opacity:.75},label:{show:false},emphasis:{label:{show:true,formatter:p=>p.data.name}}}]};
+      break;
+    }
+    case 'linesmap': {
+      try{await ensureMap();}catch(e){showError('לא ניתן לטעון מפה: '+e.message);return;}
+      const slatF=a.slat?.fieldName, slonF=a.slon?.fieldName, tlatF=a.tlat?.fieldName, tlonF=a.tlon?.fieldName, valF2=a.val?.fieldName, dimF2=a.dim?.fieldName;
+      const maxV=valF2?Math.max(...rows.map(r=>r[valF2]||0))||1:1;
+      option={tooltip:{trigger:'item',formatter:p=>p.data?.name||''},
+        geo:{map:'world',roam:true,itemStyle:{areaColor:'#e8f0ff',borderColor:'#aac4f0',borderWidth:.5},emphasis:{label:{show:false},itemStyle:{areaColor:'#ffcc66'}}},
+        series:[{type:'lines',coordinateSystem:'geo',polyline:false,effect:{show:true,period:5,trailLength:.3,symbolSize:5,color:'#fff'},
+          data:rows.filter(r=>r[slatF]!=null&&r[slonF]!=null&&r[tlatF]!=null&&r[tlonF]!=null).map((r,i)=>({coords:[[r[slonF],r[slatF]],[r[tlonF],r[tlatF]]],name:dimF2?String(r[dimF2]):'',lineStyle:{color:COLORS[i%COLORS.length],width:valF2?Math.max(1,(r[valF2]/maxV)*4):1.5,opacity:.7,curveness:.3}}))}]};
+      break;
+    }
+  }
+
+  if (option) {
+    ec.setOption(option, true);
+    window.addEventListener('resize', ()=>ec.resize());
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// KPI BAN CARD RENDERER
+// ═══════════════════════════════════════════════════
+function renderBan(rows, assignments, banStyle) {
+  const container = document.getElementById('echarts-container');
+  if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
+
+  const [boxCol, topCol, botCol] = state.banColors || BAN_COLOR_DEFAULTS;
+
+  const nameF    = assignments.name?.fieldName;
+  const valF     = assignments.val?.fieldName;
+  const periodF  = assignments.period?.fieldName;
+  const prevF    = assignments.prev?.fieldName;
+  const prevperF = assignments.prevper?.fieldName;
+
+  let val = 0, prev = 0;
+  const periodVals = new Set(), prevperVals = new Set();
+  rows.forEach(r => {
+    val += (r[valF] ?? 0);
+    if (prevF)    prev += (r[prevF] ?? 0);
+    if (periodF  && r[periodF]  != null) periodVals.add(String(r[periodF]));
+    if (prevperF && r[prevperF] != null) prevperVals.add(String(r[prevperF]));
+  });
+
+  const kpiName     = nameF ? String(rows.find(r => r[nameF] != null)?.[nameF] ?? '') : '';
+  const hebrew      = /[\u0590-\u05FF]/.test(kpiName) || /[\u0590-\u05FF]/.test(String([...periodVals][0]||''));
+  const nd          = hebrew ? 'rtl' : 'ltr';
+  const align       = hebrew ? 'right' : 'left';
+  const cur         = hebrew ? '₪' : '$';
+  const chgWord     = hebrew ? 'שינוי' : 'change';
+  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
+
+  const periodLabel  = periodVals.size  ? [...periodVals][0]  : '';
+  const prevperLabel = prevperVals.size ? [...prevperVals][0] : '';
+
+  const hasPrev = !!prevF && prev !== 0;
+  const pct     = hasPrev ? ((val - prev) / Math.abs(prev)) * 100 : null;
+  const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
+
+  const BADGE = {
+    pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)'  },
+    neg: { border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)'  },
+    neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)' },
+  };
+  const B = BADGE[dir];
+
+  const fmt = n => {
+    const a = Math.abs(n);
+    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
+    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
+    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
+  };
+
+  function scale() {
+    const w = container.offsetWidth  || 300;
+    const h = container.offsetHeight || 200;
+    // Use a balanced unit: don't let height dominate on tall/square cards
+    const u = Math.min(w / 400, h / 220);
+    const fs = state.banFontSizes || {};
+    // s(base, min, max) — uses override if set, else scales from base
+    const s = (key, b, m=10, mx=9999) => {
+      if (fs[key]) return fs[key];
+      return Math.min(mx, Math.max(m, Math.round(u * b)));
+    };
+    const card = container.querySelector('.ban-inner');
+    if (!card) return;
+    card.style.padding = `${Math.min(9999,Math.max(10,Math.round(u*16)))}px ${Math.min(9999,Math.max(12,Math.round(u*24)))}px ${Math.min(9999,Math.max(10,Math.round(u*14)))}px`;
+    const lbl = card.querySelector('.ban-kpi-lbl');
+    if (lbl) { lbl.style.fontSize = `${s('name',13,10,20)}px`; lbl.style.marginBottom = `${Math.max(2,Math.round(u*3))}px`; }
+    const per = card.querySelector('.ban-period-lbl');
+    if (per) per.style.fontSize = `${s('bot',11,9,16)}px`;
+    const valEl = card.querySelector('.ban-kpi-val');
+    // Cap value font: never exceed 42% of card height (unless user override)
+    if (valEl) valEl.style.fontSize = `${fs['value'] ? fs['value'] : Math.min(Math.round(h*0.42), Math.max(20, Math.round(u*58)))}px`;
+    const badge = card.querySelector('.ban-badge');
+    if (badge) {
+      badge.style.padding = `${Math.max(4,Math.round(u*5))}px ${Math.max(9,Math.round(u*13))}px`;
+      badge.style.gap     = `${Math.max(4,Math.round(u*6))}px`;
+      const pctEl = badge.querySelector('.ban-pct');
+      if (pctEl) pctEl.style.fontSize = `${s('badge',13,10,20)}px`;
+      const chgEl = badge.querySelector('.ban-chg');
+      if (chgEl) chgEl.style.fontSize = `${s('badge',11,9,16)}px`;
+      const svg = badge.querySelector('svg');
+      if (svg) { const sz=Math.max(6,Math.min(14,Math.round(u*8))); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
+    }
+    const botVal = card.querySelector('.ban-bot-val');
+    if (botVal) botVal.style.fontSize = `${s('bot',14,10,20)}px`;
+    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s('bot',10,9,15)}px`);
+  }
+
+  const arwSVG = dir === 'pos'
+    ? `<svg viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="${B.arrowFill}"/></svg>`
+    : dir === 'neg'
+    ? `<svg viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${B.arrowFill}"/></svg>`
+    : `<svg viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${B.arrowFill}"/></svg>`;
+
+  // Badge: always direction:ltr internally, arrow | % | label
+  const badgeHTML = pct !== null ? `
+    <div class="ban-badge" style="display:inline-flex;align-items:center;border-radius:99px;
+      border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
+      white-space:nowrap;flex-shrink:0;direction:ltr">
+      ${arwSVG}
+      <span class="ban-pct" style="font-weight:700;color:#fff">${Math.abs(pct).toFixed(1)}%</span>
+      <span class="ban-chg" style="font-weight:400;color:rgba(255,255,255,0.65)">${chgWord}</span>
+    </div>` : '';
+
+  // TOP block: KPI name + current period stacked, both inline-start (right in RTL)
+  const topBlock = `
+    <div style="text-align:${align}">
+      <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${topCol};opacity:.65">${kpiName}</div>
+      ${periodLabel ? `<div class="ban-period-lbl" style="color:${botCol};opacity:.55">${periodLabel}</div>` : ''}
+    </div>`;
+
+  // BOTTOM block: prev value + prevper stacked, inline-start (right in RTL)
+  const bottomBlock = `
+    <div>
+      <div style="height:1px;background:${topCol}25;margin-bottom:7px"></div>
+      <div style="text-align:${align}">
+        ${hasPrev ? `<div class="ban-bot-val" style="font-weight:700;color:${botCol};opacity:.9;direction:ltr;display:inline-block">${fmt(prev)}</div>` : ''}
+        ${hasPrev ? `<div class="ban-bot-lbl" style="color:${botCol};opacity:.6">${prevperLabel||prevPerWord}</div>` : ''}
+      </div>
+    </div>`;
+
+  // STYLE 1: badge and value same row
+  // LTR: [value LEFT] [badge RIGHT]
+  // RTL: [badge LEFT] [value RIGHT]  ← badge at inline-start (right in RTL) means badge comes LAST in LTR DOM but we flip with direction:rtl on the row
+  const valDiv = `<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>`;
+  const midBlock = banStyle === 2
+    ? `<div style="text-align:${align}">
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;text-align:${align}">${fmt(val)}</div>
+       </div>
+       <div style="display:flex;align-items:center;direction:${nd}">
+         ${badgeHTML}
+       </div>`
+    : hebrew
+      ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+           ${badgeHTML}
+           ${valDiv}
+         </div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+           ${valDiv}
+           ${badgeHTML}
+         </div>`;
+
+  container.innerHTML = `
+    <div style="width:100%;height:100%;display:flex">
+      <div class="ban-inner" style="flex:1;background:${boxCol};overflow:hidden;
+        display:flex;flex-direction:column;justify-content:space-between;gap:4px;direction:${nd}">
+        ${topBlock}
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0">
+          ${midBlock}
+        </div>
+        ${bottomBlock}
+      </div>
+    </div>`;
+
+  scale();
+  new ResizeObserver(scale).observe(container);
+}
+
+// ═══════════════════════════════════════════════════
+// KPI TABLE
+// ═══════════════════════════════════════════════════
+function renderBanTable(rows, assignments) {
+  const container = document.getElementById('echarts-container');
+  if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
+
+  const [boxCol, topCol, botCol] = state.banColors || BAN_COLOR_DEFAULTS;
+  const nameF    = assignments.name?.fieldName;
+  const valF     = assignments.val?.fieldName;
+  const periodF  = assignments.period?.fieldName;
+  const prevF    = assignments.prev?.fieldName;
+  const prevperF = assignments.prevper?.fieldName;
+
+  // Group rows by KPI name — preserving insertion order = data order
+  const groups = new Map();
+  rows.forEach(r => {
+    const key = nameF ? String(r[nameF] ?? '') : '';
+    if (!groups.has(key)) groups.set(key, { val:0, prev:0, periods:new Set(), prevpers:new Set() });
+    const g = groups.get(key);
+    g.val  += (r[valF]  ?? 0);
+    if (prevF)    g.prev += (r[prevF]  ?? 0);
+    if (periodF  && r[periodF]  != null) g.periods.add(String(r[periodF]));
+    if (prevperF && r[prevperF] != null) g.prevpers.add(String(r[prevperF]));
+  });
+
+  const firstKey = [...groups.keys()][0] || '';
+  const hebrew   = /[\u0590-\u05FF]/.test(firstKey);
+  const nd       = hebrew ? 'rtl' : 'ltr';
+  const cur      = hebrew ? '₪' : '$';
+  const chgWord  = hebrew ? 'שינוי' : 'change';
+  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
+
+  // Collect global period/prevper labels (first distinct value wins)
+  const allPeriods = new Set(); const allPrevpers = new Set();
+  groups.forEach(g => { g.periods.forEach(v=>allPeriods.add(v)); g.prevpers.forEach(v=>allPrevpers.add(v)); });
+  const periodLabel  = [...allPeriods][0]  || '';
+  const prevperLabel = [...allPrevpers][0] || '';
+
+  const fmt = n => {
+    const a = Math.abs(n);
+    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
+    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
+    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
+  };
+
+  const BADGE = {
+    pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)',   arrow:'▲' },
+    neg: { border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)',   arrow:'▼' },
+    neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)', arrow:'—' },
+  };
+
+  const rowsHTML = [...groups.entries()].map(([kpiName, g], idx) => {
+    const hasPrev = !!prevF && g.prev !== 0;
+    const pct     = hasPrev ? ((g.val - g.prev) / Math.abs(g.prev)) * 100 : null;
+    const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
+    const B       = BADGE[dir];
+    const isLast  = idx === groups.size - 1;
+
+    const badgeHTML = pct !== null
+      ? `<div style="display:inline-flex;align-items:center;gap:5px;border-radius:99px;
+             border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
+             padding:4px 12px;white-space:nowrap;direction:ltr;flex-shrink:0">
+           <span style="font-size:12px;color:${B.arrowFill};line-height:1">${B.arrow}</span>
+           <span style="font-weight:700;color:#fff;font-size:13px">${Math.abs(pct).toFixed(1)}%</span>
+           <span style="font-weight:400;color:rgba(255,255,255,0.65);font-size:11px">${chgWord}</span>
+         </div>`
+      : `<div style="width:80px"></div>`;
+
+    const prevCell = hasPrev
+      ? `<div style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;
+             direction:ltr;flex:0 0 auto;min-width:70px;text-align:${hebrew?'right':'left'}">${fmt(g.prev)}</div>`
+      : (prevF ? `<div style="flex:0 0 auto;min-width:70px"></div>` : '');
+
+    return `<div style="display:flex;align-items:center;justify-content:space-between;
+        gap:16px;padding:12px 20px;
+        ${isLast?'':'border-bottom:1px solid '+topCol+'18'};direction:${nd}">
+      <div style="font-weight:600;font-size:14px;letter-spacing:.03em;color:${topCol};opacity:.85;
+           flex:0 0 140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+           text-align:${hebrew?'right':'left'}">${kpiName}</div>
+      <div style="font-weight:800;font-size:24px;color:${topCol};direction:ltr;letter-spacing:-.02em;
+           flex:1;text-align:center">${fmt(g.val)}</div>
+      <div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-width:110px">${badgeHTML}</div>
+      ${prevCell}
+    </div>`;
+  }).join('');
+
+  // Header
+  const hStyle = `font-size:10px;font-weight:500;color:${botCol};opacity:.5;letter-spacing:.08em;text-transform:uppercase`;
+  const header = `<div style="display:flex;align-items:center;justify-content:space-between;
+      gap:16px;padding:8px 20px 7px;border-bottom:1px solid ${topCol}35;direction:${nd}">
+    <div style="${hStyle};flex:0 0 140px;text-align:${hebrew?'right':'left'}">מדד</div>
+    <div style="${hStyle};flex:1;text-align:center">${periodLabel || 'ערך'}</div>
+    <div style="${hStyle};flex:0 0 auto;min-width:110px;text-align:center">שינוי</div>
+    ${prevF ? `<div style="${hStyle};flex:0 0 auto;min-width:70px;text-align:${hebrew?'right':'left'}">${prevperLabel || prevPerWord}</div>` : ''}
+  </div>`;
+
+  container.innerHTML = `
+    <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
+      ${header}
+      ${rowsHTML}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// COLOR EDITOR
+// ═══════════════════════════════════════════════════
+const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
+
+function openColorEditor() {
+  const isBan = ['ban1','ban2','bantable'].includes(state.chart?.id);
+  document.getElementById('color-modal-title').textContent = isBan ? 'ערוך צבעי BAN' : 'ערוך צבעי גרף';
+  renderColorSwatches();
+  document.getElementById('color-modal-overlay').classList.add('open');
+}
+function closeColorEditor() { document.getElementById('color-modal-overlay').classList.remove('open'); }
+function onColorOverlayClick(e) { if(e.target===document.getElementById('color-modal-overlay')) closeColorEditor(); }
+
+function renderColorSwatches() {
+  const isBan    = ['ban1','ban2','bantable'].includes(state.chart?.id);
+  const colors   = isBan ? (state.banColors || BAN_COLOR_DEFAULTS.slice()) : COLORS;
+  const labels   = isBan ? BAN_COLOR_LABELS : COLOR_LABELS;
+  const container = document.getElementById('color-swatches');
+  container.innerHTML = '';
+  colors.forEach((color, i) => {
+    const row = document.createElement('div'); row.className='color-swatch-row';
+    const swatch = document.createElement('div'); swatch.className='color-swatch'; swatch.style.background=color;
+    swatch.addEventListener('click', () => {
+      const input=document.getElementById('native-color-input');
+      input.value=colors[i];
+      input.oninput=()=>{
+        colors[i]=input.value;
+        swatch.style.background=input.value;
+        lbl.textContent=labels[i]+' — '+input.value.toUpperCase();
+        if(isBan) state.banColors=colors.slice();
+        else COLORS[i]=input.value;
+      };
+      input.click();
+    });
+    const lbl = document.createElement('span'); lbl.className='color-swatch-label'; lbl.textContent=labels[i]+' — '+color.toUpperCase();
+    row.appendChild(swatch); row.appendChild(lbl); container.appendChild(row);
+  });
+}
+
+function resetColors() {
+  if(['ban1','ban2','bantable'].includes(state.chart?.id)) { state.banColors=null; }
+  else { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; }
+  renderColorSwatches();
+}
+function applyColors() {
+  if(['ban1','ban2','bantable'].includes(state.chart?.id)) { /* banColors already updated live in oninput */ }
+  else { state.customColors=COLORS.slice(); }
+  closeColorEditor();
+  applyChart();
+}
+
+// ═══════════════════════════════════════════════════
+// BORDER RADIUS
+// ═══════════════════════════════════════════════════
+function toggleRadiusPopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('radius-popover');
+  const btn = document.getElementById('radius-btn');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const br = state.borderRadius || {tl:0,tr:0,bl:0,br:0};
+  document.getElementById('rc-tl').value = br.tl;
+  document.getElementById('rc-tr').value = br.tr;
+  document.getElementById('rc-bl').value = br.bl;
+  document.getElementById('rc-br').value = br.br;
+  const rect = btn.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + 4) + 'px';
+  pop.style.left = Math.max(4, rect.right - 192) + 'px';
+  pop.classList.add('open');
+  setTimeout(() => document.addEventListener('mousedown', closeRadiusOutside), 50);
+}
+
+function closeRadiusOutside(e) {
+  const pop = document.getElementById('radius-popover');
+  if (!pop.contains(e.target) && e.target.id !== 'radius-btn') {
+    pop.classList.remove('open');
+    document.removeEventListener('mousedown', closeRadiusOutside);
+  }
+}
+
+function onRadiusInput() {
+  state.borderRadius = {
+    tl: parseInt(document.getElementById('rc-tl').value)||0,
+    tr: parseInt(document.getElementById('rc-tr').value)||0,
+    bl: parseInt(document.getElementById('rc-bl').value)||0,
+    br: parseInt(document.getElementById('rc-br').value)||0,
+  };
+  applyBorderRadius();
+}
+
+function applyBorderRadius() {
+  const br = state.borderRadius || {tl:0,tr:0,bl:0,br:0};
+  const val = `${br.tl}px ${br.tr}px ${br.br}px ${br.bl}px`;
+  const container = document.getElementById('echarts-container');
+  if (container) { container.style.borderRadius = val; container.style.overflow = 'hidden'; }
+  const tbl = document.getElementById('table-container');
+  if (tbl) { tbl.style.borderRadius = val; tbl.style.overflow = 'hidden'; }
+}
+
+function resetRadius() {
+  state.borderRadius = {tl:0,tr:0,bl:0,br:0};
+  document.getElementById('rc-tl').value = 0;
+  document.getElementById('rc-tr').value = 0;
+  document.getElementById('rc-bl').value = 0;
+  document.getElementById('rc-br').value = 0;
+  applyBorderRadius();
+}
+
+async function saveRadiusAndClose() {
+  document.getElementById('radius-popover').classList.remove('open');
+  document.removeEventListener('mousedown', closeRadiusOutside);
+  await saveSettings();
+}
+
+// ═══════════════════════════════════════════════════
+// FONT SIZE POPOVER (BAN)
+// ═══════════════════════════════════════════════════
+const FS_DEFAULTS = { name: null, value: null, badge: null, bot: null };
+
+function toggleFontsizePopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('fontsize-popover');
+  const btn = document.getElementById('fontsize-btn');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const fs = state.banFontSizes || {};
+  // Populate sliders with current values or sensible defaults
+  const syncSlider = (key, def) => {
+    const el = document.getElementById('fs-'+key);
+    const valEl = document.getElementById('fs-'+key+'-val');
+    el.value = fs[key] || def;
+    valEl.textContent = (fs[key] || def) + 'px';
+  };
+  syncSlider('name',  13);
+  syncSlider('value', 58);
+  syncSlider('badge', 13);
+  syncSlider('bot',   12);
+  const rect = btn.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + 4) + 'px';
+  pop.style.left = Math.max(4, rect.right - 224) + 'px';
+  pop.classList.add('open');
+  setTimeout(() => document.addEventListener('mousedown', closeFontsizeOutside), 50);
+}
+
+function closeFontsizeOutside(e) {
+  const pop = document.getElementById('fontsize-popover');
+  if (!pop.contains(e.target) && e.target.id !== 'fontsize-btn') {
+    pop.classList.remove('open');
+    document.removeEventListener('mousedown', closeFontsizeOutside);
+  }
+}
+
+function onFsInput(key, val) {
+  document.getElementById('fs-'+key+'-val').textContent = val + 'px';
+  if (!state.banFontSizes) state.banFontSizes = {};
+  state.banFontSizes[key] = parseInt(val);
+  // Live preview — re-run scale() if BAN is rendered
+  const container = document.getElementById('echarts-container');
+  const card = container.querySelector('.ban-inner');
+  if (card) {
+    // Trigger scale manually by dispatching a fake resize
+    const ev = new Event('resize');
+    window.dispatchEvent(ev);
+  }
+}
+
+function resetFontSizes() {
+  state.banFontSizes = null;
+  ['name','value','badge','bot'].forEach(k => {
+    const defs = {name:13,value:58,badge:13,bot:12};
+    document.getElementById('fs-'+k).value = defs[k];
+    document.getElementById('fs-'+k+'-val').textContent = defs[k]+'px';
+  });
+  applyChart();
+}
+
+async function saveFontsizeAndClose() {
+  document.getElementById('fontsize-popover').classList.remove('open');
+  document.removeEventListener('mousedown', closeFontsizeOutside);
+  await saveSettings();
+  applyChart();
+}
+
+// ═══════════════════════════════════════════════════
+// BG COLOR
+// ═══════════════════════════════════════════════════
+function applyBgColor(color) {
+  const bg=color||'transparent';
+  document.body.style.background=bg;
+  document.getElementById('app').style.background='transparent';
+  const ce=document.getElementById('echarts-container');
+  if(ce) ce.style.background=bg;
+  if(state.echartsInstance) state.echartsInstance.setOption({backgroundColor:bg});
+}
+
+function openBgColorPicker() {
+  const input=document.getElementById('native-bg-input');
+  input.value=state.bgColor||'#ffffff';
+  input.onchange=async()=>{state.bgColor=input.value;applyBgColor(state.bgColor);await saveSettings();};
+  input.click();
+}
+async function resetBgColor() { state.bgColor=null; applyBgColor(null); await saveSettings(); }
+
+// ═══════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════
+function showPlaceholder() {
+  document.getElementById('placeholder').style.display='flex';
+  document.getElementById('table-container').style.display='none';
+  const ec = document.getElementById('echarts-container');
+  ec.style.display='block';
+  // Fully wipe any BAN HTML and dispose ECharts instance
+  if(state.echartsInstance) { try{state.echartsInstance.dispose();}catch(e){} state.echartsInstance=null; }
+  ec.innerHTML='';
+}
+function showError(msg) { document.getElementById('error-msg').textContent=msg; document.getElementById('error-bar').classList.add('show'); }
+function hideError() { document.getElementById('error-bar').classList.remove('show'); }
+</script>
+</body>
+</html>
