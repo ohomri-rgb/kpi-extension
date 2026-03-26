@@ -1671,6 +1671,7 @@ function renderBan(rows, assignments) {
     : '';
 
   // Bottom section: prev value + period labels
+  const rowDir = nameDir;
   const prevValueHTML = (hasPrev && prev !== 0) ? `<span class="ban-period-txt" style="color:${botCol};font-weight:700;direction:ltr;display:inline-block">${fmtWithCur(prev)}</span>` : '';
 
   const periodRowHTML = (periodLabel || prevperLabel || badgeHTML || prevValueHTML) ? `
