@@ -1,27 +1,29 @@
 # ECharts Extension — Tableau Viz Extension
-### Full Project Documentation | v6
+### Full Project Documentation | v7
 
 ---
 
 ## Overview
 
-A Tableau Viz Extension (worksheet extension) that renders interactive ECharts visualizations and an RTL data table inside a Tableau worksheet. Single HTML file, no backend, fully offline.
+A Tableau Viz Extension (worksheet extension) that renders interactive ECharts visualizations, an RTL data table, and premium KPI BAN cards inside a Tableau worksheet. Single HTML file, no backend, fully offline.
 
-- **46 chart types** across 14 categories (45 ECharts + 1 RTL Table)
+- **48 chart types** across 14 categories (45 ECharts + 1 RTL Table + 2 KPI BAN Cards)
 - Marks Card UI inside the extension — assign fields to chart roles via dropdown or drag & drop
 - Gallery modal — browse chart types with live previews, search + category filter chips
-- **Settings persist in the workbook** — chart type, field assignments, custom colors, and background color saved via `tableau.extensions.settings`
+- **Settings persist in the workbook** — chart type, field assignments, custom colors, BAN colors, border radius, and background color saved via `tableau.extensions.settings`
 - **Format Extension button** — editor-only access to settings via Tableau's native Marks card button
-- **Auto-refresh on FilterChanged** — chart re-renders automatically when any worksheet filter changes, no need to click "צייר"
+- **Auto-refresh on FilterChanged** — chart re-renders automatically when any worksheet filter changes
 - Manual field reload button (↺) — syncs field list from Detail shelf without page reload
-- **🎨 Color editor** — edit the 4 chart palette colors per sheet, saved to workbook
+- **🎨 Color editor** — context-aware: shows 4 chart palette colors for ECharts, or 3 BAN card colors when a BAN chart is active
 - **🖼 Background color picker** — set or reset extension background color per sheet, saved to workbook
+- **⌐ Border radius control** — 4-corner independent border radius popover, applies to all chart types
+- **KPI BAN Card** — two premium dark-style KPI cards with responsive font scaling, RTL/LTR auto-detection, period comparison, and color control
 - **Click-to-filter disabled** — clicking chart elements does not trigger Tableau mark selection
 - **Transparent background by default** — Tableau sheet background shows through
 - Error bar with clear messages when fields are missing or LOD is undefined
 - **Fully offline** — no CDN dependencies, all assets served locally
 
-> **Console warnings note:** Tableau's own runtime emits `@import` CSS warnings and preload warnings in the browser console. These originate from `tableau.css` (Tableau's internal stylesheet) and Tableau's CDN assets — they are not related to extension code and can be safely ignored.
+> **Console warnings note:** Tableau's own runtime emits `@import` CSS warnings and preload warnings in the browser console. These originate from `tableau.css` and are unrelated to extension code — safely ignored.
 
 ---
 
@@ -29,7 +31,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 | File | Purpose |
 |---|---|
-| `index.html` | Main extension — all CSS, HTML, JS in one file (~2,700 lines) |
+| `index.html` | Main extension — all CSS, HTML, JS in one file (~1,935 lines) |
 | `echarts-extension.trex` | Tableau manifest — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
 | `echarts.min.js` | ECharts 5 library (local copy) |
@@ -39,8 +41,6 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 | `NotoSansHebrew-ExtraBold.ttf` | Font — weight 700/800 |
 | `debug.html` | Debug panel — shows raw API data, column types, field names |
 | `debug.trex` | Manifest for debug panel |
-
-> `world.js` source: `echarts-countries-js` package. Registers the map via `echarts.registerMap('world', ...)` automatically when loaded as `<script>`.
 
 ---
 
@@ -52,7 +52,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 3. Load `echarts-extension.trex` → Tableau Desktop → Add Extension → Access Local Viz Extensions
 
 ### Tableau Cloud / GitHub Pages (Production)
-- Push **all 8 files** to GitHub repo (index.html + trex + js libs + fonts + world.js)
+- Push **all files** to GitHub repo (index.html + trex + js libs + fonts + world.js)
 - Enable GitHub Pages on the repo
 - Update `echarts-extension.trex` → `<url>` to your GitHub Pages URL
 - Whitelist in Tableau Cloud → Settings → Extensions → Add URL
@@ -61,7 +61,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 ---
 
-## Chart Types (46 total)
+## Chart Types (48 total)
 
 | Category | Charts |
 |---|---|
@@ -73,28 +73,115 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 | היררכיה | Treemap, Sunburst, Tree Chart, Radial Tree |
 | זרימה | Sankey Diagram, Network Graph, ThemeRiver, Circular Graph |
 | מפה | World Map, US States Map, Geo Bubble Map, Lines Map |
-| KPI | Gauge Chart, Progress Bar, Multi Gauge |
+| **KPI** | **BAN Card — Style 1, BAN Card — Style 2**, Gauge Chart, Progress Bar, Multi Gauge |
 | פיננסי | Candlestick, Candlestick + Volume |
 | מיוחד | Radar Chart, Multi-series Radar, Funnel Chart, Parallel Coordinates |
-| **טבלה** | **RTL Table** |
+| טבלה | RTL Table |
 
-### Charts Not Included (Out of Scope)
+---
 
-| Chart | Reason |
+## KPI BAN Card
+
+Two premium dark-style KPI cards rendered as pure HTML (no ECharts). Both share identical shelves and settings.
+
+### Chart IDs
+- `ban1` — **Style 1**: badge and main value on the same row
+- `ban2` — **Style 2**: main value full-width, badge on its own row below
+
+### Layout
+
+**Style 1 (same row):**
+```
+[KPI Name]          [Current Period]     ← top block, inline-start aligned
+[Badge] [Value]                          ← middle row: RTL = badge right, value left | LTR = value left, badge right
+────────────────────────────────────
+[Prev Value]        [nothing]            ← bottom block
+[Comparison Period]
+```
+
+**Style 2 (stacked):**
+```
+[KPI Name]          [Current Period]     ← top block
+             [Value]                     ← full-width, inline-start aligned
+                    [Badge]              ← badge on own row, inline-start (right in RTL)
+────────────────────────────────────
+[Prev Value]
+[Comparison Period]
+```
+
+### Field Roles (5 shelves, same for both styles)
+
+| Role ID | Label | Type | Required |
+|---|---|---|---|
+| `name` | שם KPI | dim | ✅ |
+| `val` | ערך נוכחי | measure | ✅ |
+| `period` | תקופה נוכחית | dim | optional |
+| `prev` | ערך קודם | measure | optional |
+| `prevper` | תקופה להשוואה | dim | optional |
+
+### RTL / LTR Auto-detection
+
+The card detects Hebrew characters (`/[\u0590-\u05FF]/`) in the KPI name and period labels:
+- **Hebrew detected** → `direction:rtl`, currency symbol `₪`, badge label `שינוי`, comparison word `לעומת`
+- **No Hebrew** → `direction:ltr`, currency symbol `$`, badge label `change`, comparison word `vs`
+
+### Badge Colors (automatic, not user-controlled)
+| State | Border | Arrow | Background |
+|---|---|---|---|
+| Positive (pct > 0) | `rgba(80,200,60,0.55)` | `rgba(80,200,60,0.9)` | `rgba(255,255,255,0.04)` |
+| Negative (pct < 0) | `rgba(220,60,50,0.55)` | `rgba(220,80,70,0.9)` | `rgba(255,255,255,0.04)` |
+| Neutral (pct = 0 or no prev) | `rgba(150,150,150,0.4)` | `rgba(160,160,160,0.8)` | `rgba(255,255,255,0.04)` |
+
+### BAN Color Editor (🎨 modal, context-aware)
+
+When a BAN chart is active, the color editor title changes to **"ערוך צבעי BAN"** and shows 3 BAN-specific swatches:
+
+| Swatch | Controls | Default |
+|---|---|---|
+| רקע כרטיס | Card background fill | `#1e1e1e` |
+| טקסט עליון | KPI name + main value | `#ffffff` |
+| טקסט תחתון | Prev value + period labels below divider | `#8a8a8a` |
+
+Saved to `state.banColors` (array of 3 hex strings) → persisted as `banColors` in workbook settings.
+
+When any other chart is active, the modal shows the standard 4 ECharts palette colors as before.
+
+### Responsive Scaling
+
+`renderBan()` uses a `ResizeObserver` on `#echarts-container`. On every resize, a unit `u = Math.min(containerWidth, containerHeight × 2.2) / 460` scales all font sizes, padding, and badge dimensions proportionally.
+
+### Data Aggregation
+
+All rows are summed: `val = SUM(valF across all rows)`, `prev = SUM(prevF across all rows)`. The KPI name is taken from the first non-null row. Period labels collect all distinct values — the first distinct value is displayed (user controls filtering via Tableau worksheet filters).
+
+### Container Switching
+
+BAN cards are pure HTML rendered into `#echarts-container`. When switching from BAN → any ECharts chart:
+1. `showPlaceholder()` disposes the ECharts instance, nulls it, and clears `container.innerHTML`
+2. `renderECharts()` always disposes + clears + reinitializes fresh — no stale instance reused
+
+---
+
+## Border Radius Control (⌐ button)
+
+A new `⌐` button in the marks card toolbar opens a small popover with 4 independent corner inputs (0–80px):
+
+| Input | Corner |
 |---|---|
-| Boxplot / Violin | Requires raw distribution data — `getSummaryDataAsync` returns aggregated data only |
-| Bar Race / Line Race | Requires `setInterval` animation — Tableau loads data once, no streaming |
-| 3D charts (Bar3D, Scatter3D, Globe) | Requires `echarts-gl` library (3MB+, WebGL) — not included in offline bundle |
-| GL charts (Scatter GL, Lines GL) | Same as 3D — requires `echarts-gl` |
-| Custom Region Map | Requires external GeoJSON file — outside offline scope |
-| Clock Gauge | Real-time `setInterval` — not connected to Tableau data |
-| Data Transform / Dataset | Tableau handles aggregation server-side — redundant in extension context |
+| ↖ עליון שמאל | Top-left |
+| ↗ עליון ימין | Top-right |
+| ↙ תחתון שמאל | Bottom-left |
+| ↘ תחתון ימין | Bottom-right |
+
+`applyBorderRadius()` sets `border-radius: tl tr br bl` + `overflow:hidden` on both `#echarts-container` and `#table-container`. Called on every chart render and on load from saved settings.
+
+Saved as `borderRadius: {tl, tr, bl, br}` in workbook settings.
 
 ---
 
 ## RTL Table
 
-The RTL Table is a full-featured scrollable table rendered directly in the extension. It is based on the `table_rtl` project (v21) and merged into `index.html` as a standalone chart type in the **טבלה** category.
+The RTL Table is a full-featured scrollable table rendered directly in the extension, merged into `index.html` as a standalone chart type in the **טבלה** category.
 
 ### Features
 
@@ -102,13 +189,13 @@ The RTL Table is a full-featured scrollable table rendered directly in the exten
 |---|---|
 | Column order | Controlled by a Tableau String parameter named `Columns` (comma-separated ordered field names) |
 | Column visibility | Only fields listed in `Columns` parameter are shown — unlisted Detail fields are dropped |
-| Fallback | If `Columns` parameter is missing or empty — all Detail fields shown in alphabetical order |
+| Fallback | If `Columns` parameter is missing or empty — all Detail fields shown |
 | Filter dropdowns | Multi-select checkbox panel per column with search, החל / הכל buttons |
 | Filter logic | AND across columns, client-side (hides `<tr>` rows) |
 | Numeric formatting | `toLocaleString('en-US')` — e.g. `1,234.56`. Wrapped in LTR span so negatives render as `-1,234` not `1,234-` |
 | Date formatting | Uses Tableau's `formattedValue` — respects workbook locale |
 | Null values | Displays `—` |
-| Column widths | Content-aware: `max(80px, headerWidth, dataWidth)`. Long-text strings (>40 chars) fixed at 280px. Hard cap 400px |
+| Column widths | Content-aware: `max(80px, headerWidth, dataWidth)`. Long text fixed at 280px. Hard cap 400px |
 | RTL layout | Full RTL with Hebrew font |
 
 ### Columns Parameter Setup
@@ -121,93 +208,56 @@ The RTL Table is a full-featured scrollable table rendered directly in the exten
    ```
 4. Field names must match what Tableau sends in `getSummaryDataAsync` — include aggregation wrappers (`SUM(`, `YEAR(`, `CNT(` etc.)
 
-### Marks Card for RTL Table
-
-When RTL Table is selected in the gallery, the Marks Card shows a plain text note instead of role slots: _"כל השדות מה-Detail יוצגו בטבלה. סדר עמודות נקבע ע״י פרמטר Columns."_
-
-The "צייר" button is enabled immediately — no role assignments required.
-
-### Container switching
-
-`index.html` contains two containers inside `.chart-area`:
-- `#echarts-container` — ECharts div, shown for all chart types except RTL Table
-- `#table-container` — RTL Table wrapper, shown only when chart type is `rtltable`
-
-`applyChart()` toggles `display` on both containers before rendering.
-
 ---
 
 ## Settings — Persist Across Sessions
 
-Chart type, field assignments, custom chart colors, and background color are saved inside the workbook using `tableau.extensions.settings`.
+All settings are saved inside the workbook via `tableau.extensions.settings`.
 
 ```javascript
-// Save — called after every successful "צייר" and after color/bg changes
-tableau.extensions.settings.set('chartId', state.chart.id);
-tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments));
-tableau.extensions.settings.set('customColors', JSON.stringify(state.customColors || null));
-tableau.extensions.settings.set('bgColor', state.bgColor || '');
+tableau.extensions.settings.set('chartId',      state.chart.id);
+tableau.extensions.settings.set('assignments',   JSON.stringify(state.assignments));
+tableau.extensions.settings.set('customColors',  JSON.stringify(state.customColors || null));
+tableau.extensions.settings.set('banColors',     JSON.stringify(state.banColors || null));
+tableau.extensions.settings.set('borderRadius',  JSON.stringify(state.borderRadius || {tl:0,tr:0,bl:0,br:0}));
+tableau.extensions.settings.set('bgColor',       state.bgColor || '');
 await tableau.extensions.settings.saveAsync();
-
-// Load — called on initializeAsync
-const chartId = tableau.extensions.settings.get('chartId');
-const assignments = tableau.extensions.settings.get('assignments');
-const customColors = tableau.extensions.settings.get('customColors');  // JSON array or null
-const bgColor = tableau.extensions.settings.get('bgColor');            // hex string or ''
 ```
 
-Settings are stored **inside the `.twbx` workbook file** — shared across all users, persists across sessions, works on Tableau Cloud and Desktop.
+Settings are stored **inside the `.twbx` workbook file** — shared across all users, persists across sessions.
 
-### Startup flow
+---
 
-```
-initializeAsync()
-  └── loadSettings() → state.chart + state.assignments
-  └── loadFields()
-  └── if saved state exists:
-        → marks-card hidden
-        → app shown
-        → renderMarksCard() + applyChart() → chart rendered immediately
-      else:
-        → onboarding screen shown
+## State Object
+
+```javascript
+state = {
+  chart: null,              // selected chart config object
+  assignments: {},          // roleId → { fieldName, displayName, dataType }
+  worksheetFields: [],      // fields from loadFields() — only fields on Detail shelf
+  worksheet: null,          // tableau worksheet reference (stored on init)
+  echartsInstance: null,    // ECharts instance on the container div
+  activeDropdownRole: null, // role currently being assigned
+  galleryFilter: 'הכל',    // active gallery category filter
+  customColors: null,       // array of 4 hex strings, or null = use DEFAULT_COLORS
+  banColors: null,          // array of 3 hex strings [boxCol, topCol, botCol], or null = BAN_COLOR_DEFAULTS
+  borderRadius: {tl:0,tr:0,bl:0,br:0}, // corner radii in px
+  bgColor: null,            // hex string for extension background, or null = transparent
+}
 ```
 
 ---
 
-## Format Extension Button (Editor-only access)
-
-The extension uses Tableau's native **Format Extension** mechanism so that only editors can access the settings UI.
-
-### How it works
-
-The `.trex` manifest declares:
-```xml
-<context-menu>
-  <configure-context-menu-item />
-</context-menu>
-```
-
-`initializeAsync` registers a `configure` callback:
-```javascript
-await tableau.extensions.initializeAsync({ configure: () => {
-  document.getElementById('marks-card').style.display = '';
-}});
-```
-
-| User type | What they see |
-|---|---|
-| **Viewer** | Chart only — no UI, no buttons |
-| **Editor** | Format Extension button appears in Tableau's Marks panel → click → marks-card opens |
-
-### Marks Card buttons (left to right)
+## Marks Card Toolbar Buttons
 
 | Button | Action |
 |---|---|
 | ✕ | Close the marks-card panel |
 | ↺ | Reload fields from Detail shelf |
 | צייר | Render chart + save settings |
-| 🎨 | Open color editor — edit the 4 palette colors, saved to workbook |
-| 🖼 | Open background color picker (single click = pick color, double click = reset to transparent) |
+| 🎨 | Color editor — ECharts palette (4 swatches) or BAN colors (3 swatches) depending on active chart |
+| 🖼 | Background color picker (single click = pick, double click = reset to transparent) |
+| ⌐ | Border radius popover — 4 independent corner inputs, 0–80px |
 | [Chart name + icon] | Open gallery |
 
 ---
@@ -216,6 +266,8 @@ await tableau.extensions.initializeAsync({ configure: () => {
 
 | Chart | Required Roles | Optional Roles |
 |---|---|---|
+| **BAN Card — Style 1** | שם KPI (dim), ערך נוכחי (measure) | תקופה נוכחית (dim), ערך קודם (measure), תקופה להשוואה (dim) |
+| **BAN Card — Style 2** | שם KPI (dim), ערך נוכחי (measure) | תקופה נוכחית (dim), ערך קודם (measure), תקופה להשוואה (dim) |
 | Line / Area / Step Line / Stacked Line | X (dim), Y (measure) | Group (dim) |
 | Stacked Area | X (dim), Y (measure), Group (dim) | — |
 | Confidence Band | X (dim), קו מרכזי (measure), גבול עליון (measure), גבול תחתון (measure) | — |
@@ -226,26 +278,20 @@ await tableau.extensions.initializeAsync({ configure: () => {
 | Pictorial Bar | X (dim), Y (measure) | — |
 | Histogram | Bin / קטגוריה (dim), ספירה / ערך (measure) | — |
 | Polar Bar | קטגוריה (dim), ערך (measure) | Color (dim) |
-| Pie / Donut | ממד (dim), ערך (measure) | — |
-| Nightingale Rose | ממד (dim), ערך (measure) | — |
+| Pie / Donut / Nightingale Rose | ממד (dim), ערך (measure) | — |
 | Nested Pie | חיצוני (dim), פנימי (dim), ערך (measure) | — |
-| Scatter | X (measure), Y (measure) | Color (dim) |
+| Scatter / Effect Scatter | X (measure), Y (measure) | Color (dim) |
 | Bubble | X (measure), Y (measure), גודל (measure) | Color (dim) |
-| Effect Scatter | X (measure), Y (measure) | Color (dim) |
 | Heatmap | X (dim), Y (dim), ערך (measure) | — |
-| Calendar Heatmap | תאריך (dim), ערך (measure) | — |
-| Multi-year Calendar | תאריך (dim), ערך (measure) | — |
+| Calendar / Multi-year Calendar | תאריך (dim), ערך (measure) | — |
 | Radar | מדדים (dim), ערך (measure) | — |
 | Multi-series Radar | מדדים (dim), ערך (measure), סדרה (dim) | — |
 | Funnel | שלב (dim), ערך (measure) | — |
 | Parallel Coordinates | קטגוריה (dim), מדד 1 (measure), מדד 2 (measure) | מדד 3–5 (measure) |
 | Treemap | ממד (dim), ערך (measure) | Parent (dim) |
-| Sunburst | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
-| Tree Chart | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
-| Radial Tree | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
+| Sunburst / Tree Chart / Radial Tree | רמה 1 (dim), רמה 2 (dim), ערך (measure) | — |
 | Sankey | מקור (dim), יעד (dim), ערך (measure) | — |
-| Network Graph | מקור (dim), יעד (dim) | משקל (measure) |
-| Circular Graph | מקור (dim), יעד (dim) | משקל (measure) |
+| Network Graph / Circular Graph | מקור (dim), יעד (dim) | משקל (measure) |
 | ThemeRiver | זמן (dim), נושא (dim), ערך (measure) | — |
 | Gauge | ערך (measure) | מקסימום (measure) |
 | Progress Bar | ערך (measure) | מקסימום (measure), קטגוריה (dim) |
@@ -256,233 +302,36 @@ await tableau.extensions.initializeAsync({ configure: () => {
 | US States Map | מדינה US (dim), ערך (measure) | — |
 | Geo Bubble Map | Latitude (measure), Longitude (measure), ערך (measure) | תווית (dim), צבע (dim) |
 | Lines Map | Lat מקור, Lon מקור, Lat יעד, Lon יעד (measures) | עוצמה (measure), תווית (dim) |
-| **RTL Table** | — (no roles) | — |
+| RTL Table | — (no roles) | — |
 
 ---
 
-## Tableau Sheet Setup
-
-### Critical — Detail shelf = Level of Detail
-
-The extension reads data via `getSummaryDataAsync()`. This call respects the worksheet's LOD — it aggregates at the level defined by the fields on the sheet.
-
-**The fields on the Detail shelf define the granularity of the data returned.**
-
-| What to drag to Detail | Notes |
-|---|---|
-| Dimension fields (Segment, Category, Region…) | Define the LOD — one row per unique combination |
-| Measure fields (Sales, Profit, Quantity…) | Available as Y/size/value roles in the chart |
-| All fields you want to use in the chart | If not on Detail, they will not appear in the extension's field list |
-
-### Detail shelf examples by chart type
-
-| Chart | Example Detail shelf |
-|---|---|
-| Line Chart | `MONTH(Order Date)`, `Segment`, `SUM(Sales)` |
-| Stacked Bar | `Category`, `Region`, `SUM(Profit)` |
-| Confidence Band | `MONTH(Order Date)`, `AVG(Sales)`, `MAX(Sales)`, `MIN(Sales)` |
-| Geo Bubble Map | `City`, `Latitude (generated)`, `Longitude (generated)`, `SUM(Sales)` |
-| Lines Map | `Route`, `Src Lat`, `Src Lon`, `Tgt Lat`, `Tgt Lon`, `SUM(Sales)` |
-| World Map | `Country/Region`, `SUM(Sales)` |
-| US States Map | `State/Province`, `SUM(Sales)` |
-| Calendar Heatmap | `Order Date` (exact date), `SUM(Sales)` |
-| Multi-year Calendar | `Order Date` (exact date), `SUM(Sales)` |
-| Candlestick | `MONTH(Order Date)`, `SUM(Sales)`, `MIN(Sales)`, `MAX(Sales)` |
-| Candlestick + Volume | `MONTH(Order Date)`, open, close, low, high, `SUM(Quantity)` |
-| Parallel Coordinates | `Segment`, `SUM(Sales)`, `SUM(Profit)`, `SUM(Quantity)` |
-| Gauge | `SUM(Sales)` |
-| Progress Bar | `SUM(Sales)` + optional `Category` for multi-bar |
-| Multi Gauge | `SUM(Sales)`, `SUM(Profit)`, `SUM(Quantity)` |
-| **RTL Table** | All desired fields — column order via `Columns` parameter |
-
-### Why Detail and not Rows/Columns?
-The extension renders the chart itself — Tableau's Rows/Columns are unused. Detail is the only shelf that makes fields available to `getSummaryDataAsync` without affecting the Tableau native view.
-
-### Field list not updating?
-After adding or removing fields from the Detail shelf, click the **↺ button** in the extension header to reload the field list. This is necessary because Tableau does not fire a reliable event when Detail shelf membership changes.
-
----
-
-## Map Charts — Special Notes
-
-### World Map
-- Field `Country/Region` must match GeoJSON country names exactly (English, e.g. `"United States"`, `"United Kingdom"`)
-- Superstore data matches out of the box
-- Supports zoom and pan (roam: true)
-
-### US States Map
-- Uses the same `world.js` GeoJSON as World Map — no separate file needed
-- Centers and zooms on USA (`center: [-96, 38]`, `zoom: 4`)
-- Field `State/Province` must match full English state names (e.g. `"California"`, `"New York"`)
-- Superstore data matches out of the box
-
-### Geo Bubble Map
-- Uses `Latitude (generated)` and `Longitude (generated)` from Tableau — no name matching required
-- Works at any geographic level: Country, State, City, Postal Code
-- Bubble size = value field (scaled via `Math.sqrt`)
-- Optional Color field splits bubbles into colored series with legend
-- Optional Label field shows in tooltip on hover
-
-### Lines Map
-- Requires 4 measure fields: `Lat מקור`, `Lon מקור`, `Lat יעד`, `Lon יעד`
-- Optional `עוצמה` (measure) scales line width
-- Optional `תווית` (dim) shows in tooltip on hover
-- Animated flow effect (moving dots along lines) via ECharts `lines` series `effect`
-- Uses the same `world.js` and `ensureMap()` as other map types
-
-### Map loading
-All three map charts use `world.js` loaded as a `<script>` tag. The map is registered automatically on page load via `echarts.registerMap('world', ...)`. The `ensureMap()` function verifies registration before rendering and shows a Hebrew error if `world.js` is missing.
-
----
-
-## How the Extension Works
-
-### Flow
+## How the Extension Works — Flow
 
 ```
 initializeAsync({ configure: () => show marks-card })
-  └── loadSettings() → restore state.chart + state.assignments
+  └── loadSettings() → restore full state (chart, assignments, colors, banColors, borderRadius, bgColor)
   └── loadFields() — getSummaryDataAsync({ maxRows:1 })
-      → builds state.worksheetFields (fields on Detail shelf only)
+  └── applyBorderRadius() — restore border radius on containers
   └── if saved state:
         → app shown, marks-card hidden
         → renderMarksCard() + applyChart() → chart rendered immediately
       else:
         → onboarding screen shown
 
-User (Editor): clicks Format Extension in Marks panel
-  └── configure callback → marks-card shown
-
-User: clicks chart type button
-  └── openGallery() → modal with chart previews + search + category chips
-  └── selectChart(chart) → update Marks Card roles
-
-User: assigns fields to roles (dropdown click or drag & drop)
-  └── assign(roleId, field) → renderMarksCard()
-  └── all required roles filled → enable "צייר" button
-
-User: clicks "צייר"
-  └── applyChart()
-      ├── switch container (echarts vs table)
-      ├── [rtltable] renderTable() → getSummaryDataAsync + applyParamOrder + build DOM
-      ├── [other charts] validate assignments
-      ├── [map charts only] ensureMap() — verify world.js registered
-      ├── getSummaryDataAsync({ maxRows:0 })
-      ├── parseDataTable(dt) → { columns, rows }
-      ├── detect %many-values% → show error if LOD undefined
-      └── renderECharts(chart, columns, rows, assignments) [async]
-      └── saveSettings() → tableau.extensions.settings.saveAsync()
+applyChart()
+  ├── [rtltable]  → renderTable()
+  ├── [ban1/ban2] → renderBan(rows, assignments, banStyle) → applyBorderRadius()
+  └── [other]     → renderECharts() [always disposes + clears + reinits fresh] → applyBorderRadius()
 ```
 
-### API Method
+### Container switching detail
 
-**All chart types** use `getSummaryDataAsync()`.
+`#echarts-container` is used by both ECharts charts and BAN cards (pure HTML). Switching between them:
 
-`getSummaryDataAsync` respects the worksheet LOD and all active filters. The user controls granularity entirely via the Detail shelf. `getUnderlyingDataAsync` is deprecated and no longer used for rendering.
-
-`renderECharts` is **async** to support `await ensureMap()` for map chart types.
-
----
-
-## Field Names from the API
-
-Validated via the debug panel against Superstore data:
-
-| Field type | Example fieldName from API | dataType |
-|---|---|---|
-| Dimension (plain) | `"Segment"` | `string` |
-| Dimension (date function) | `"MONTH(Order Date)"` | `date-time` |
-| Dimension (date function, discrete) | `"YEAR(Order Date)"` | `int` ⚠️ |
-| Measure (aggregated) | `"SUM(Sales)"` | `float` |
-| Measure (integer) | `"SUM(Quantity)"` | `int` |
-| Geographic (generated) | `"Latitude (generated)"` | `float` |
-
-**Key findings:**
-- `_fieldName` (with underscore prefix) is the correct property — not `fieldName`
-- `_dataType` (with underscore prefix) is the correct property — not `dataType`
-- `getSummaryDataAsync` on an empty worksheet returns 1 row with `%many-values%` — this means no dims are on Detail
-- Date functions like `YEAR()`, `MONTH()`, `QUARTER()`, `DAY()` return `dataType=int` — they must be detected by field name pattern and treated as **dims**, not measures (see `DATE_FUNC_RE` in code)
-- `getSummaryDataAsync` requires explicit `{ maxRows: 0 }` to return all rows — omitting this may return incomplete data in some API versions
-- `Latitude (generated)` and `Longitude (generated)` return as `float` — treated as measures, usable in Geo Bubble Map
-
----
-
-## Marks Card
-
-The extension's Marks Card replaces Tableau's native Marks Card with chart-specific role slots.
-
-Each chart defines a set of roles:
-
-```javascript
-{ id: 'x', label: 'ציר X', accepts: 'dim', required: true }
-{ id: 'y', label: 'ערך Y', accepts: 'measure', required: true }
-{ id: 'group', label: 'Group', accepts: 'dim', required: false }
-```
-
-`accepts` values: `'dim'` | `'measure'` | `'both'`
-
-Field type is determined by `_dataType` **and field name**:
-- `float` → `measure`
-- `int` → `measure`, **unless** field name matches `DATE_FUNC_RE` → `dim`
-- everything else → `dim`
-
-```javascript
-const DATE_FUNC_RE = /^(YEAR|MONTH|QUARTER|DAY|WEEK|HOUR|MINUTE|SECOND|DATETRUNC|DATEPART)\s*\(/i;
-```
-
-### Assigning fields
-Two methods:
-1. **Click slot** → dropdown opens with compatible fields grouped by type
-2. **Drag field** → drag from the field list onto a slot
-
----
-
-## Data Parsing
-
-```javascript
-function parseDataTable(dt) {
-  const columns = dt.columns.map(col => ({
-    fieldName: col._fieldName,
-    displayName: cleanFieldName(col._fieldName), // strips SUM(), MONTH() etc.
-    dataType: col._dataType,
-    fieldId: col._fieldId,
-  }));
-  const rows = dt.data.map(row =>
-    Object.fromEntries(columns.map((col, i) => [
-      col.fieldName,
-      normalizeValue(row[i]?.value ?? row[i], col.dataType)
-    ]))
-  );
-  return { columns, rows };
-}
-```
-
-### normalizeValue rules
-
-| dataType | Transform |
-|---|---|
-| `date`, `date-time` | Strip ` 00:00:00` suffix → `"2024-12-01"` |
-| `float`, `int` | `parseFloat` after stripping `$`, `,`, `%` |
-| `boolean` | `Boolean(val)` |
-| `string` | `String(val)` |
-| null / `%null%` | `null` |
-
----
-
-## Gallery
-
-Opens as a modal panel from the right. Contains:
-- Search input (filters by chart name)
-- Category filter chips (הכל, קו ושטח, עמודות, עוגה, פיזור, מפות חום, היררכיה, זרימה, מפה, KPI, פיננסי, מיוחד, **טבלה**)
-- Grid of chart cards — each with a live ECharts mini-preview (150×80px canvas)
-- RTL Table card shows a static text preview instead of ECharts canvas
-- Each card shows chart name + role tags (dim/measure/optional)
-
-Selecting a chart:
-1. Sets `state.chart`
-2. Clears `state.assignments`
-3. Closes gallery
-4. Renders Marks Card with the new chart's roles (or table note for RTL Table)
+- **BAN → ECharts**: `showPlaceholder()` disposes ECharts instance, nulls it, clears `innerHTML`. `renderECharts()` then does a fresh init on the clean container.
+- **ECharts → BAN**: `renderBan()` disposes any existing ECharts instance and writes its own HTML.
+- **Any → Any (via gallery)**: `selectChart()` calls `showPlaceholder()` which always fully clears the container.
 
 ---
 
@@ -490,10 +339,9 @@ Selecting a chart:
 
 | Situation | Error shown |
 |---|---|
-| Required role not filled | "חסרים שדות: ציר X, ערך Y" |
+| Required role not filled | "חסרים שדות: [role labels]" |
 | API call fails | "שגיאת טעינה: [message]" |
 | `%many-values%` detected | "רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau" |
-| Field not found in data | "שדות לא נמצאו בגיליון: [fieldName]" |
 | `world.js` not loaded | "world.js לא נטען — בדוק שהקובץ קיים לצד index.html" |
 | Map JSON fetch fails | "לא ניתן לטעון מפה: [message]" |
 | RTL Table — no fields on Detail | "אין שדות — גרור שדות ל-Detail" |
@@ -504,83 +352,33 @@ Selecting a chart:
 
 | Issue | Cause | Status |
 |---|---|---|
-| Clipboard API blocked in Tableau iframe | Tableau's CSP blocks `navigator.clipboard` | Fixed in debug.html v2 — shows JSON in inline textarea instead |
+| Clipboard API blocked in Tableau iframe | Tableau's CSP blocks `navigator.clipboard` | Fixed in debug.html v2 |
 | `tableau is not defined` | Wrong CDN URL for Extensions API | Fixed — must be local `tableau.extensions.js` |
 | `.trex` parse error — `http://localhost` invalid | Tableau requires `https://` in URL | Fixed |
-| `.trex` parse error — `<resources>` inside wrong element | Must be outside `<worksheet-extension>`, inside `<manifest>` | Fixed |
-| `getDataSourcesAsync` not available | Only exists on dashboard extensions, not worksheet extensions | Fixed — use `getSummaryDataAsync` instead |
-| Dropdown closes immediately after opening | `click` event bubbled up and triggered `closeDropdownOutside` | Fixed — switched to `mousedown` with 100ms delay |
-| Field dropdown shows only dims, no measures for Y slot | `CSS.escape` on field names with `(` `)` broke `onclick` attribute | Fixed — use array index instead of field name in onclick |
-| `getSummaryDataAsync` returns 1 row with `%many-values%` | No dims on Detail shelf — LOD undefined | Handled — show error bar with instructions |
-| `loadFields` returned all 26 datasource columns | Was using `getUnderlyingDataAsync({ includeAllColumns:true })` — ignores sheet LOD | Fixed — primary is now `getSummaryDataAsync`; returns only fields on Detail shelf |
-| `getSummaryDataAsync` returned no data / chart not rendered | Missing `{ maxRows:0 }` parameter | Fixed — all calls now pass explicit options |
-| `YEAR(Order Date)` appeared as measure in dropdown | `dataType=int` for date functions — same as numeric measures | Fixed — `DATE_FUNC_RE` detects date function field names and forces type=dim |
-| Sankey / Scatter / Bubble used wrong data source | `getUnderlyingDataAsync` returned raw rows, no aggregation, ignores filters | Fixed — all chart types now use `getSummaryDataAsync` |
-| Field list stale after Detail shelf changes | Tableau has no event for Detail shelf membership changes | Handled — added ↺ reload button; `FilterChanged` also triggers `loadFields` |
-| `getUnderlyingDataAsync` deprecated | Tableau recommends new API | Updated fallback to `getUnderlyingTablesAsync` + `getUnderlyingTableDataAsync` |
-| Map charts crashed — `Cannot read properties of undefined (reading 'regions')` | `echarts@5/map/js/world.js` CDN path does not exist in ECharts v5 | Fixed — switched to `world.js` from `echarts-countries-js`, loaded as local `<script>` tag |
-| `echarts.min.js` 404 on GitHub Pages | File not pushed to repo | Fixed — all local assets must be committed to repo |
-| Two separate GeoJSON files for World + US | US is part of world GeoJSON — no separate file needed | Fixed — single `world.js`, US States Map uses `center/zoom` to focus on USA |
-| Debug `console.log` noise in production Console | Leftover development logs | Fixed — all `console.log/warn` removed in v3 |
-| Tableau console warnings — `@import` CSS rule and preload warnings | Originate from `tableau.css` (Tableau's own stylesheet) and Tableau CDN assets | Not a bug — safely ignored, unrelated to extension code |
-| Marks card visible on workbook open (flicker) | `app` shown before `applyChart()` completed | Fixed v5 — `marks-card` hidden before `app` shown; `app` revealed only after chart renders |
-| Settings not persisting across sessions | `localStorage` not available on Tableau Cloud | Fixed v5 — migrated to `tableau.extensions.settings.saveAsync()` |
-| Settings UI visible to Viewers | Marks card rendered inside extension visible to all users | Fixed v5 — migrated to Format Extension button (`<configure-context-menu-item />`) — Tableau hides it from Viewers automatically |
-| `<configuration>true</configuration>` in `.trex` caused parse error | Not a valid element in `worksheet-extension` schema | Fixed v5 — correct approach is `<context-menu><configure-context-menu-item /></context-menu>` |
-| Filter change requires manual "צייר" click to update chart | `FilterChanged` only called `refreshChart()` which skipped re-fetch if state unchanged | Fixed v6 — `FilterChanged` now calls `applyChart()` directly, full re-fetch + re-render |
-| Gauge — metric name shown twice (in detail and as data name) | `data:[{value, name}]` passed `name` which rendered as a second label below value | Fixed v6 — removed `name` from data item; detail formatter handles label display only |
-| Gauge — value text overlaps label / top arc clipped | `radius:'85%'` caused arc to be cut off; `offsetCenter` too high | Fixed v6 — `radius:'80%'`, `center:['50%','55%']`, adjusted `offsetCenter` to `[0,'30%']` |
-| ECharts click events trigger Tableau mark selection | `click` event on chart elements could propagate to Tableau and filter data | Fixed v6 — `echartsInstance.on('click', () => {})` added on init to absorb all click events |
-| Extension background color mismatch with sheet | Extension had hardcoded `#f2f1ed` background | Fixed v6 — background now transparent by default; optional color picker saves hex to settings |
+| `getDataSourcesAsync` not available | Only exists on dashboard extensions | Fixed — use `getSummaryDataAsync` |
+| Dropdown closes immediately after opening | `click` event bubbled up | Fixed — switched to `mousedown` with 100ms delay |
+| `getSummaryDataAsync` returns 1 row with `%many-values%` | No dims on Detail shelf | Handled — show error bar |
+| `loadFields` returned all datasource columns | Was using `getUnderlyingDataAsync` | Fixed — use `getSummaryDataAsync` |
+| `YEAR(Order Date)` appeared as measure | `dataType=int` for date functions | Fixed — `DATE_FUNC_RE` forces type=dim |
+| Map charts crashed on load | `echarts@5/map/js/world.js` CDN path invalid | Fixed — local `world.js` |
+| Settings not persisting across sessions | `localStorage` not available on Tableau Cloud | Fixed v5 — `tableau.extensions.settings` |
+| Marks card visible to Viewers | UI was rendered inside extension visible to all | Fixed v5 — Format Extension button, editor-only |
+| FilterChanged required manual click | `refreshChart()` skipped re-fetch | Fixed v6 — `FilterChanged` calls `applyChart()` directly |
+| BAN card switching to other chart left stale HTML | `echarts.init()` mounted inside BAN HTML | Fixed v7 — `showPlaceholder()` + `renderECharts()` both clear `innerHTML` before init |
+| BAN currency symbol wrong ($ shown for Hebrew) | Currency derived from language after init | Fixed v7 — currency detected from Hebrew regex on name + period fields |
+| BAN RTL badge on wrong side (Style 1) | `direction:rtl` on flex row conflicted with badge position | Fixed v7 — DOM order swap: Hebrew puts value first (left), badge last (right) |
+| BAN period labels duplicated in bottom row | Period label used for both current and prev rows | Fixed v7 — `periodLabel` (current period) → top block only; `prevperLabel` → bottom block only |
 
-### Open Known Issues (not yet fixed)
+### Open Known Issues
 
 | Issue | Affected Charts | Notes |
 |---|---|---|
-| Sort is lexicographic — "10" sorts before "9" | Line, Area, Step Line, Stacked Line, Candlestick | `.sort()` without comparator. Fix: numeric comparator with string fallback |
-| Bubble symbol size not normalized | Bubble | `Math.sqrt(d[2])*3` without dividing by maxVal — huge bubbles with large values |
-| Treemap `Parent` role ignored in render | Treemap | Role defined in UI but `renderECharts` always renders flat data |
+| Sort is lexicographic — "10" sorts before "9" | Line, Area, Step Line, Stacked Line, Candlestick | Fix: numeric comparator with string fallback |
+| Bubble symbol size not normalized | Bubble | `Math.sqrt(d[2])*3` without dividing by maxVal |
+| Treemap `Parent` role ignored in render | Treemap | Role defined in UI but `renderECharts` renders flat data |
 | Waterfall incorrect baseline for negative values | Waterfall | `baseData` logic breaks when cumulative goes negative |
-| ThemeRiver `type:'time'` axis may break | ThemeRiver | If Tableau returns `MONTH()` as int (1–12) instead of ISO date string |
+| ThemeRiver `type:'time'` axis may break | ThemeRiver | If Tableau returns `MONTH()` as int (1–12) |
 | Stacked Area crashes if `groupField` is null | Stacked Area | No null-guard before `groups` map |
-
----
-
-## State Object
-
-```javascript
-state = {
-  chart: null,             // selected chart config object
-  assignments: {},         // roleId → { fieldName, displayName, dataType }
-  worksheetFields: [],     // fields from loadFields() — only fields on Detail shelf
-  worksheet: null,         // tableau worksheet reference (stored on init)
-  echartsInstance: null,   // ECharts instance on the container div
-  activeDropdownRole: null,// role currently being assigned
-  galleryFilter: 'הכל',   // active gallery category filter
-  customColors: null,      // array of 4 hex strings, or null = use DEFAULT_COLORS
-  bgColor: null,           // hex string for background, or null = transparent
-}
-```
-
----
-
-## Map Loader
-
-```javascript
-const _mapCache = {};
-
-async function ensureMap() {
-  if (_mapCache['world']) return;
-  try {
-    echarts.getMap('world'); // throws if not registered
-    _mapCache['world'] = true;
-  } catch(e) {
-    throw new Error('world.js לא נטען — בדוק שהקובץ קיים לצד index.html');
-  }
-}
-```
-
-Called before rendering any map chart type (worldmap, usmap, geomap). `world.js` registers the map automatically on script load — `ensureMap()` only verifies it succeeded.
 
 ---
 
@@ -588,9 +386,10 @@ Called before rendering any map chart type (worldmap, usmap, geomap). `world.js`
 
 | Version | Status | Notes |
 |---|---|---|
-| v1 | ✅ Superseded | Initial working build. Gallery, Marks Card, 14 chart types, drag & drop + dropdown assignment, FilterChanged listener, onboarding screen, error bar. Debug panel with field types inspector. |
-| v2 | ✅ Superseded | Fix loadFields to use getSummaryDataAsync (respects LOD). Fix getSummaryDataAsync options (maxRows:0). Fix YEAR/MONTH/QUARTER treated as measures. Switch Scatter/Bubble/Sankey to getSummaryDataAsync. Replace deprecated getUnderlyingDataAsync with new tables API. Add ↺ reload button. FilterChanged now reloads fields. Store worksheet ref in state. |
-| v3 | ✅ Superseded | +14 new chart types (28 total): Gauge, Candlestick, Sunburst, Network Graph, Waterfall, Calendar Heatmap, ThemeRiver, Step Line, Stacked Area, Dual Axis, Pictorial Bar, World Map, US States Map, Geo Bubble Map. Fully offline — all assets local (echarts.min.js, world.js, NotoSansHebrew fonts). Removed all CDN dependencies. Removed debug console.log noise. Fixed map loading via local world.js script tag. Single world.js for all map chart types. renderECharts made async for map support. |
-| v4 | ✅ Superseded | +17 new chart types (45 total) across 2 rounds. Round 4 (easy): Stacked Line, Nightingale Rose, Effect Scatter, Histogram, Multi-series Radar, Circular Graph, Tree Chart, Radial Tree, Progress Bar, Multi Gauge. Round 5 (medium): Confidence Band, Polar Bar, Nested Pie, Lines Map, Candlestick + Volume, Multi-year Calendar, Parallel Coordinates. QA audit completed — 6 open bugs documented in Known Issues. |
-| v5 | ✅ Superseded | Settings persistence via `tableau.extensions.settings.saveAsync()`. Format Extension button via `<configure-context-menu-item />` in `.trex` — editor-only access, no UI visible to Viewers. RTL Table merged as chart type #46 in new "טבלה" category — full filter dropdowns, column ordering via Columns parameter, content-aware widths, RTL layout, negative number fix. Startup flicker fixed — marks-card hidden before app shown. |
-| v6 | ✅ Current | **Auto-refresh on filter change** — `FilterChanged` now calls `applyChart()` directly (full re-fetch + re-render), no need to click "צייר". **🎨 Color editor** — modal with 4 color swatches, native browser color picker, saved to workbook settings. **🖼 Background color picker** — native color picker for extension background, single click = pick, double click = reset to transparent, saved to workbook. **Transparent background** — default background changed from `#f2f1ed` to `transparent` so Tableau sheet background shows through. **Gauge chart fixes** — removed duplicate metric name, fixed value/label overlap, fixed arc clipping at top, improved centering. **Click-to-filter disabled** — `echartsInstance.on('click', () => {})` prevents chart clicks from triggering Tableau mark selection. |
+| v1 | ✅ Superseded | Initial build. Gallery, Marks Card, 14 chart types, drag & drop, FilterChanged, onboarding. |
+| v2 | ✅ Superseded | Fix loadFields to use getSummaryDataAsync. Fix date functions treated as measures. Add ↺ reload button. |
+| v3 | ✅ Superseded | +14 chart types (28 total). Fully offline — all assets local. Fixed map loading via local world.js. |
+| v4 | ✅ Superseded | +17 chart types (45 total). QA audit. 6 open bugs documented. |
+| v5 | ✅ Superseded | Settings persistence via `tableau.extensions.settings`. Format Extension button. RTL Table merged as chart #46. Startup flicker fixed. |
+| v6 | ✅ Superseded | Auto-refresh on FilterChanged. 🎨 Color editor. 🖼 Background color picker. Transparent background default. Gauge fixes. Click-to-filter disabled. |
+| v7 | ✅ Current | **KPI BAN Cards** — 2 new chart types (`ban1`, `ban2`) in KPI category. Dark premium design, responsive font scaling via ResizeObserver, RTL/LTR auto-detection, ₪/$ currency, Hebrew/English labels. 5 shelves: KPI name, current value, current period, prev value, comparison period. Context-aware 🎨 color editor: 3 BAN-specific color swatches (box fill, top text, bottom text). **⌐ Border radius control** — new toolbar button, 4-corner independent popover, applies to all chart types, persisted in settings. **Container switching fixes** — `showPlaceholder()` and `renderECharts()` both fully dispose + clear container before reinitializing, eliminating stale BAN HTML when switching chart types. |
