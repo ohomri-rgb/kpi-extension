@@ -105,6 +105,15 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 /* RADIUS POPOVER */
 .radius-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:192px;display:none;direction:ltr}
 .radius-popover.open{display:block}
+
+/* FONT SIZE POPOVER */
+.fontsize-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:220px;display:none;direction:rtl}
+.fontsize-popover.open{display:block}
+.fontsize-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
+.fs-row{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.fs-row-header{font-size:10px;color:var(--text3);display:flex;justify-content:space-between;align-items:center}
+.fs-row-header span.fs-val{color:var(--teal);font-weight:700;font-size:11px;min-width:26px;text-align:left;direction:ltr}
+.fs-row input[type=range]{width:100%;accent-color:var(--teal);cursor:pointer;height:4px;margin:0}
 .radius-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
 .radius-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .radius-cell{display:flex;flex-direction:column;gap:3px}
@@ -208,6 +217,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
       <button class="color-edit-btn" onclick="openColorEditor()" title="ערוך צבעים">🎨</button>
       <button class="color-edit-btn" onclick="openBgColorPicker()" ondblclick="resetBgColor()" title="צבע רקע (כפול=שקוף)">🖼</button>
       <button class="color-edit-btn" id="radius-btn" onclick="toggleRadiusPopover(event)" title="עיגול פינות">⌐</button>
+      <button class="color-edit-btn" id="fontsize-btn" onclick="toggleFontsizePopover(event)" title="גודל טקסט BAN" style="display:none">Aa</button>
       <button class="chart-type-btn" onclick="openGallery()">
         <span id="mc-name">בחר סוג גרף</span>
         <span id="mc-icon">📈</span>
@@ -293,6 +303,31 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
   <div style="display:flex;gap:6px;margin-top:10px">
     <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetRadius()">אפס</button>
     <button class="apply-btn" style="flex:1" onclick="saveRadiusAndClose()">שמור</button>
+  </div>
+</div>
+
+<!-- FONT SIZE POPOVER (BAN only) -->
+<div class="fontsize-popover" id="fontsize-popover">
+  <div class="fontsize-popover-title">גודל טקסט — BAN</div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>שם KPI</span><span class="fs-val" id="fs-name-val">—</span></div>
+    <input type="range" id="fs-name" min="8" max="36" step="1" oninput="onFsInput('name',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>ערך ראשי</span><span class="fs-val" id="fs-value-val">—</span></div>
+    <input type="range" id="fs-value" min="20" max="120" step="2" oninput="onFsInput('value',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>תג שינוי</span><span class="fs-val" id="fs-badge-val">—</span></div>
+    <input type="range" id="fs-badge" min="8" max="32" step="1" oninput="onFsInput('badge',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>תקופה / ערך קודם</span><span class="fs-val" id="fs-bot-val">—</span></div>
+    <input type="range" id="fs-bot" min="8" max="28" step="1" oninput="onFsInput('bot',this.value)"/>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px">
+    <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetFontSizes()">אפס</button>
+    <button class="apply-btn" style="flex:1" onclick="saveFontsizeAndClose()">שמור</button>
   </div>
 </div>
 
@@ -539,6 +574,8 @@ function renderMarksCard() {
   if (!chart) return;
   document.getElementById('mc-icon').textContent = chart.icon;
   document.getElementById('mc-name').textContent = chart.name;
+  // Show font-size button only for BAN charts
+  document.getElementById('fontsize-btn').style.display = ['ban1','ban2'].includes(chart.id) ? '' : 'none';
   const list = document.getElementById('roles-list');
   list.innerHTML = '';
   if (chart.id === 'rtltable') {
@@ -846,6 +883,7 @@ async function saveSettings() {
     tableau.extensions.settings.set('banColors', JSON.stringify(state.banColors||null));
     tableau.extensions.settings.set('borderRadius', JSON.stringify(state.borderRadius||{tl:0,tr:0,bl:0,br:0}));
     tableau.extensions.settings.set('bgColor', state.bgColor||'');
+    tableau.extensions.settings.set('banFontSizes', JSON.stringify(state.banFontSizes||null));
     await tableau.extensions.settings.saveAsync();
   } catch(e) { console.warn('[ECharts] save failed:', e); }
 }
@@ -867,6 +905,8 @@ function loadSettings() {
         state.banColors = banColorsRaw ? JSON.parse(banColorsRaw) : null;
         const brRaw = tableau.extensions.settings.get('borderRadius');
         state.borderRadius = brRaw ? JSON.parse(brRaw) : {tl:0,tr:0,bl:0,br:0};
+        const bfsRaw = tableau.extensions.settings.get('banFontSizes');
+        state.banFontSizes = bfsRaw ? JSON.parse(bfsRaw) : null;
         applyBorderRadius();
         applyBgColor(state.bgColor);
         return true;
@@ -1694,31 +1734,36 @@ function renderBan(rows, assignments, banStyle) {
     const h = container.offsetHeight || 200;
     // Use a balanced unit: don't let height dominate on tall/square cards
     const u = Math.min(w / 400, h / 220);
-    const s = (b, m=10, mx=9999) => Math.min(mx, Math.max(m, Math.round(u * b)));
+    const fs = state.banFontSizes || {};
+    // s(base, min, max) — uses override if set, else scales from base
+    const s = (key, b, m=10, mx=9999) => {
+      if (fs[key]) return fs[key];
+      return Math.min(mx, Math.max(m, Math.round(u * b)));
+    };
     const card = container.querySelector('.ban-inner');
     if (!card) return;
-    card.style.padding = `${s(16,10)}px ${s(24,12)}px ${s(14,10)}px`;
+    card.style.padding = `${Math.min(9999,Math.max(10,Math.round(u*16)))}px ${Math.min(9999,Math.max(12,Math.round(u*24)))}px ${Math.min(9999,Math.max(10,Math.round(u*14)))}px`;
     const lbl = card.querySelector('.ban-kpi-lbl');
-    if (lbl) { lbl.style.fontSize = `${s(13,10,20)}px`; lbl.style.marginBottom = `${s(3,2)}px`; }
+    if (lbl) { lbl.style.fontSize = `${s('name',13,10,20)}px`; lbl.style.marginBottom = `${Math.max(2,Math.round(u*3))}px`; }
     const per = card.querySelector('.ban-period-lbl');
-    if (per) per.style.fontSize = `${s(11,9,16)}px`;
+    if (per) per.style.fontSize = `${s('bot',11,9,16)}px`;
     const valEl = card.querySelector('.ban-kpi-val');
-    // Cap value font: never exceed 42% of card height
-    if (valEl) valEl.style.fontSize = `${s(58,20,Math.round(h*0.42))}px`;
+    // Cap value font: never exceed 42% of card height (unless user override)
+    if (valEl) valEl.style.fontSize = `${fs['value'] ? fs['value'] : Math.min(Math.round(h*0.42), Math.max(20, Math.round(u*58)))}px`;
     const badge = card.querySelector('.ban-badge');
     if (badge) {
-      badge.style.padding = `${s(5,4)}px ${s(13,9)}px`;
-      badge.style.gap     = `${s(6,4)}px`;
+      badge.style.padding = `${Math.max(4,Math.round(u*5))}px ${Math.max(9,Math.round(u*13))}px`;
+      badge.style.gap     = `${Math.max(4,Math.round(u*6))}px`;
       const pctEl = badge.querySelector('.ban-pct');
-      if (pctEl) pctEl.style.fontSize = `${s(13,10,20)}px`;
+      if (pctEl) pctEl.style.fontSize = `${s('badge',13,10,20)}px`;
       const chgEl = badge.querySelector('.ban-chg');
-      if (chgEl) chgEl.style.fontSize = `${s(11,9,16)}px`;
+      if (chgEl) chgEl.style.fontSize = `${s('badge',11,9,16)}px`;
       const svg = badge.querySelector('svg');
-      if (svg) { const sz=Math.max(6,s(8,6,14)); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
+      if (svg) { const sz=Math.max(6,Math.min(14,Math.round(u*8))); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
     }
     const botVal = card.querySelector('.ban-bot-val');
-    if (botVal) botVal.style.fontSize = `${s(14,10,20)}px`;
-    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s(10,9,15)}px`);
+    if (botVal) botVal.style.fontSize = `${s('bot',14,10,20)}px`;
+    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s('bot',10,9,15)}px`);
   }
 
   const arwSVG = dir === 'pos'
@@ -1755,8 +1800,10 @@ function renderBan(rows, assignments, banStyle) {
     </div>`;
 
   // STYLE 1: badge and value same row
-  // RTL: badge RIGHT (inline-start), value fills LEFT
-  // LTR: value LEFT, badge RIGHT (inline-end)
+  // RTL (Hebrew): value on LEFT (flex start in ltr order), badge on RIGHT (inline-start in RTL = right side)
+  //   → DOM order: badge first (floats right in RTL flex), then value
+  // LTR: value on LEFT, badge on RIGHT
+  //   → DOM order: value first, badge last
   const midBlock = banStyle === 2
     ? `<div style="text-align:${align};direction:ltr">
          <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;text-align:${align}">${fmt(val)}</div>
@@ -1764,11 +1811,9 @@ function renderBan(rows, assignments, banStyle) {
        <div style="display:flex;align-items:center;direction:${nd}">
          ${badgeHTML}
        </div>`
-    : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
-         ${hebrew
-           ? `<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>${badgeHTML}`
-           : `${badgeHTML}<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>`
-         }
+    : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>
+         ${badgeHTML}
        </div>`;
 
   container.innerHTML = `
@@ -1899,6 +1944,74 @@ async function saveRadiusAndClose() {
   document.getElementById('radius-popover').classList.remove('open');
   document.removeEventListener('mousedown', closeRadiusOutside);
   await saveSettings();
+}
+
+// ═══════════════════════════════════════════════════
+// FONT SIZE POPOVER (BAN)
+// ═══════════════════════════════════════════════════
+const FS_DEFAULTS = { name: null, value: null, badge: null, bot: null };
+
+function toggleFontsizePopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('fontsize-popover');
+  const btn = document.getElementById('fontsize-btn');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const fs = state.banFontSizes || {};
+  // Populate sliders with current values or sensible defaults
+  const syncSlider = (key, def) => {
+    const el = document.getElementById('fs-'+key);
+    const valEl = document.getElementById('fs-'+key+'-val');
+    el.value = fs[key] || def;
+    valEl.textContent = (fs[key] || def) + 'px';
+  };
+  syncSlider('name',  13);
+  syncSlider('value', 58);
+  syncSlider('badge', 13);
+  syncSlider('bot',   12);
+  const rect = btn.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + 4) + 'px';
+  pop.style.left = Math.max(4, rect.right - 224) + 'px';
+  pop.classList.add('open');
+  setTimeout(() => document.addEventListener('mousedown', closeFontsizeOutside), 50);
+}
+
+function closeFontsizeOutside(e) {
+  const pop = document.getElementById('fontsize-popover');
+  if (!pop.contains(e.target) && e.target.id !== 'fontsize-btn') {
+    pop.classList.remove('open');
+    document.removeEventListener('mousedown', closeFontsizeOutside);
+  }
+}
+
+function onFsInput(key, val) {
+  document.getElementById('fs-'+key+'-val').textContent = val + 'px';
+  if (!state.banFontSizes) state.banFontSizes = {};
+  state.banFontSizes[key] = parseInt(val);
+  // Live preview — re-run scale() if BAN is rendered
+  const container = document.getElementById('echarts-container');
+  const card = container.querySelector('.ban-inner');
+  if (card) {
+    // Trigger scale manually by dispatching a fake resize
+    const ev = new Event('resize');
+    window.dispatchEvent(ev);
+  }
+}
+
+function resetFontSizes() {
+  state.banFontSizes = null;
+  ['name','value','badge','bot'].forEach(k => {
+    const defs = {name:13,value:58,badge:13,bot:12};
+    document.getElementById('fs-'+k).value = defs[k];
+    document.getElementById('fs-'+k+'-val').textContent = defs[k]+'px';
+  });
+  applyChart();
+}
+
+async function saveFontsizeAndClose() {
+  document.getElementById('fontsize-popover').classList.remove('open');
+  document.removeEventListener('mousedown', closeFontsizeOutside);
+  await saveSettings();
+  applyChart();
 }
 
 // ═══════════════════════════════════════════════════
