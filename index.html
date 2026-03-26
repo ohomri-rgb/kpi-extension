@@ -1800,21 +1800,25 @@ function renderBan(rows, assignments, banStyle) {
     </div>`;
 
   // STYLE 1: badge and value same row
-  // RTL (Hebrew): value on LEFT (flex start in ltr order), badge on RIGHT (inline-start in RTL = right side)
-  //   → DOM order: badge first (floats right in RTL flex), then value
-  // LTR: value on LEFT, badge on RIGHT
-  //   → DOM order: value first, badge last
+  // LTR: [value LEFT] [badge RIGHT]
+  // RTL: [badge LEFT] [value RIGHT]  ← badge at inline-start (right in RTL) means badge comes LAST in LTR DOM but we flip with direction:rtl on the row
+  const valDiv = `<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>`;
   const midBlock = banStyle === 2
-    ? `<div style="text-align:${align};direction:ltr">
-         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;text-align:${align}">${fmt(val)}</div>
+    ? `<div style="text-align:${align}">
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;text-align:${align}">${fmt(val)}</div>
        </div>
        <div style="display:flex;align-items:center;direction:${nd}">
          ${badgeHTML}
        </div>`
-    : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
-         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>
-         ${badgeHTML}
-       </div>`;
+    : hebrew
+      ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+           ${badgeHTML}
+           ${valDiv}
+         </div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+           ${valDiv}
+           ${badgeHTML}
+         </div>`;
 
   container.innerHTML = `
     <div style="width:100%;height:100%;display:flex">
