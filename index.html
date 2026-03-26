@@ -233,7 +233,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 <!-- Color Editor Modal -->
 <div class="modal-overlay" id="color-modal-overlay" onclick="onColorOverlayClick(event)">
   <div class="modal" style="width:320px;max-width:95vw">
-    <div class="modal-header"><h2>ערוך צבעי גרף</h2><button class="modal-close" onclick="closeColorEditor()">✕</button></div>
+    <div class="modal-header"><h2 id="color-modal-title">ערוך צבעי גרף</h2><button class="modal-close" onclick="closeColorEditor()">✕</button></div>
     <div class="modal-body" style="padding:16px 18px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">לחץ על צבע לעריכה.</p>
       <div id="color-swatches" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -348,13 +348,16 @@ const CHARTS = [
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
 
+const BAN_COLOR_DEFAULTS = ['#1e1e1e','#ffffff','#8a8a8a'];
+const BAN_COLOR_LABELS   = ['רקע כרטיס','טקסט עליון','טקסט תחתון'];
+
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
 let state = {
   chart:null, assignments:{}, worksheetFields:[], worksheet:null,
   echartsInstance:null, activeDropdownRole:null, galleryFilter:'הכל',
-  customColors:null, bgColor:null,
+  customColors:null, bgColor:null, banColors:null,
 };
 
 // ═══════════════════════════════════════════════════
@@ -779,6 +782,7 @@ async function saveSettings() {
     tableau.extensions.settings.set('chartId', state.chart?.id||'');
     tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments||{}));
     tableau.extensions.settings.set('customColors', JSON.stringify(state.customColors||null));
+    tableau.extensions.settings.set('banColors', JSON.stringify(state.banColors||null));
     tableau.extensions.settings.set('bgColor', state.bgColor||'');
     await tableau.extensions.settings.saveAsync();
   } catch(e) { console.warn('[ECharts] save failed:', e); }
@@ -797,6 +801,8 @@ function loadSettings() {
         state.customColors = colorsRaw ? JSON.parse(colorsRaw) : null;
         COLORS = state.customColors || DEFAULT_COLORS.slice();
         state.bgColor = tableau.extensions.settings.get('bgColor')||null;
+        const banColorsRaw = tableau.extensions.settings.get('banColors');
+        state.banColors = banColorsRaw ? JSON.parse(banColorsRaw) : null;
         applyBgColor(state.bgColor);
         return true;
       }
@@ -1565,6 +1571,9 @@ function renderBan(rows, assignments) {
   const container = document.getElementById('echarts-container');
   if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
 
+  // Resolve colors — fall back to defaults if not set
+  const [boxCol, topCol, botCol] = state.banColors || BAN_COLOR_DEFAULTS;
+
   const nameF   = assignments.name?.fieldName;
   const valF    = assignments.val?.fieldName;
   const periodF = assignments.period?.fieldName;
@@ -1583,6 +1592,11 @@ function renderBan(rows, assignments) {
 
   // KPI name: first distinct value from the name dim
   const kpiName = nameF ? String(rows.find(r => r[nameF] != null)?.[nameF] ?? '') : '';
+
+  // Detect if text is Hebrew (contains Hebrew unicode block)
+  const isHebrew = str => /[\u0590-\u05FF]/.test(str);
+  const nameDir  = isHebrew(kpiName) ? 'rtl' : 'ltr';
+  const vsWord   = (isHebrew(kpiName) || isHebrew(String([...periodVals][0]||'')) || isHebrew(String([...prevperVals][0]||''))) ? 'לעומת' : 'vs';
 
   // Period labels: collapse to first value (user controls via filter)
   const periodLabel  = periodVals.size  ? [...periodVals][0]  : '';
@@ -1604,8 +1618,8 @@ function renderBan(rows, assignments) {
   function scale() {
     const w = container.offsetWidth  || 300;
     const h = container.offsetHeight || 200;
-    const base = Math.min(w, h * 1.6);   // drive scale from the smaller dimension
-    const u = base / 320;                // 1u = 320px baseline
+    const base = Math.min(w, h * 1.6);
+    const u = base / 320;
 
     const card = container.querySelector('.ban-inner');
     if (!card) return;
@@ -1616,7 +1630,8 @@ function renderBan(rows, assignments) {
     card.querySelector('.ban-kpi-lbl').style.marginBottom = `${Math.round(u*14)}px`;
     card.querySelector('.ban-kpi-val').style.fontSize  = `${Math.max(28, Math.round(u*88))}px`;
     card.querySelector('.ban-kpi-val').style.marginBottom = `${Math.round(u*24)}px`;
-    card.querySelector('.ban-divider').style.marginBottom = `${Math.round(u*18)}px`;
+    const div = card.querySelector('.ban-divider');
+    if (div) { div.style.marginBottom = `${Math.round(u*18)}px`; div.style.marginTop = `${Math.round(u*4)}px`; }
     const badge = card.querySelector('.ban-badge');
     if (badge) {
       badge.style.fontSize = `${Math.max(11, Math.round(u*16))}px`;
@@ -1643,25 +1658,37 @@ function renderBan(rows, assignments) {
     ? `<svg viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${c.txt}"/></svg>`
     : `<svg viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${c.txt}"/></svg>`;
 
+  // Currency: ₪ for Hebrew, $ for LTR
+  const currency = nameDir === 'rtl' ? '₪' : '$';
+  // Prepend currency to numeric values
+  const fmtWithCur = n => currency + fmtNum(n);
+
+  const divCol = topCol + '33'; // 20% opacity divider from top color
+  const mutedTop = topCol + '88'; // muted KPI label
+
   const badgeHTML = pct !== null
     ? `<span class="ban-badge" style="background:${c.bg};color:${c.txt};font-weight:600;border-radius:99px;display:inline-flex;align-items:center;letter-spacing:.01em">${arrow}${dir==='neg'?'':'+'}${pct.toFixed(1)}%</span>`
     : '';
 
-  const periodRowHTML = (periodLabel || prevperLabel || badgeHTML) ? `
-    <div style="display:flex;align-items:center;gap:.6em;flex-direction:row-reverse;flex-wrap:wrap">
-      ${badgeHTML}
-      ${(periodLabel||prevperLabel) ? `<span class="ban-period-txt" style="color:#888780">${periodLabel}</span>` : ''}
-      ${(periodLabel && prevperLabel) ? `<span class="ban-period-txt" style="color:#b4b2a9">vs</span>` : ''}
-      ${prevperLabel ? `<span class="ban-period-txt" style="color:#b4b2a9">${prevperLabel}</span>` : ''}
+  // Bottom section: prev value + period labels
+  const prevValueHTML = (hasPrev && prev !== 0) ? `<span class="ban-period-txt" style="color:${botCol};font-weight:700;direction:ltr;display:inline-block">${fmtWithCur(prev)}</span>` : '';
+
+  const periodRowHTML = (periodLabel || prevperLabel || badgeHTML || prevValueHTML) ? `
+    <div style="display:flex;align-items:center;gap:.6em;direction:${rowDir};flex-wrap:wrap">
+      ${prevValueHTML}
+      ${periodLabel ? `<span class="ban-period-txt" style="color:${botCol}99">${periodLabel}</span>` : ''}
+      ${(periodLabel && prevperLabel) ? `<span class="ban-period-txt" style="color:${botCol}55">${vsWord}</span>` : ''}
+      ${prevperLabel ? `<span class="ban-period-txt" style="color:${botCol}99">${prevperLabel}</span>` : ''}
+      ${badgeHTML ? `<span style="flex:1"></span>${badgeHTML}` : ''}
     </div>` : '';
 
   container.innerHTML = `
     <div style="width:100%;height:100%;display:flex;align-items:stretch;justify-content:stretch">
-      <div class="ban-inner" style="flex:1;background:var(--surface,#fff);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center">
+      <div class="ban-inner" style="flex:1;background:${boxCol};position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;direction:${nameDir}">
         <div class="ban-bar" style="position:absolute;top:0;left:0;right:0;background:${c.bar}"></div>
-        <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#888780">${kpiName}</div>
-        <div class="ban-kpi-val" style="font-weight:800;color:#1c1b18;line-height:1;letter-spacing:-.025em">${fmtNum(val)}</div>
-        <div class="ban-divider" style="height:0.5px;background:#e0dfd8"></div>
+        <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${mutedTop}">${kpiName}</div>
+        <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.025em">${fmtWithCur(val)}</div>
+        <div class="ban-divider" style="height:1px;background:${divCol};flex-shrink:0"></div>
         ${periodRowHTML}
       </div>
     </div>`;
@@ -1676,29 +1703,52 @@ function renderBan(rows, assignments) {
 // ═══════════════════════════════════════════════════
 const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
 
-function openColorEditor() { renderColorSwatches(); document.getElementById('color-modal-overlay').classList.add('open'); }
+function openColorEditor() {
+  const isBan = state.chart?.id === 'ban';
+  document.getElementById('color-modal-title').textContent = isBan ? 'ערוך צבעי BAN' : 'ערוך צבעי גרף';
+  renderColorSwatches();
+  document.getElementById('color-modal-overlay').classList.add('open');
+}
 function closeColorEditor() { document.getElementById('color-modal-overlay').classList.remove('open'); }
 function onColorOverlayClick(e) { if(e.target===document.getElementById('color-modal-overlay')) closeColorEditor(); }
 
 function renderColorSwatches() {
+  const isBan    = state.chart?.id === 'ban';
+  const colors   = isBan ? (state.banColors || BAN_COLOR_DEFAULTS.slice()) : COLORS;
+  const labels   = isBan ? BAN_COLOR_LABELS : COLOR_LABELS;
   const container = document.getElementById('color-swatches');
   container.innerHTML = '';
-  COLORS.forEach((color, i) => {
+  colors.forEach((color, i) => {
     const row = document.createElement('div'); row.className='color-swatch-row';
     const swatch = document.createElement('div'); swatch.className='color-swatch'; swatch.style.background=color;
     swatch.addEventListener('click', () => {
       const input=document.getElementById('native-color-input');
-      input.value=COLORS[i];
-      input.oninput=()=>{COLORS[i]=input.value;swatch.style.background=input.value;lbl.textContent=COLOR_LABELS[i]+' — '+input.value.toUpperCase();};
+      input.value=colors[i];
+      input.oninput=()=>{
+        colors[i]=input.value;
+        swatch.style.background=input.value;
+        lbl.textContent=labels[i]+' — '+input.value.toUpperCase();
+        if(isBan) state.banColors=colors.slice();
+        else COLORS[i]=input.value;
+      };
       input.click();
     });
-    const lbl = document.createElement('span'); lbl.className='color-swatch-label'; lbl.textContent=COLOR_LABELS[i]+' — '+color.toUpperCase();
+    const lbl = document.createElement('span'); lbl.className='color-swatch-label'; lbl.textContent=labels[i]+' — '+color.toUpperCase();
     row.appendChild(swatch); row.appendChild(lbl); container.appendChild(row);
   });
 }
 
-function resetColors() { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; renderColorSwatches(); }
-function applyColors() { state.customColors=COLORS.slice(); closeColorEditor(); applyChart(); }
+function resetColors() {
+  if(state.chart?.id==='ban') { state.banColors=null; }
+  else { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; }
+  renderColorSwatches();
+}
+function applyColors() {
+  if(state.chart?.id==='ban') { /* banColors already updated live in oninput */ }
+  else { state.customColors=COLORS.slice(); }
+  closeColorEditor();
+  applyChart();
+}
 
 // ═══════════════════════════════════════════════════
 // BG COLOR
