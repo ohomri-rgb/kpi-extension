@@ -1,5 +1,5 @@
 # ECharts Extension — Tableau Viz Extension
-### Full Project Documentation | v7
+### Full Project Documentation | v8
 
 ---
 
@@ -10,14 +10,15 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 - **48 chart types** across 14 categories (45 ECharts + 1 RTL Table + 2 KPI BAN Cards)
 - Marks Card UI inside the extension — assign fields to chart roles via dropdown or drag & drop
 - Gallery modal — browse chart types with live previews, search + category filter chips
-- **Settings persist in the workbook** — chart type, field assignments, custom colors, BAN colors, border radius, and background color saved via `tableau.extensions.settings`
+- **Settings persist in the workbook** — chart type, field assignments, custom colors, BAN colors, BAN font sizes, border radius, and background color saved via `tableau.extensions.settings`
 - **Format Extension button** — editor-only access to settings via Tableau's native Marks card button
 - **Auto-refresh on FilterChanged** — chart re-renders automatically when any worksheet filter changes
 - Manual field reload button (↺) — syncs field list from Detail shelf without page reload
 - **🎨 Color editor** — context-aware: shows 4 chart palette colors for ECharts, or 3 BAN card colors when a BAN chart is active
 - **🖼 Background color picker** — set or reset extension background color per sheet, saved to workbook
 - **⌐ Border radius control** — 4-corner independent border radius popover, applies to all chart types
-- **KPI BAN Card** — two premium dark-style KPI cards with responsive font scaling, RTL/LTR auto-detection, period comparison, and color control
+- **Aa Font size control** — BAN-only popover with 4 independent sliders for KPI name, main value, change badge, and period/prev text. Live preview, persisted in workbook settings
+- **KPI BAN Card** — two premium dark-style KPI cards with responsive font scaling, correct RTL/LTR layout, period comparison, and color control
 - **Click-to-filter disabled** — clicking chart elements does not trigger Tableau mark selection
 - **Transparent background by default** — Tableau sheet background shows through
 - Error bar with clear messages when fields are missing or LOD is undefined
@@ -31,7 +32,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 
 | File | Purpose |
 |---|---|
-| `index.html` | Main extension — all CSS, HTML, JS in one file (~1,935 lines) |
+| `index.html` | Main extension — all CSS, HTML, JS in one file (~1,990 lines) |
 | `echarts-extension.trex` | Tableau manifest — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
 | `echarts.min.js` | ECharts 5 library (local copy) |
@@ -85,29 +86,45 @@ A Tableau Viz Extension (worksheet extension) that renders interactive ECharts v
 Two premium dark-style KPI cards rendered as pure HTML (no ECharts). Both share identical shelves and settings.
 
 ### Chart IDs
-- `ban1` — **Style 1**: badge and main value on the same row
-- `ban2` — **Style 2**: main value full-width, badge on its own row below
+- `ban1` — **Style 1**: main value and badge pill on the same row
+- `ban2` — **Style 2**: main value full-width on its own row, badge pill below it
 
 ### Layout
 
 **Style 1 (same row):**
 ```
-[KPI Name]          [Current Period]     ← top block, inline-start aligned
-[Badge] [Value]                          ← middle row: RTL = badge right, value left | LTR = value left, badge right
-────────────────────────────────────
-[Prev Value]        [nothing]            ← bottom block
+[KPI Name]                               ← top block, text-align: right (RTL) / left (LTR)
+[Current Period]
+──────────────────────────────────────
+LTR: [Value          ] [ 42.9% change ]  ← value left, badge right
+RTL: [ שינוי %42.9 ] [    ₪2.33M    ]  ← badge left, value right
+──────────────────────────────────────
+[Prev Value]                             ← bottom block
 [Comparison Period]
 ```
 
 **Style 2 (stacked):**
 ```
-[KPI Name]          [Current Period]     ← top block
-             [Value]                     ← full-width, inline-start aligned
-                    [Badge]              ← badge on own row, inline-start (right in RTL)
-────────────────────────────────────
+[KPI Name]                               ← top block
+[Current Period]
+──────────────────────────────────────
+             [Value]                     ← full-width, text-align per direction
+                    [Badge]              ← badge on own row, inline-start aligned
+──────────────────────────────────────
 [Prev Value]
 [Comparison Period]
 ```
+
+### RTL / LTR Layout Rule (Style 1)
+
+The mid-row uses a `direction:ltr` flex container. DOM order is swapped based on detected language:
+
+| Language | DOM order | Visual result |
+|---|---|---|
+| LTR (no Hebrew) | `[valDiv][badgeDiv]` | Value left, badge right |
+| RTL (Hebrew detected) | `[badgeDiv][valDiv]` | Badge left, value right |
+
+This ensures the value number always sits at the card's inner edge (right in RTL, left in LTR) and the badge at the outer edge.
 
 ### Field Roles (5 shelves, same for both styles)
 
@@ -122,8 +139,8 @@ Two premium dark-style KPI cards rendered as pure HTML (no ECharts). Both share 
 ### RTL / LTR Auto-detection
 
 The card detects Hebrew characters (`/[\u0590-\u05FF]/`) in the KPI name and period labels:
-- **Hebrew detected** → `direction:rtl`, currency symbol `₪`, badge label `שינוי`, comparison word `לעומת`
-- **No Hebrew** → `direction:ltr`, currency symbol `$`, badge label `change`, comparison word `vs`
+- **Hebrew detected** → `direction:rtl`, currency symbol `₪`, badge label `שינוי`, comparison word `תקופה קודמת`
+- **No Hebrew** → `direction:ltr`, currency symbol `$`, badge label `change`, comparison word `prev period`
 
 ### Badge Colors (automatic, not user-controlled)
 | State | Border | Arrow | Background |
@@ -146,9 +163,26 @@ Saved to `state.banColors` (array of 3 hex strings) → persisted as `banColors`
 
 When any other chart is active, the modal shows the standard 4 ECharts palette colors as before.
 
+### BAN Font Size Control (Aa button)
+
+A context-aware **`Aa`** button appears in the marks card toolbar only when a BAN chart (`ban1` or `ban2`) is active. Clicking it opens a popover with 4 independent range sliders:
+
+| Slider | Controls | Range | Default (auto) |
+|---|---|---|---|
+| שם KPI | KPI name label | 8–36px | auto-scaled |
+| ערך ראשי | Main value number | 20–120px | auto-scaled, capped at 42% card height |
+| תג שינוי | Badge % and label text | 8–32px | auto-scaled |
+| תקופה / ערך קודם | Period labels + prev value | 8–28px | auto-scaled |
+
+- **Live preview** — font sizes apply immediately on slider drag without re-rendering
+- **Reset** — clears all overrides, reverts to auto-scaling
+- **שמור** — persists sizes to workbook settings via `banFontSizes` key
+
+When no overrides are set (`state.banFontSizes === null`), the card uses the responsive auto-scaling formula. User overrides take absolute priority over the formula for their respective elements.
+
 ### Responsive Scaling
 
-`renderBan()` uses a `ResizeObserver` on `#echarts-container`. On every resize, a unit `u = Math.min(containerWidth, containerHeight × 2.2) / 460` scales all font sizes, padding, and badge dimensions proportionally.
+`renderBan()` attaches a `ResizeObserver` to `#echarts-container`. On every resize, a balanced unit `u = Math.min(w/400, h/220)` scales font sizes, padding, and badge dimensions. The main value font is additionally capped at `42% of container height` to prevent it from dominating the card at tall/square sizes. User overrides from the Aa popover bypass the formula for the overridden elements.
 
 ### Data Aggregation
 
@@ -164,7 +198,7 @@ BAN cards are pure HTML rendered into `#echarts-container`. When switching from 
 
 ## Border Radius Control (⌐ button)
 
-A new `⌐` button in the marks card toolbar opens a small popover with 4 independent corner inputs (0–80px):
+The `⌐` button in the marks card toolbar opens a small popover with 4 independent corner inputs (0–80px):
 
 | Input | Corner |
 |---|---|
@@ -219,6 +253,7 @@ tableau.extensions.settings.set('chartId',      state.chart.id);
 tableau.extensions.settings.set('assignments',   JSON.stringify(state.assignments));
 tableau.extensions.settings.set('customColors',  JSON.stringify(state.customColors || null));
 tableau.extensions.settings.set('banColors',     JSON.stringify(state.banColors || null));
+tableau.extensions.settings.set('banFontSizes',  JSON.stringify(state.banFontSizes || null));
 tableau.extensions.settings.set('borderRadius',  JSON.stringify(state.borderRadius || {tl:0,tr:0,bl:0,br:0}));
 tableau.extensions.settings.set('bgColor',       state.bgColor || '');
 await tableau.extensions.settings.saveAsync();
@@ -241,6 +276,7 @@ state = {
   galleryFilter: 'הכל',    // active gallery category filter
   customColors: null,       // array of 4 hex strings, or null = use DEFAULT_COLORS
   banColors: null,          // array of 3 hex strings [boxCol, topCol, botCol], or null = BAN_COLOR_DEFAULTS
+  banFontSizes: null,       // { name, value, badge, bot } px overrides, or null = auto-scale
   borderRadius: {tl:0,tr:0,bl:0,br:0}, // corner radii in px
   bgColor: null,            // hex string for extension background, or null = transparent
 }
@@ -258,6 +294,7 @@ state = {
 | 🎨 | Color editor — ECharts palette (4 swatches) or BAN colors (3 swatches) depending on active chart |
 | 🖼 | Background color picker (single click = pick, double click = reset to transparent) |
 | ⌐ | Border radius popover — 4 independent corner inputs, 0–80px |
+| Aa | Font size popover — 4 sliders for BAN text elements. Only visible when ban1 or ban2 is active |
 | [Chart name + icon] | Open gallery |
 
 ---
@@ -310,7 +347,7 @@ state = {
 
 ```
 initializeAsync({ configure: () => show marks-card })
-  └── loadSettings() → restore full state (chart, assignments, colors, banColors, borderRadius, bgColor)
+  └── loadSettings() → restore full state (chart, assignments, colors, banColors, banFontSizes, borderRadius, bgColor)
   └── loadFields() — getSummaryDataAsync({ maxRows:1 })
   └── applyBorderRadius() — restore border radius on containers
   └── if saved state:
@@ -366,8 +403,11 @@ applyChart()
 | FilterChanged required manual click | `refreshChart()` skipped re-fetch | Fixed v6 — `FilterChanged` calls `applyChart()` directly |
 | BAN card switching to other chart left stale HTML | `echarts.init()` mounted inside BAN HTML | Fixed v7 — `showPlaceholder()` + `renderECharts()` both clear `innerHTML` before init |
 | BAN currency symbol wrong ($ shown for Hebrew) | Currency derived from language after init | Fixed v7 — currency detected from Hebrew regex on name + period fields |
-| BAN RTL badge on wrong side (Style 1) | `direction:rtl` on flex row conflicted with badge position | Fixed v7 — DOM order swap: Hebrew puts value first (left), badge last (right) |
-| BAN period labels duplicated in bottom row | Period label used for both current and prev rows | Fixed v7 — `periodLabel` (current period) → top block only; `prevperLabel` → bottom block only |
+| BAN period labels duplicated in bottom row | Period label used for both current and prev rows | Fixed v7 — `periodLabel` → top block only; `prevperLabel` → bottom block only |
+| BAN value font too large on square/tall cards | Scale unit `h*2.2` over-drove font size | Fixed v8 — balanced unit `Math.min(w/400, h/220)` + hard cap at 42% card height |
+| BAN KPI name / period labels barely visible | Opacity `.38` / `.4` too low on dark bg | Fixed v8 — KPI name `.65`, period `.55`, prev value `.9`, prev label `.6` |
+| BAN badge too large and over-padded | `s(18)` horizontal padding scaled aggressively | Fixed v8 — tightened to `s(13)` with explicit max caps |
+| BAN RTL/LTR value+badge placement wrong | Mixed `direction` on nested flex elements caused both modes to render identically | Fixed v8 — unified `direction:ltr` flex row with explicit DOM order swap: `[badge][value]` for Hebrew, `[value][badge]` for LTR |
 
 ### Open Known Issues
 
@@ -392,4 +432,5 @@ applyChart()
 | v4 | ✅ Superseded | +17 chart types (45 total). QA audit. 6 open bugs documented. |
 | v5 | ✅ Superseded | Settings persistence via `tableau.extensions.settings`. Format Extension button. RTL Table merged as chart #46. Startup flicker fixed. |
 | v6 | ✅ Superseded | Auto-refresh on FilterChanged. 🎨 Color editor. 🖼 Background color picker. Transparent background default. Gauge fixes. Click-to-filter disabled. |
-| v7 | ✅ Current | **KPI BAN Cards** — 2 new chart types (`ban1`, `ban2`) in KPI category. Dark premium design, responsive font scaling via ResizeObserver, RTL/LTR auto-detection, ₪/$ currency, Hebrew/English labels. 5 shelves: KPI name, current value, current period, prev value, comparison period. Context-aware 🎨 color editor: 3 BAN-specific color swatches (box fill, top text, bottom text). **⌐ Border radius control** — new toolbar button, 4-corner independent popover, applies to all chart types, persisted in settings. **Container switching fixes** — `showPlaceholder()` and `renderECharts()` both fully dispose + clear container before reinitializing, eliminating stale BAN HTML when switching chart types. |
+| v7 | ✅ Superseded | **KPI BAN Cards** (`ban1`, `ban2`) — dark premium design, ResizeObserver scaling, RTL/LTR detection, ₪/$ currency, 5 field shelves. Context-aware 🎨 color editor with 3 BAN swatches. **⌐ Border radius control** — 4-corner independent popover, persisted in settings. Container switching fixes. |
+| v8 | ✅ Current | **BAN layout & proportion overhaul** — balanced scale unit, value font capped at 42% card height, KPI name/period/prev opacity fixes, badge padding tightened. **RTL/LTR layout fixed** — unified `direction:ltr` flex row with DOM order swap: `[badge][value]` for Hebrew, `[value][badge]` for LTR — eliminates the direction conflict that caused both modes to render identically wrong. **Aa Font size control** — new toolbar button (BAN-only), popover with 4 independent sliders (שם KPI 8–36px, ערך ראשי 20–120px, תג שינוי 8–32px, תקופה/קודם 8–28px), live preview on drag, reset, persisted as `banFontSizes` in workbook settings. |
