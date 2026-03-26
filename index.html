@@ -1762,10 +1762,11 @@ function renderBan(rows, assignments, banStyle) {
        <div style="display:flex;align-items:center;direction:${nd}">
          ${badgeHTML}
        </div>`
-    : `<div style="display:flex;align-items:center;gap:16px;direction:${nd}">
-         ${hebrew ? badgeHTML : ''}
-         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:${align}">${fmt(val)}</div>
-         ${hebrew ? '' : badgeHTML}
+    : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+         ${hebrew
+           ? `<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>${badgeHTML}`
+           : `${badgeHTML}<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>`
+         }
        </div>`;
 
   container.innerHTML = `
