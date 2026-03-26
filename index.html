@@ -102,6 +102,18 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 
+/* RADIUS POPOVER */
+.radius-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:192px;display:none;direction:ltr}
+.radius-popover.open{display:block}
+.radius-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
+.radius-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.radius-cell{display:flex;flex-direction:column;gap:3px}
+.radius-cell label{font-size:10px;color:var(--text3)}
+.radius-cell input[type=number]{width:100%;padding:3px 6px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none;-moz-appearance:textfield}
+.radius-cell input[type=number]::-webkit-inner-spin-button{opacity:1}
+.radius-cell input[type=number]:focus{border-color:var(--teal)}
+.radius-corner-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 auto 6px}
+
 /* ONBOARDING */
 .onboarding{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}
 .ob-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px 20px;width:100%;max-width:340px;text-align:center}
@@ -195,6 +207,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
       <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
       <button class="color-edit-btn" onclick="openColorEditor()" title="ערוך צבעים">🎨</button>
       <button class="color-edit-btn" onclick="openBgColorPicker()" ondblclick="resetBgColor()" title="צבע רקע (כפול=שקוף)">🖼</button>
+      <button class="color-edit-btn" id="radius-btn" onclick="toggleRadiusPopover(event)" title="עיגול פינות">⌐</button>
       <button class="chart-type-btn" onclick="openGallery()">
         <span id="mc-name">בחר סוג גרף</span>
         <span id="mc-icon">📈</span>
@@ -246,6 +259,42 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 </div>
 <input type="color" id="native-color-input" style="position:fixed;opacity:0;width:0;height:0;pointer-events:none"/>
 <input type="color" id="native-bg-input" style="position:fixed;opacity:0;width:0;height:0;pointer-events:none"/>
+
+<!-- RADIUS POPOVER -->
+<div class="radius-popover" id="radius-popover">
+  <div class="radius-popover-title">עיגול פינות (px)</div>
+  <div style="display:flex;justify-content:center;margin-bottom:10px">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <rect x="2" y="2" width="60" height="60" rx="8" stroke="var(--border2)" stroke-width="1.5" fill="none"/>
+      <circle cx="10" cy="10" r="3" fill="var(--teal)" id="rc-tl-dot"/>
+      <circle cx="54" cy="10" r="3" fill="var(--teal)" id="rc-tr-dot"/>
+      <circle cx="10" cy="54" r="3" fill="var(--teal)" id="rc-bl-dot"/>
+      <circle cx="54" cy="54" r="3" fill="var(--teal)" id="rc-br-dot"/>
+    </svg>
+  </div>
+  <div class="radius-grid">
+    <div class="radius-cell">
+      <label>↖ עליון שמאל</label>
+      <input type="number" id="rc-tl" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↗ עליון ימין</label>
+      <input type="number" id="rc-tr" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↙ תחתון שמאל</label>
+      <input type="number" id="rc-bl" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↘ תחתון ימין</label>
+      <input type="number" id="rc-br" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px">
+    <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetRadius()">אפס</button>
+    <button class="apply-btn" style="flex:1" onclick="saveRadiusAndClose()">שמור</button>
+  </div>
+</div>
 
 <!-- Table filter dropdown -->
 <div class="tbl-dd-panel" id="tbl-dd-panel">
@@ -357,7 +406,8 @@ const BAN_COLOR_LABELS   = ['רקע כרטיס','טקסט עליון','טקסט 
 let state = {
   chart:null, assignments:{}, worksheetFields:[], worksheet:null,
   echartsInstance:null, activeDropdownRole:null, galleryFilter:'הכל',
-  customColors:null, bgColor:null, banColors:null,
+  customColors:null, bgColor:null, banColors:null, banStyle:1,
+  borderRadius:{tl:0,tr:0,bl:0,br:0},
 };
 
 // ═══════════════════════════════════════════════════
@@ -783,6 +833,7 @@ async function saveSettings() {
     tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments||{}));
     tableau.extensions.settings.set('customColors', JSON.stringify(state.customColors||null));
     tableau.extensions.settings.set('banColors', JSON.stringify(state.banColors||null));
+    tableau.extensions.settings.set('borderRadius', JSON.stringify(state.borderRadius||{tl:0,tr:0,bl:0,br:0}));
     tableau.extensions.settings.set('bgColor', state.bgColor||'');
     await tableau.extensions.settings.saveAsync();
   } catch(e) { console.warn('[ECharts] save failed:', e); }
@@ -803,6 +854,9 @@ function loadSettings() {
         state.bgColor = tableau.extensions.settings.get('bgColor')||null;
         const banColorsRaw = tableau.extensions.settings.get('banColors');
         state.banColors = banColorsRaw ? JSON.parse(banColorsRaw) : null;
+        const brRaw = tableau.extensions.settings.get('borderRadius');
+        state.borderRadius = brRaw ? JSON.parse(brRaw) : {tl:0,tr:0,bl:0,br:0};
+        applyBorderRadius();
         applyBgColor(state.bgColor);
         return true;
       }
@@ -995,6 +1049,7 @@ async function applyChart() {
       const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
       const {rows} = parseDataTable(dt);
       renderBan(rows, state.assignments);
+      applyBorderRadius();
       await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
@@ -1010,6 +1065,7 @@ async function applyChart() {
       return;
     }
     renderECharts(chart, columns, rows, state.assignments);
+    applyBorderRadius();
     await saveSettings();
   } catch(e) { showError('שגיאת טעינה: '+e); }
 }
@@ -1762,6 +1818,68 @@ function applyColors() {
   else { state.customColors=COLORS.slice(); }
   closeColorEditor();
   applyChart();
+}
+
+// ═══════════════════════════════════════════════════
+// BORDER RADIUS
+// ═══════════════════════════════════════════════════
+function toggleRadiusPopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('radius-popover');
+  const btn = document.getElementById('radius-btn');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const br = state.borderRadius || {tl:0,tr:0,bl:0,br:0};
+  document.getElementById('rc-tl').value = br.tl;
+  document.getElementById('rc-tr').value = br.tr;
+  document.getElementById('rc-bl').value = br.bl;
+  document.getElementById('rc-br').value = br.br;
+  const rect = btn.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + 4) + 'px';
+  pop.style.left = Math.max(4, rect.right - 192) + 'px';
+  pop.classList.add('open');
+  setTimeout(() => document.addEventListener('mousedown', closeRadiusOutside), 50);
+}
+
+function closeRadiusOutside(e) {
+  const pop = document.getElementById('radius-popover');
+  if (!pop.contains(e.target) && e.target.id !== 'radius-btn') {
+    pop.classList.remove('open');
+    document.removeEventListener('mousedown', closeRadiusOutside);
+  }
+}
+
+function onRadiusInput() {
+  state.borderRadius = {
+    tl: parseInt(document.getElementById('rc-tl').value)||0,
+    tr: parseInt(document.getElementById('rc-tr').value)||0,
+    bl: parseInt(document.getElementById('rc-bl').value)||0,
+    br: parseInt(document.getElementById('rc-br').value)||0,
+  };
+  applyBorderRadius();
+}
+
+function applyBorderRadius() {
+  const br = state.borderRadius || {tl:0,tr:0,bl:0,br:0};
+  const val = `${br.tl}px ${br.tr}px ${br.br}px ${br.bl}px`;
+  const container = document.getElementById('echarts-container');
+  if (container) { container.style.borderRadius = val; container.style.overflow = 'hidden'; }
+  const tbl = document.getElementById('table-container');
+  if (tbl) { tbl.style.borderRadius = val; tbl.style.overflow = 'hidden'; }
+}
+
+function resetRadius() {
+  state.borderRadius = {tl:0,tr:0,bl:0,br:0};
+  document.getElementById('rc-tl').value = 0;
+  document.getElementById('rc-tr').value = 0;
+  document.getElementById('rc-bl').value = 0;
+  document.getElementById('rc-br').value = 0;
+  applyBorderRadius();
+}
+
+async function saveRadiusAndClose() {
+  document.getElementById('radius-popover').classList.remove('open');
+  document.removeEventListener('mousedown', closeRadiusOutside);
+  await saveSettings();
 }
 
 // ═══════════════════════════════════════════════════
