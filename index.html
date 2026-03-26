@@ -2094,13 +2094,13 @@ function renderBanTable(rows, assignments) {
   const cols = prevF ? 'auto 1fr auto auto' : 'auto 1fr auto';
   const cellBase = 'padding:12px 20px;display:contents';
 
-  const hStyle = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center`;
+  const hCell = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${topCol}35`;
 
   const headerCells = `
-    <div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
-    <div style="${hStyle};padding:8px 20px;justify-content:center">${periodLabel || 'ערך'}</div>
-    <div style="${hStyle};padding:8px 20px;justify-content:center">שינוי</div>
-    ${prevF ? `<div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
+    <div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
+    <div style="${hCell};justify-content:center">${periodLabel || 'ערך'}</div>
+    <div style="${hCell};justify-content:center">שינוי</div>
+    ${prevF ? `<div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
 
   const dataRows = [...groups.entries()].map(([kpiName, g], idx) => {
     const hasPrev = !!prevF && g.prev !== 0;
@@ -2136,11 +2136,7 @@ function renderBanTable(rows, assignments) {
   container.innerHTML = `
     <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
       <div style="display:grid;grid-template-columns:${cols};width:100%">
-        <div style="display:contents;background:${hdrCol}">
-          <div style="grid-column:1/-1;background:${hdrCol};display:grid;grid-template-columns:${cols};border-bottom:1px solid ${topCol}35">
-            ${headerCells}
-          </div>
-        </div>
+        ${headerCells}
         ${dataRows}
       </div>
     </div>`;
@@ -2207,13 +2203,13 @@ function renderBanTable2(rows, assignments, kpiNames) {
   const hasPrevCol = kpis.some(k => k.prev !== null);
 
   const cols = hasPrevCol ? 'auto 1fr auto auto' : 'auto 1fr auto';
-  const hStyle = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center`;
+  const hCell = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${topCol}35`;
 
   const headerCells = `
-    <div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
-    <div style="${hStyle};padding:8px 20px;justify-content:center">${periodLabel || 'ערך'}</div>
-    <div style="${hStyle};padding:8px 20px;justify-content:center">שינוי</div>
-    ${hasPrevCol ? `<div style="${hStyle};padding:8px 20px;justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
+    <div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
+    <div style="${hCell};justify-content:center">${periodLabel || 'ערך'}</div>
+    <div style="${hCell};justify-content:center">שינוי</div>
+    ${hasPrevCol ? `<div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
 
   const dataRows = kpis.map((k, idx) => {
     const hasPrev = k.prev !== null && k.prev !== 0;
@@ -2249,9 +2245,7 @@ function renderBanTable2(rows, assignments, kpiNames) {
   container.innerHTML = `
     <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
       <div style="display:grid;grid-template-columns:${cols};width:100%">
-        <div style="grid-column:1/-1;background:${hdrCol};display:grid;grid-template-columns:${cols};border-bottom:1px solid ${topCol}35">
-          ${headerCells}
-        </div>
+        ${headerCells}
         ${dataRows}
       </div>
     </div>`;
