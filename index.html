@@ -422,13 +422,6 @@ const CHARTS = [
     {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
     {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
   ]},
-  {id:'bantable', cat:'KPI', name:'KPI Table', icon:'📊', roles:[
-    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
-    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
-    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
-    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
-    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
-  ]},
   {id:'bantable2', cat:'KPI', name:'KPI Table (מדדים)', icon:'📋', roles:[
     {id:'val1',    label:'ערך 1',            accepts:'measure', required:true},
     {id:'val2',    label:'ערך 2',            accepts:'measure', required:false},
@@ -898,17 +891,6 @@ function drawPreview(chart, container) {
         <span style="font-size:7px;color:rgba(255,255,255,.4)">₪1.6M</span>
       </div>`).join('')}
     </div>`;
-  } else if (chart.id === 'bantable') {
-    ec.dispose();
-    container.innerHTML = `<div style="height:80px;overflow:hidden;direction:rtl;background:#141414;border-radius:6px;margin:4px;font-family:inherit">
-      ${[['מכירות','₪2.3M','+42.9%','pos'],['רוחים','₪2.3M','+42.9%','pos'],['הוצאות','₪2.3M','-42.9%','neg']].map((r,i)=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.07)">
-        <span style="font-size:7.5px;color:#fff;font-weight:600">${r[0]}</span>
-        <span style="font-size:10px;font-weight:800;color:#fff;direction:ltr">${r[1]}</span>
-        <span style="font-size:7px;padding:1px 5px;border-radius:99px;border:1px solid ${r[3]==='pos'?'rgba(80,200,60,.55)':'rgba(220,60,50,.55)'};color:#fff;direction:ltr">${r[2]}</span>
-        <span style="font-size:7px;color:rgba(255,255,255,.4)">₪1.6M</span>
-      </div>`).join('')}
-    </div>`;
   } else if (chart.id === 'rtltable') {
     ec.dispose();
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
@@ -1133,7 +1115,6 @@ async function applyChart() {
   const chart = state.chart;
   if (!chart) return;
   const isTable    = chart.id==='rtltable';
-  const isBanTable  = chart.id==='bantable';
   const isBanTable2 = chart.id==='bantable2';
   const isBan      = ['ban1','ban2'].includes(chart.id);
   document.getElementById('echarts-container').style.display = isTable?'none':'block';
@@ -1141,19 +1122,6 @@ async function applyChart() {
   document.getElementById('placeholder').style.display = 'none';
   if (isTable) {
     try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
-    return;
-  }
-  if (isBanTable) {
-    const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
-    if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
-    try {
-      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
-      const {rows} = parseDataTable(dt);
-      renderBanTable(rows, state.assignments);
-      applyBorderRadius();
-      await saveSettings();
-    } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
   if (isBanTable2) {
@@ -2040,107 +2008,6 @@ function renderBanTable2MarksCard(list) {
   checkApplyBtn();
 }
 
-// ═══════════════════════════════════════════════════
-// KPI TABLE
-// ═══════════════════════════════════════════════════
-function renderBanTable(rows, assignments) {
-  const container = document.getElementById('echarts-container');
-  if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
-
-  const [boxCol, topCol, botCol, hdrCol] = state.banColors || BAN_COLOR_DEFAULTS;
-  const nameF    = assignments.name?.fieldName;
-  const valF     = assignments.val?.fieldName;
-  const periodF  = assignments.period?.fieldName;
-  const prevF    = assignments.prev?.fieldName;
-  const prevperF = assignments.prevper?.fieldName;
-
-  const groups = new Map();
-  rows.forEach(r => {
-    const key = nameF ? String(r[nameF] ?? '') : '';
-    if (!groups.has(key)) groups.set(key, { val:0, prev:0, periods:new Set(), prevpers:new Set() });
-    const g = groups.get(key);
-    g.val  += (r[valF]  ?? 0);
-    if (prevF)    g.prev += (r[prevF]  ?? 0);
-    if (periodF  && r[periodF]  != null) g.periods.add(String(r[periodF]));
-    if (prevperF && r[prevperF] != null) g.prevpers.add(String(r[prevperF]));
-  });
-
-  const firstKey = [...groups.keys()][0] || '';
-  const hebrew   = /[\u0590-\u05FF]/.test(firstKey);
-  const nd       = hebrew ? 'rtl' : 'ltr';
-  const cur      = hebrew ? '₪' : '$';
-  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
-
-  const allPeriods = new Set(); const allPrevpers = new Set();
-  groups.forEach(g => { g.periods.forEach(v=>allPeriods.add(v)); g.prevpers.forEach(v=>allPrevpers.add(v)); });
-  const periodLabel  = [...allPeriods][0]  || '';
-  const prevperLabel = [...allPrevpers][0] || '';
-
-  const fmt = n => {
-    const a = Math.abs(n);
-    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
-    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
-    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
-    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
-  };
-
-  const BADGE = {
-    pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)',   arrow:'▲' },
-    neg: { border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)',   arrow:'▼' },
-    neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)', arrow:'—' },
-  };
-
-  // Grid: name=auto | val=1fr | badge=auto | prev=auto (if prevF)
-  const cols = prevF ? 'auto 1fr auto auto' : 'auto 1fr auto';
-  const cellBase = 'padding:12px 20px;display:contents';
-
-  const hCell = `font-size:10px;font-weight:600;color:${botCol};letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${botCol}30`;
-
-  const headerCells = `
-    <div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
-    <div style="${hCell};justify-content:center">${periodLabel || 'ערך'}</div>
-    <div style="${hCell};justify-content:center">שינוי</div>
-    ${prevF ? `<div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
-
-  const dataRows = [...groups.entries()].map(([kpiName, g], idx) => {
-    const hasPrev = !!prevF && g.prev !== 0;
-    const pct     = hasPrev ? ((g.val - g.prev) / Math.abs(g.prev)) * 100 : null;
-    const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
-    const B       = BADGE[dir];
-    const border  = idx < groups.size - 1 ? `border-bottom:1px solid ${topCol}18` : '';
-
-    const badgeHTML = pct !== null
-      ? `<div style="display:inline-flex;align-items:center;gap:5px;border-radius:99px;
-             border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
-             padding:4px 12px;white-space:nowrap;direction:ltr">
-           <span style="font-size:12px;color:${B.arrowFill};line-height:1">${B.arrow}</span>
-           <span style="font-weight:700;color:#fff;font-size:13px">${Math.abs(pct).toFixed(1)}%</span>
-         </div>`
-      : '';
-
-    return `
-      <div style="display:flex;align-items:center;padding:12px 20px;${border};justify-content:${hebrew?'flex-end':'flex-start'}">
-        <span style="font-weight:600;font-size:14px;color:${topCol};opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kpiName}</span>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
-        <span style="font-weight:800;font-size:22px;color:${topCol};direction:ltr;letter-spacing:-.02em">${fmt(g.val)}</span>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
-        ${badgeHTML}
-      </div>
-      ${prevF ? `<div style="display:flex;align-items:center;justify-content:${hebrew?'flex-end':'flex-start'};padding:12px 20px;${border}">
-        <span style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;direction:ltr">${hasPrev ? fmt(g.prev) : ''}</span>
-      </div>` : ''}`;
-  }).join('');
-
-  container.innerHTML = `
-    <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
-      <div style="display:grid;grid-template-columns:${cols};width:100%">
-        ${headerCells}
-        ${dataRows}
-      </div>
-    </div>`;
-}
 
 function renderBanTable2(rows, assignments, kpiNames) {
   const container = document.getElementById('echarts-container');
@@ -2257,7 +2124,7 @@ function renderBanTable2(rows, assignments, kpiNames) {
 const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
 
 function openColorEditor() {
-  const isTable = ['bantable','bantable2'].includes(state.chart?.id);
+  const isTable = state.chart?.id === 'bantable2';
   const isBan   = ['ban1','ban2'].includes(state.chart?.id);
   if (isTable) {
     document.getElementById('color-modal-title').textContent = 'ערוך צבעי טבלה';
@@ -2298,7 +2165,7 @@ function renderColorSwatches() {
 }
 
 function resetColors() {
-  const isTable = ['bantable','bantable2'].includes(state.chart?.id);
+  const isTable = state.chart?.id === 'bantable2';
   const isBan   = ['ban1','ban2'].includes(state.chart?.id);
   if (isTable) { state.banColors=null; state.bgColor=null; applyBgColor(null); renderTableColorSwatches(); }
   else if (isBan) { state.banColors=null; renderColorSwatches(); }
@@ -2306,7 +2173,7 @@ function resetColors() {
 }
 function applyColors() {
   const isBan = ['ban1','ban2'].includes(state.chart?.id);
-  if (!isBan && !['bantable','bantable2'].includes(state.chart?.id)) { state.customColors=COLORS.slice(); }
+  if (!isBan && !state.chart?.id === 'bantable2') { state.customColors=COLORS.slice(); }
   closeColorEditor();
   applyChart();
 }
