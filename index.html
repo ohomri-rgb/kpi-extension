@@ -1112,9 +1112,19 @@ async function ensureMap() {
 // ═══════════════════════════════════════════════════
 async function renderECharts(chart, columns, rows, assignments) {
   const container = document.getElementById('echarts-container');
+  // Always clear BAN HTML before initializing ECharts
   if (!state.echartsInstance) {
+    container.innerHTML = '';
     state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
     state.echartsInstance.on('click', ()=>{});
+  } else {
+    // Verify instance is still attached to this container (not stale after BAN)
+    try { state.echartsInstance.resize(); }
+    catch(e) {
+      container.innerHTML = '';
+      state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
+      state.echartsInstance.on('click', ()=>{});
+    }
   }
   COLORS = (state.customColors?.length>=4) ? state.customColors.slice() : DEFAULT_COLORS.slice();
   const ec = state.echartsInstance;
@@ -1748,19 +1758,18 @@ function renderBan(rows, assignments, banStyle) {
       </div>
     </div>`;
 
-  // STYLE 1: badge inline-end (left in RTL) + value inline-start (right in RTL), same row
-  // STYLE 2: value full-width inline-start, badge on own row inline-end (left in RTL)
+  // STYLE 1: badge inline-start (RIGHT in RTL), value fills remaining space to the LEFT
+  // STYLE 2: value full-width, badge on own row inline-start (RIGHT in RTL)
   const midBlock = banStyle === 2
     ? `<div style="text-align:${align};direction:ltr">
          <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;text-align:${align}">${fmt(val)}</div>
        </div>
-       <div style="display:flex;direction:${nd}">
-         <span style="flex:1"></span>
+       <div style="display:flex;align-items:center;direction:${nd}">
          ${badgeHTML}
        </div>`
-    : `<div style="display:flex;align-items:center;justify-content:space-between;direction:${nd}">
-         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr">${fmt(val)}</div>
+    : `<div style="display:flex;align-items:center;direction:${nd};gap:16px">
          ${badgeHTML}
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:${align}">${fmt(val)}</div>
        </div>`;
 
   container.innerHTML = `
