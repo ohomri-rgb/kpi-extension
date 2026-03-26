@@ -458,7 +458,7 @@ const CHARTS = [
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
 
-const BAN_COLOR_DEFAULTS = ['#1e1e1e','#ffffff','#8a8a8a','#3a3a3a'];
+const BAN_COLOR_DEFAULTS = ['#1e1e1e','#ffffff','#9a9a9a','#2a2a2a'];
 const BAN_COLOR_LABELS   = ['רקע כרטיס','טקסט עליון','טקסט תחתון','רקע כותרת'];
 
 // ═══════════════════════════════════════════════════
@@ -2094,7 +2094,7 @@ function renderBanTable(rows, assignments) {
   const cols = prevF ? 'auto 1fr auto auto' : 'auto 1fr auto';
   const cellBase = 'padding:12px 20px;display:contents';
 
-  const hCell = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${topCol}35`;
+  const hCell = `font-size:10px;font-weight:600;color:${botCol};letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${botCol}30`;
 
   const headerCells = `
     <div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
@@ -2203,7 +2203,7 @@ function renderBanTable2(rows, assignments, kpiNames) {
   const hasPrevCol = kpis.some(k => k.prev !== null);
 
   const cols = hasPrevCol ? 'auto 1fr auto auto' : 'auto 1fr auto';
-  const hCell = `font-size:10px;font-weight:600;color:${topCol};opacity:.6;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${topCol}35`;
+  const hCell = `font-size:10px;font-weight:600;color:${botCol};letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${botCol}30`;
 
   const headerCells = `
     <div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
@@ -2257,16 +2257,22 @@ function renderBanTable2(rows, assignments, kpiNames) {
 const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
 
 function openColorEditor() {
-  const isBan = ['ban1','ban2','bantable','bantable2'].includes(state.chart?.id);
-  document.getElementById('color-modal-title').textContent = isBan ? 'ערוך צבעי BAN' : 'ערוך צבעי גרף';
-  renderColorSwatches();
+  const isTable = ['bantable','bantable2'].includes(state.chart?.id);
+  const isBan   = ['ban1','ban2'].includes(state.chart?.id);
+  if (isTable) {
+    document.getElementById('color-modal-title').textContent = 'ערוך צבעי טבלה';
+    renderTableColorSwatches();
+  } else {
+    document.getElementById('color-modal-title').textContent = isBan ? 'ערוך צבעי BAN' : 'ערוך צבעי גרף';
+    renderColorSwatches();
+  }
   document.getElementById('color-modal-overlay').classList.add('open');
 }
 function closeColorEditor() { document.getElementById('color-modal-overlay').classList.remove('open'); }
 function onColorOverlayClick(e) { if(e.target===document.getElementById('color-modal-overlay')) closeColorEditor(); }
 
 function renderColorSwatches() {
-  const isBan    = ['ban1','ban2','bantable','bantable2'].includes(state.chart?.id);
+  const isBan    = ['ban1','ban2'].includes(state.chart?.id);
   const colors   = isBan ? (state.banColors || BAN_COLOR_DEFAULTS.slice()) : COLORS;
   const labels   = isBan ? BAN_COLOR_LABELS : COLOR_LABELS;
   const container = document.getElementById('color-swatches');
@@ -2292,15 +2298,96 @@ function renderColorSwatches() {
 }
 
 function resetColors() {
-  if(['ban1','ban2','bantable','bantable2'].includes(state.chart?.id)) { state.banColors=null; }
-  else { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; }
-  renderColorSwatches();
+  const isTable = ['bantable','bantable2'].includes(state.chart?.id);
+  const isBan   = ['ban1','ban2'].includes(state.chart?.id);
+  if (isTable) { state.banColors=null; state.bgColor=null; applyBgColor(null); renderTableColorSwatches(); }
+  else if (isBan) { state.banColors=null; renderColorSwatches(); }
+  else { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; renderColorSwatches(); }
 }
 function applyColors() {
-  if(['ban1','ban2','bantable','bantable2'].includes(state.chart?.id)) { /* banColors already updated live in oninput */ }
-  else { state.customColors=COLORS.slice(); }
+  const isBan = ['ban1','ban2'].includes(state.chart?.id);
+  if (!isBan && !['bantable','bantable2'].includes(state.chart?.id)) { state.customColors=COLORS.slice(); }
   closeColorEditor();
   applyChart();
+}
+
+function renderTableColorSwatches() {
+  const container = document.getElementById('color-swatches');
+  container.innerHTML = '';
+
+  // 4 controls: value text | header text | header bg | sheet bg
+  const colors = state.banColors ? state.banColors.slice() : BAN_COLOR_DEFAULTS.slice();
+  // ensure 4 slots
+  while (colors.length < 4) colors.push(BAN_COLOR_DEFAULTS[colors.length] || '#ffffff');
+
+  const defs = [
+    { label:'ערך טקסט',    desc:'צבע טקסט ערכים ושמות KPI', idx:1, isBg:false },
+    { label:'כותרת טקסט',  desc:'צבע טקסט כותרת טבלה',      idx:1, isHdrText:true },
+    { label:'כותרת רקע',   desc:'רקע שורת הכותרת',           idx:3, isBg:false },
+    { label:'רקע גיליון',  desc:'רקע הטבלה כולה',            idx:0, isBg:true  },
+  ];
+
+  // Split: topCol (idx 1) serves double duty — value text AND header text both use it.
+  // We'll treat hdr text as a separate slot using botCol (idx 2) for tables.
+  // Redefine for table: [0]=sheet bg, [1]=value text, [2]=hdr text, [3]=hdr bg
+  // Map to existing banColors slots same way renderBanTable uses them.
+
+  const TABLE_SLOTS = [
+    { label:'ערך טקסט',    hint:'ערכים, שמות KPI',         key:1 },
+    { label:'כותרת טקסט',  hint:'טקסט שורת הכותרת',        key:2 },
+    { label:'כותרת רקע',   hint:'רקע שורת הכותרת',         key:3 },
+    { label:'רקע גיליון',  hint:'רקע הטבלה',               key:0 },
+  ];
+
+  TABLE_SLOTS.forEach(({ label, hint, key }) => {
+    const isSheetBg = key === 0 && hint.includes('טבלה');
+    // For sheet bg we use state.bgColor instead of banColors
+    const isBgOverride = label === 'רקע גיליון';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)';
+
+    const currentColor = isBgOverride
+      ? (state.bgColor || '#141414')
+      : (colors[key] || BAN_COLOR_DEFAULTS[key] || '#ffffff');
+
+    const swatch = document.createElement('div');
+    swatch.style.cssText = `width:34px;height:34px;border-radius:8px;border:2px solid rgba(0,0,0,.15);cursor:pointer;flex-shrink:0;background:${currentColor};transition:transform .15s`;
+    swatch.onmouseenter = () => swatch.style.transform='scale(1.1)';
+    swatch.onmouseleave = () => swatch.style.transform='scale(1)';
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:13px;font-weight:600;color:var(--text)';
+    lbl.textContent = label;
+    const sub = document.createElement('div');
+    sub.style.cssText = 'font-size:10px;color:var(--text3);margin-top:1px';
+    sub.textContent = currentColor.toUpperCase() + '  ·  ' + hint;
+
+    swatch.addEventListener('click', () => {
+      const input = document.getElementById('native-color-input');
+      input.value = currentColor;
+      input.oninput = () => {
+        const v = input.value;
+        swatch.style.background = v;
+        sub.textContent = v.toUpperCase() + '  ·  ' + hint;
+        if (isBgOverride) {
+          state.bgColor = v;
+          applyBgColor(v);
+        } else {
+          colors[key] = v;
+          state.banColors = colors.slice();
+          applyChart();
+        }
+      };
+      input.click();
+    });
+
+    info.appendChild(lbl); info.appendChild(sub);
+    row.appendChild(swatch); row.appendChild(info);
+    container.appendChild(row);
+  });
 }
 
 // ═══════════════════════════════════════════════════
