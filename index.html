@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>ECharts Extension</title>
 <script src="tableau.extensions.js"></script>
-<script src="echarts.min.js"></script>
-<script src="world.js"></script>
 <style>
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
@@ -343,10 +341,12 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 
 <script>
 // ═══════════════════════════════════════════════════
-// ECharts Extension v12
-// Bug fixes:
-// - saveAsync() only fires on explicit user actions (צייר, color, radius, bg)
-//   NOT on FilterChanged re-renders — prevents Desktop iframe reload loop
+// ECharts Extension v13
+// Bug fixes (v11-v12) + performance (v13):
+// - echarts.min.js + world.js lazy-loaded (~1.4MB skipped for BAN/KPI users)
+// - Startup: one getSummaryDataAsync instead of two (loadFields merged into applyChart)
+// - FilterChanged: no longer calls loadFields — fields refreshed from render data
+// - saveAsync() only on explicit user actions, never on FilterChanged re-renders
 // - MarkSelectionChanged removed (was causing flash on every click)
 // - ignoreSelection:true everywhere (data stable regardless of mark selection)
 // - configure() suppresses FilterChanged for 1s after Format Extension closes
@@ -354,6 +354,22 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 // - Accumulating resize listeners replaced with tracked single listener
 // - ResizeObserver disconnect before recreate (no stacking observers)
 // - onFsInput calls scale() directly instead of dispatching window resize
+// ═══════════════════════════════════════════════════
+// LAZY SCRIPT LOADER — echarts + world.js load only when an ECharts chart is drawn
+// ═══════════════════════════════════════════════════
+let _echartsLoaded = false;
+async function ensureECharts() {
+  if (_echartsLoaded) return;
+  const load = src => new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  await load('echarts.min.js');
+  await load('world.js');
+  _echartsLoaded = true;
+}
+
 // ═══════════════════════════════════════════════════
 // CHART DEFINITIONS  (roles defined once via helpers)
 // ═══════════════════════════════════════════════════
@@ -523,13 +539,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ws = tableau.extensions.worksheetContent.worksheet;
     state.worksheet = ws;
     const hasSaved = loadSettings();
-    await loadFields(ws);
     document.getElementById('onboarding').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     if (hasSaved && state.chart) {
+      // Has saved chart: applyChart fetches data and populates worksheetFields as a side effect.
+      // No separate loadFields call needed — saves one round-trip.
       renderMarksCard();
-      await applyChartAndSave();
+      await applyChart(); // no saveAsync on startup — settings were just loaded from workbook
     } else {
+      // No saved chart: need loadFields so the marks card can show available fields.
+      await loadFields(ws);
       document.getElementById('onboarding').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
     }
@@ -542,9 +561,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (Date.now() < _configureSuppressUntil) return;
         _rendering = true;
         try {
-          await loadFields(ws);
-          renderMarksCard();
+          // loadFields skipped — applyChart populates worksheetFields via parseDataTable
           await applyChart();
+          renderMarksCard(); // re-render marks card after fields are refreshed
         } finally {
           _rendering = false;
         }
@@ -1242,6 +1261,12 @@ function parseDataTable(dt) {
     displayName: cleanFieldName(col._fieldName),
     dataType: col._dataType,
   }));
+  // Keep worksheetFields in sync — avoids a separate loadFields call on every render
+  state.worksheetFields = columns.map(col=>({
+    fieldName: col.fieldName,
+    displayName: col.displayName,
+    dataType: col.dataType,
+  }));
   const rows = dt.data.map(row=>
     Object.fromEntries(columns.map((col,i)=>[col.fieldName, normalizeValue(row[i]?.value??row[i], col.dataType)]))
   );
@@ -1261,6 +1286,8 @@ async function ensureMap() {
 // ECHARTS RENDERER
 // ═══════════════════════════════════════════════════
 async function renderECharts(chart, columns, rows, assignments) {
+  // Lazy-load echarts.min.js + world.js on first ECharts render
+  await ensureECharts();
   const container = document.getElementById('echarts-container');
   // Always dispose stale instance and clear HTML before re-initializing
   if (state.echartsInstance) {
