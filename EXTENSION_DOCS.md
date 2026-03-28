@@ -1,5 +1,5 @@
 # ECharts Extension — Full Project Documentation
-### Unified Doc | v10 (index.html)
+### Unified Doc | v15 (index.html)
 
 ---
 
@@ -24,7 +24,7 @@ A Tableau Viz Extension (worksheet extension) that renders interactive charts, K
 - **Multi-Line Chart** — multi-series time-series line chart, per-line color picker, BG color slot
 - **Click-to-filter disabled** — clicking chart elements does not trigger Tableau mark selection
 - **Transparent background by default** — Tableau sheet background shows through
-- **Fully offline** — no CDN dependencies, all assets served locally
+- **echarts.min.js + world.js lazy-loaded** — only downloaded when an ECharts chart is first drawn; BAN/KPI/Multi-Line users pay no cost
 
 > **Console warnings note:** Tableau's own runtime emits `@import` CSS warnings and preload warnings in the browser console. These originate from `tableau.css` and are unrelated to extension code — safely ignored.
 
@@ -34,17 +34,19 @@ A Tableau Viz Extension (worksheet extension) that renders interactive charts, K
 
 | File | Purpose |
 |---|---|
-| `index.html` | Main extension — all CSS, HTML, JS in one file (~3,030 lines) |
-| `echarts-extension.trex` | Tableau manifest — update URL before deploying |
+| `index.html` | Main extension — all CSS, HTML, JS in one file (~2,530 lines) |
+| `echarts-extension.trex` | Tableau manifest (v0.11.0) — update URL before deploying |
 | `tableau.extensions.js` | Tableau Extensions API (local copy) |
-| `echarts.min.js` | ECharts 5 library (local copy) |
+| `echarts.min.js` | ECharts 5 library (local copy) — **lazy-loaded on first ECharts render** |
 | `chart.js` | Chart.js v4.4.1 (local copy) — used by KPI Card and Multi-Line Chart |
-| `world.js` | ECharts world GeoJSON — auto-registers `'world'` map on load |
-| `NotoSansHebrew-Regular.ttf` | Font — weight 400 |
-| `NotoSansHebrew-SemiBold.ttf` | Font — weight 500/600 |
-| `NotoSansHebrew-ExtraBold.ttf` | Font — weight 700/800 |
+| `world.js` | ECharts world GeoJSON — **lazy-loaded alongside echarts.min.js** |
+| `NotoSansHebrew-Regular.ttf` | Font — weight 400 — **serve from same server as index.html** |
+| `NotoSansHebrew-SemiBold.ttf` | Font — weight 500/600 — **serve from same server as index.html** |
+| `NotoSansHebrew-ExtraBold.ttf` | Font — weight 700/800 — **serve from same server as index.html** |
 | `debug.html` | Debug panel — shows raw API data, column types, field names |
 | `debug.trex` | Manifest for debug panel |
+
+> **Font note (v15):** The extension currently uses a system font stack (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, 'Arial Hebrew', sans-serif`) with no custom font loading. The TTF files listed above are available if you want to restore Noto Sans Hebrew — place them alongside `index.html` and restore the `@font-face` rules. See Font Strategy section below.
 
 ---
 
@@ -55,13 +57,41 @@ A Tableau Viz Extension (worksheet extension) that renders interactive charts, K
 2. Update `echarts-extension.trex` → `<url>` to `http://localhost:8080/index.html`
 3. Load `echarts-extension.trex` → Tableau Desktop → Add Extension → Access Local Viz Extensions
 
-### Tableau Cloud / GitHub Pages (Production)
-- Push **all files** to GitHub repo (index.html + trex + js libs + fonts + world.js + chart.js)
+### Tableau Server / Internal Web Server (Production)
+- Copy **all files** to the internal web server folder (`index.html` + trex + js libs + font files)
+- Update `echarts-extension.trex` → `<url>` to your internal server URL
+- Whitelist in Tableau Server → Settings → Extensions → Add URL
+- Load `echarts-extension.trex`
+- Live debug: open workbook in browser → F12 → Console
+
+> **Critical for performance:** Font files must be served from the **same server as `index.html`**. Serving fonts from GitHub Pages or any external host in a closed/slow network adds 460–800ms per font file per render. With 3 fonts and multiple dashboard instances, this is the dominant load time cost.
+
+### GitHub Pages (External / Open Network Only)
+- Push all files to GitHub repo
 - Enable GitHub Pages on the repo
 - Update `echarts-extension.trex` → `<url>` to your GitHub Pages URL
 - Whitelist in Tableau Cloud → Settings → Extensions → Add URL
-- Load `echarts-extension.trex`
-- Live debug: open workbook in browser → F12 → Console
+
+---
+
+## Font Strategy
+
+The font situation has tradeoffs depending on deployment environment:
+
+| Strategy | File size | Network requests | Multi-instance cost | Best for |
+|---|---|---|---|---|
+| **System fonts (v15 current)** | ~153KB | 0 | 0 | Closed networks, testing |
+| **Local TTF files** | ~153KB + 3×47KB | 3 (from same server, <10ms) | Cached after 1st | Internal server deployment |
+| **Base64 inline** | ~340KB | 0 | N × 340KB per instance | Single-instance, offline |
+| **Google Fonts CDN** | ~153KB | 1 (CDN, cached across origins) | 0 after 1st load | Open network, multi-instance |
+
+To restore Noto Sans Hebrew from local files, add to the top of the `<style>` block:
+```css
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
+@font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-ExtraBold.ttf') format('truetype');font-weight:700 800}
+```
+And update `font-family` throughout the CSS to `'NotoSansHebrew',sans-serif`.
 
 ---
 
@@ -436,7 +466,7 @@ A full-featured scrollable table rendered directly in the extension. No role slo
 | Numeric formatting | `toLocaleString('en-US')` — wrapped in LTR span |
 | Date formatting | Uses Tableau's `formattedValue` |
 | Null values | Displays `—` |
-| RTL layout | Full RTL with Hebrew font |
+| RTL layout | Full RTL with system Hebrew font |
 
 ### Columns Parameter Setup
 
@@ -502,8 +532,8 @@ A full-featured scrollable table rendered directly in the extension. No role slo
 |---|---|
 | ✕ | Close the marks-card panel |
 | ↺ | Reload fields from Detail shelf |
-| צייר | Render chart + save settings |
-| 🎨 | Color editor — ECharts palette / BAN colors / KPI Table dedicated controls. For KPI Card and Multi-Line Chart, click legend swatches directly instead |
+| צייר | Render chart + save settings to workbook |
+| 🎨 | Color editor — ECharts palette / BAN colors / KPI Table dedicated controls. For Multi-Line Chart, click legend swatches directly instead |
 | 🖼 | Background color picker (single click = pick, double click = reset to transparent) |
 | ⌐ | Border radius popover — 4 independent corner inputs, 0–80px |
 | Aa | Font size popover — 4 sliders for BAN text. Only visible when ban1 or ban2 is active |
@@ -514,24 +544,27 @@ A full-featured scrollable table rendered directly in the extension. No role slo
 ## How the Extension Works — Flow
 
 ```
-initializeAsync({ configure: () => show marks-card })
+initializeAsync({ configure: () => show marks-card, suppress FilterChanged 1s })
   └── loadSettings() → restore full state
-  └── loadFields() — getSummaryDataAsync({ maxRows:1 })
-  └── applyBorderRadius()
   └── if saved state:
-        → app shown, marks-card hidden
-        → renderMarksCard() + applyChart() → chart rendered immediately
+        → renderMarksCard() + applyChart() [populates worksheetFields as side effect]
       else:
+        → loadFields() [one getSummaryDataAsync for field list]
         → onboarding screen shown
 
-applyChart()
+applyChart()  [re-render only, no saveAsync]
   ├── [rtltable]    → renderTable()
   ├── [kpi_card]    → renderKpiCard(dt, assignments, params)
   ├── [multiline]   → renderMultiLine(dt, assignments, params)
   ├── [bantable2]   → renderBanTable2(rows, assignments, kpiNames)
   ├── [ban1/ban2]   → renderBan(rows, assignments, banStyle)
-  └── [other]       → renderECharts() [always disposes + clears + reinits fresh]
+  └── [other]       → ensureECharts() [lazy-load] → renderECharts()
   └── applyBorderRadius()
+  └── parseDataTable() syncs state.worksheetFields [no separate loadFields needed]
+
+applyChartAndSave()  [render + saveAsync — only on explicit user actions]
+  └── same as applyChart() but calls saveSettings() after render
+  └── triggered by: צייר button, color editor save, border radius save, bg color pick
 ```
 
 ---
@@ -539,6 +572,8 @@ applyChart()
 ## Settings — Persist Across Sessions
 
 All settings saved inside the workbook via `tableau.extensions.settings`. Stored in the `.twbx` file — shared across all users opening the workbook.
+
+**Important:** `saveAsync()` is called **only on explicit user actions** (clicking צייר, changing colors, border radius, or background color). It is never called on `FilterChanged` re-renders. This prevents Tableau Desktop from reloading the extension iframe after every filter change.
 
 ```javascript
 tableau.extensions.settings.set('chartId',      state.chart.id);
@@ -562,7 +597,7 @@ await tableau.extensions.settings.saveAsync();
 state = {
   chart: null,              // selected chart config object
   assignments: {},          // roleId → { fieldName, displayName, dataType }
-  worksheetFields: [],      // fields from loadFields() — only fields on Detail shelf
+  worksheetFields: [],      // populated by parseDataTable() on every render
   worksheet: null,          // tableau worksheet reference (stored on init)
   echartsInstance: null,    // ECharts instance on the container div
   activeDropdownRole: null, // role currently being assigned
@@ -573,9 +608,14 @@ state = {
   borderRadius: {tl:0,tr:0,bl:0,br:0}, // corner radii in px
   bgColor: null,            // hex string for extension background, or null = transparent
   kpiNames: ['','','',''],  // KPI names typed in bantable2 marks card UI
-  mlColorMap: {},           // label → hex, line colors for multiline chart
-  mlBgColorMap: {},         // label → hex, background colors for multiline BG slot
-  mlChartInstance: null,    // Chart.js instance — shared by kpi_card and multiline
+  mlColorMap: {},           // label → hex, line colors for multiline chart — persisted in settings
+  mlBgColorMap: {},         // label → hex, background colors for multiline BG slot — persisted in settings
+  mlChartInstance: null,    // Chart.js instance for multiline
+  // Internal render guards:
+  _applyChartRunning: false,  // prevents concurrent renders
+  _banResizeObserver: null,   // tracked ResizeObserver for BAN cards — disconnected before recreate
+  _banScaleFn: null,          // reference to BAN scale() — called directly by font size sliders
+  _echartsResizeHandler: null, // tracked window resize handler — removed before re-adding
 }
 ```
 
@@ -635,4 +675,9 @@ Used by `ban1`, `ban2`, and `bantable2`.
 | v7 | ✅ Superseded | **KPI BAN Cards** (`ban1`, `ban2`) — dark premium design, ResizeObserver scaling, RTL/LTR detection, ₪/$ currency, 5 field shelves. Context-aware 🎨 color editor with 3 BAN swatches. **⌐ Border radius control** — 4-corner independent popover, persisted in settings. Container switching fixes. |
 | v8 | ✅ Superseded | **BAN layout & proportion overhaul** — balanced scale unit, value font capped at 42% card height, opacity fixes, badge padding tightened. **RTL/LTR layout fixed** — unified `direction:ltr` flex row with DOM order swap. **Aa Font size control** — BAN-only, 4 sliders, live preview, persisted as `banFontSizes`. |
 | v9 | ✅ Superseded | **KPI Table (מדדים)** (`bantable2`) — up to 4 typed KPI names mapped to separate measure fields. CSS grid layout guarantees column alignment between header and data rows. Context-aware 🎨 color editor with 4 dedicated table controls. Old dimension-driven `bantable` removed. |
-| v10 | ✅ Current | **Unified extension** — merged KPI Card (Sparkline) and Multi-Line Chart into `index.html` as chart types `kpi_card` and `multiline`. Added `chart.js` dependency. New category "סדרות זמן". KPI Card: full port of `kpi_40.html` v70 — last-year + range modes, all granularities, RTL/LTR, year-mode YTD. Multi-Line: full port of `multi.html` v31 — per-line color popover, BG color slot, Hebrew month/quarter labels, `mlColorMap`/`mlBgColorMap` persisted in settings. State extended with `mlColorMap`, `mlBgColorMap`, `mlChartInstance`. |
+| v10 | ✅ Superseded | **Unified extension** — merged KPI Card (Sparkline) and Multi-Line Chart into `index.html` as chart types `kpi_card` and `multiline`. Added `chart.js` dependency. New category "סדרות זמן". KPI Card: full port of `kpi_40.html` v70. Multi-Line: full port of `multi.html` v31. `mlColorMap`/`mlBgColorMap` persisted in settings. |
+| v11 | ✅ Superseded | **Bug fixes — rendering stability.** `MarkSelectionChanged` listener removed (was causing full re-render on every click). `ignoreSelection:true` on all `getSummaryDataAsync` calls (data no longer changes on mark selection). `configure()` callback suppresses `FilterChanged` for 1s after Format Extension dialog closes (Tableau fires it immediately on close). `FilterChanged` debounced 300ms. Render lock (`_applyChartRunning`) prevents concurrent renders. |
+| v12 | ✅ Superseded | **Bug fix — Tableau Desktop iframe reload loop.** `saveAsync()` moved out of `FilterChanged` re-render path. Now only called on explicit user actions (צייר, color changes, border radius, bg color). On Desktop, `saveAsync()` marks the workbook dirty and can trigger an iframe reload — calling it on every filter change created a reload loop causing the viz to disappear and reappear. Split into `applyChart()` (render only) and `applyChartAndSave()` (render + save). Accumulated `window.resize` listeners fixed. `ResizeObserver` disconnected before recreate. `onFsInput` calls `scale()` directly instead of dispatching `window` resize event. |
+| v13 | ✅ Superseded | **Performance — startup speed.** `echarts.min.js` (~1MB) and `world.js` (~400KB) lazy-loaded on first ECharts render — BAN/KPI/Multi-Line users skip these entirely. `loadFields()` removed from startup and `FilterChanged` paths — `parseDataTable()` now populates `state.worksheetFields` as a side effect of the data fetch already done by `applyChart()`, eliminating one `getSummaryDataAsync` round-trip per render. No `saveAsync` on startup. |
+| v14 | ✅ Superseded | **Font strategy iteration.** Tested base64-inlined fonts (340KB HTML, zero requests) and Google Fonts CDN. Neither suited the target deployment: base64 penalizes multi-instance dashboards (N×340KB); Google Fonts unavailable on closed networks. Reverted to local TTF files with guidance to serve from same internal server as index.html. |
+| v15 | ✅ Current | **System fonts.** Removed all `@font-face` rules and custom font loading. Font stack: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, 'Arial Hebrew', sans-serif`. Zero font network requests. Hebrew renders via Arial (Windows) or system UI font (Mac). Enables testing on local dev server without any font files. TTF files retained in repo for potential restore — see Font Strategy section. |
