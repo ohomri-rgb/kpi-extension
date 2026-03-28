@@ -344,9 +344,14 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 <script>
 // ═══════════════════════════════════════════════════
 // ECharts Extension v11
-// Bug fixes: FilterChanged debounce, render lock,
-// accumulating resize listeners, stacking
-// ResizeObservers, window resize event loop
+// Bug fixes:
+// - FilterChanged debounce + render lock (no concurrent renders)
+// - MarkSelectionChanged removed (was causing flash on every click)
+// - ignoreSelection:true everywhere (data no longer changes on mark click)
+// - configure() suppresses FilterChanged for 1s (Tableau fires it on dialog close)
+// - Accumulating resize listeners replaced with tracked single listener
+// - ResizeObserver disconnect before recreate (no stacking observers)
+// - onFsInput calls scale() directly instead of dispatching window resize
 // ═══════════════════════════════════════════════════
 // CHART DEFINITIONS  (roles defined once via helpers)
 // ═══════════════════════════════════════════════════
@@ -500,13 +505,18 @@ async function reloadFields() {
 // Render-lock: prevents concurrent applyChart calls from FilterChanged storms
 let _rendering = false;
 let _filterDebounceTimer = null;
+let _configureSuppressUntil = 0; // suppresses FilterChanged briefly after Format Extension closes
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await tableau.extensions.initializeAsync({ configure: () => {
-      // Only show marks-card; never trigger a re-render from configure
+      // Show marks-card when Format Extension is opened
       const mc = document.getElementById('marks-card');
       if (mc) mc.style.display = '';
+      // Suppress FilterChanged for 1s after configure closes —
+      // Tableau fires SummaryDataChanged/FilterChanged immediately after
+      // the dialog closes, which causes the viz to flash and redraw for no reason.
+      _configureSuppressUntil = Date.now() + 1000;
     }});
     const ws = tableau.extensions.worksheetContent.worksheet;
     state.worksheet = ws;
@@ -523,9 +533,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
       // Debounce: wait 300ms after last FilterChanged before re-rendering
+      // Also skip if we're in the post-configure suppression window
       clearTimeout(_filterDebounceTimer);
       _filterDebounceTimer = setTimeout(async () => {
         if (_rendering) return;
+        if (Date.now() < _configureSuppressUntil) return;
         _rendering = true;
         try {
           await loadFields(ws);
@@ -536,7 +548,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }, 300);
     });
-    ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
+    // MarkSelectionChanged intentionally NOT wired — click-to-filter is disabled,
+    // and re-rendering on every mark click causes the viz to flash/disappear.
     buildGalleryChips();
   } catch(e) { showError('שגיאת אתחול: ' + e); }
 });
@@ -1169,7 +1182,7 @@ async function _applyChartInner(chart) {
     if (!state.assignments.val1) { showError('חסר: ערך 1'); return; }
     try {
       const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
       const {rows} = parseDataTable(dt);
       renderBanTable2(rows, state.assignments, state.kpiNames);
       applyBorderRadius();
@@ -1182,7 +1195,7 @@ async function _applyChartInner(chart) {
     if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
     try {
       const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
       const {rows} = parseDataTable(dt);
       renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
       applyBorderRadius();
@@ -1194,7 +1207,7 @@ async function _applyChartInner(chart) {
   if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
   try {
     const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
     const {columns, rows} = parseDataTable(dt);
     if (rows.some(row=>Object.values(row).some(v=>v!==null&&String(v).includes('%many%')))||rows.length===0) {
       showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
@@ -1206,10 +1219,6 @@ async function _applyChartInner(chart) {
   } catch(e) { showError('שגיאת טעינה: '+e); }
 }
 
-async function refreshChart() {
-  if (!state.chart||!state.echartsInstance) return;
-  if (state.chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id])) await applyChart();
-}
 
 function parseDataTable(dt) {
   const columns = dt.columns.map(col=>({
