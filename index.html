@@ -213,7 +213,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
     <div class="marks-top">
       <button class="close-mc-btn" onclick="toggleMarksCard()" title="סגור">✕</button>
       <button class="refresh-btn" id="refresh-btn" onclick="reloadFields()" title="רענן שדות">↺</button>
-      <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
+      <button class="apply-btn" id="apply-btn" onclick="applyChartAndSave()" disabled>צייר</button>
       <button class="color-edit-btn" onclick="openColorEditor()" title="ערוך צבעים">🎨</button>
       <button class="color-edit-btn" onclick="openBgColorPicker()" ondblclick="resetBgColor()" title="צבע רקע (כפול=שקוף)">🖼</button>
       <button class="color-edit-btn" id="radius-btn" onclick="toggleRadiusPopover(event)" title="עיגול פינות">⌐</button>
@@ -343,12 +343,14 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 
 <script>
 // ═══════════════════════════════════════════════════
-// ECharts Extension v11
+// ECharts Extension v12
 // Bug fixes:
-// - FilterChanged debounce + render lock (no concurrent renders)
+// - saveAsync() only fires on explicit user actions (צייר, color, radius, bg)
+//   NOT on FilterChanged re-renders — prevents Desktop iframe reload loop
 // - MarkSelectionChanged removed (was causing flash on every click)
-// - ignoreSelection:true everywhere (data no longer changes on mark click)
-// - configure() suppresses FilterChanged for 1s (Tableau fires it on dialog close)
+// - ignoreSelection:true everywhere (data stable regardless of mark selection)
+// - configure() suppresses FilterChanged for 1s after Format Extension closes
+// - FilterChanged debounce 300ms + render lock (no concurrent renders)
 // - Accumulating resize listeners replaced with tracked single listener
 // - ResizeObserver disconnect before recreate (no stacking observers)
 // - onFsInput calls scale() directly instead of dispatching window resize
@@ -526,7 +528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('app').style.display = 'flex';
     if (hasSaved && state.chart) {
       renderMarksCard();
-      await applyChart();
+      await applyChartAndSave();
     } else {
       document.getElementById('onboarding').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
@@ -1146,21 +1148,35 @@ async function renderTable() {
 // ═══════════════════════════════════════════════════
 // FETCH + RENDER
 // ═══════════════════════════════════════════════════
+// applyChart() — re-render only, no save (used by FilterChanged)
 async function applyChart() {
   hideError();
   const chart = state.chart;
   if (!chart) return;
-  // Guard: don't allow concurrent renders (e.g. from FilterChanged + manual draw)
   if (state._applyChartRunning) return;
   state._applyChartRunning = true;
   try {
-    await _applyChartInner(chart);
+    await _applyChartInner(chart, false);
   } finally {
     state._applyChartRunning = false;
   }
 }
 
-async function _applyChartInner(chart) {
+// applyChartAndSave() — render + save settings (used by user-initiated actions)
+async function applyChartAndSave() {
+  hideError();
+  const chart = state.chart;
+  if (!chart) return;
+  if (state._applyChartRunning) return;
+  state._applyChartRunning = true;
+  try {
+    await _applyChartInner(chart, true);
+  } finally {
+    state._applyChartRunning = false;
+  }
+}
+
+async function _applyChartInner(chart, saveAfter = false) {
   const isTable    = chart.id==='rtltable';
   const isBanTable2 = chart.id==='bantable2';
   const isBan      = ['ban1','ban2'].includes(chart.id);
@@ -1175,7 +1191,7 @@ async function _applyChartInner(chart) {
   document.getElementById('table-container').style.display = isTable?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
   if (isTable) {
-    try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    try { await renderTable(); if (saveAfter) await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
   if (isBanTable2) {
@@ -1186,7 +1202,7 @@ async function _applyChartInner(chart) {
       const {rows} = parseDataTable(dt);
       renderBanTable2(rows, state.assignments, state.kpiNames);
       applyBorderRadius();
-      await saveSettings();
+      if (saveAfter) await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
@@ -1199,7 +1215,7 @@ async function _applyChartInner(chart) {
       const {rows} = parseDataTable(dt);
       renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
       applyBorderRadius();
-      await saveSettings();
+      if (saveAfter) await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
@@ -1215,7 +1231,7 @@ async function _applyChartInner(chart) {
     }
     renderECharts(chart, columns, rows, state.assignments);
     applyBorderRadius();
-    await saveSettings();
+    if (saveAfter) await saveSettings();
   } catch(e) { showError('שגיאת טעינה: '+e); }
 }
 
