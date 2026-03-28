@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>ECharts Extension</title>
 <script src="tableau.extensions.js"></script>
-<script src="echarts.min.js"></script>
-<script src="world.js"></script>
 <style>
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
@@ -102,6 +100,27 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 
+/* RADIUS POPOVER */
+.radius-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:192px;display:none;direction:ltr}
+.radius-popover.open{display:block}
+
+/* FONT SIZE POPOVER */
+.fontsize-popover{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:600;padding:12px 14px;width:220px;display:none;direction:rtl}
+.fontsize-popover.open{display:block}
+.fontsize-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
+.fs-row{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.fs-row-header{font-size:10px;color:var(--text3);display:flex;justify-content:space-between;align-items:center}
+.fs-row-header span.fs-val{color:var(--teal);font-weight:700;font-size:11px;min-width:26px;text-align:left;direction:ltr}
+.fs-row input[type=range]{width:100%;accent-color:var(--teal);cursor:pointer;height:4px;margin:0}
+.radius-popover-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;letter-spacing:.05em}
+.radius-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.radius-cell{display:flex;flex-direction:column;gap:3px}
+.radius-cell label{font-size:10px;color:var(--text3)}
+.radius-cell input[type=number]{width:100%;padding:3px 6px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none;-moz-appearance:textfield}
+.radius-cell input[type=number]::-webkit-inner-spin-button{opacity:1}
+.radius-cell input[type=number]:focus{border-color:var(--teal)}
+.radius-corner-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 auto 6px}
+
 /* ONBOARDING */
 .onboarding{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}
 .ob-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px 20px;width:100%;max-width:340px;text-align:center}
@@ -192,9 +211,11 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
     <div class="marks-top">
       <button class="close-mc-btn" onclick="toggleMarksCard()" title="סגור">✕</button>
       <button class="refresh-btn" id="refresh-btn" onclick="reloadFields()" title="רענן שדות">↺</button>
-      <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
+      <button class="apply-btn" id="apply-btn" onclick="applyChartAndSave()" disabled>צייר</button>
       <button class="color-edit-btn" onclick="openColorEditor()" title="ערוך צבעים">🎨</button>
       <button class="color-edit-btn" onclick="openBgColorPicker()" ondblclick="resetBgColor()" title="צבע רקע (כפול=שקוף)">🖼</button>
+      <button class="color-edit-btn" id="radius-btn" onclick="toggleRadiusPopover(event)" title="עיגול פינות">⌐</button>
+      <button class="color-edit-btn" id="fontsize-btn" onclick="toggleFontsizePopover(event)" title="גודל טקסט BAN" style="display:none">Aa</button>
       <button class="chart-type-btn" onclick="openGallery()">
         <span id="mc-name">בחר סוג גרף</span>
         <span id="mc-icon">📈</span>
@@ -233,7 +254,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 <!-- Color Editor Modal -->
 <div class="modal-overlay" id="color-modal-overlay" onclick="onColorOverlayClick(event)">
   <div class="modal" style="width:320px;max-width:95vw">
-    <div class="modal-header"><h2>ערוך צבעי גרף</h2><button class="modal-close" onclick="closeColorEditor()">✕</button></div>
+    <div class="modal-header"><h2 id="color-modal-title">ערוך צבעי גרף</h2><button class="modal-close" onclick="closeColorEditor()">✕</button></div>
     <div class="modal-body" style="padding:16px 18px">
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">לחץ על צבע לעריכה.</p>
       <div id="color-swatches" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -247,6 +268,67 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 <input type="color" id="native-color-input" style="position:fixed;opacity:0;width:0;height:0;pointer-events:none"/>
 <input type="color" id="native-bg-input" style="position:fixed;opacity:0;width:0;height:0;pointer-events:none"/>
 
+<!-- RADIUS POPOVER -->
+<div class="radius-popover" id="radius-popover">
+  <div class="radius-popover-title">עיגול פינות (px)</div>
+  <div style="display:flex;justify-content:center;margin-bottom:10px">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <rect x="2" y="2" width="60" height="60" rx="8" stroke="var(--border2)" stroke-width="1.5" fill="none"/>
+      <circle cx="10" cy="10" r="3" fill="var(--teal)" id="rc-tl-dot"/>
+      <circle cx="54" cy="10" r="3" fill="var(--teal)" id="rc-tr-dot"/>
+      <circle cx="10" cy="54" r="3" fill="var(--teal)" id="rc-bl-dot"/>
+      <circle cx="54" cy="54" r="3" fill="var(--teal)" id="rc-br-dot"/>
+    </svg>
+  </div>
+  <div class="radius-grid">
+    <div class="radius-cell">
+      <label>↖ עליון שמאל</label>
+      <input type="number" id="rc-tl" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↗ עליון ימין</label>
+      <input type="number" id="rc-tr" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↙ תחתון שמאל</label>
+      <input type="number" id="rc-bl" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+    <div class="radius-cell">
+      <label>↘ תחתון ימין</label>
+      <input type="number" id="rc-br" min="0" max="80" value="0" oninput="onRadiusInput()"/>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px">
+    <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetRadius()">אפס</button>
+    <button class="apply-btn" style="flex:1" onclick="saveRadiusAndClose()">שמור</button>
+  </div>
+</div>
+
+<!-- FONT SIZE POPOVER (BAN only) -->
+<div class="fontsize-popover" id="fontsize-popover">
+  <div class="fontsize-popover-title">גודל טקסט — BAN</div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>שם KPI</span><span class="fs-val" id="fs-name-val">—</span></div>
+    <input type="range" id="fs-name" min="8" max="36" step="1" oninput="onFsInput('name',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>ערך ראשי</span><span class="fs-val" id="fs-value-val">—</span></div>
+    <input type="range" id="fs-value" min="20" max="120" step="2" oninput="onFsInput('value',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>תג שינוי</span><span class="fs-val" id="fs-badge-val">—</span></div>
+    <input type="range" id="fs-badge" min="8" max="32" step="1" oninput="onFsInput('badge',this.value)"/>
+  </div>
+  <div class="fs-row">
+    <div class="fs-row-header"><span>תקופה / ערך קודם</span><span class="fs-val" id="fs-bot-val">—</span></div>
+    <input type="range" id="fs-bot" min="8" max="28" step="1" oninput="onFsInput('bot',this.value)"/>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px">
+    <button class="apply-btn" style="flex:1;background:var(--border2);color:var(--text)" onclick="resetFontSizes()">אפס</button>
+    <button class="apply-btn" style="flex:1" onclick="saveFontsizeAndClose()">שמור</button>
+  </div>
+</div>
+
 <!-- Table filter dropdown -->
 <div class="tbl-dd-panel" id="tbl-dd-panel">
   <div class="tbl-dd-search"><input type="text" id="tbl-dd-search-input" placeholder="חיפוש..."/></div>
@@ -258,6 +340,36 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 </div>
 
 <script>
+// ═══════════════════════════════════════════════════
+// ECharts Extension v13
+// Bug fixes (v11-v12) + performance (v13):
+// - echarts.min.js + world.js lazy-loaded (~1.4MB skipped for BAN/KPI users)
+// - Startup: one getSummaryDataAsync instead of two (loadFields merged into applyChart)
+// - FilterChanged: no longer calls loadFields — fields refreshed from render data
+// - saveAsync() only on explicit user actions, never on FilterChanged re-renders
+// - MarkSelectionChanged removed (was causing flash on every click)
+// - ignoreSelection:true everywhere (data stable regardless of mark selection)
+// - configure() suppresses FilterChanged for 1s after Format Extension closes
+// - FilterChanged debounce 300ms + render lock (no concurrent renders)
+// - Accumulating resize listeners replaced with tracked single listener
+// - ResizeObserver disconnect before recreate (no stacking observers)
+// - onFsInput calls scale() directly instead of dispatching window resize
+// ═══════════════════════════════════════════════════
+// LAZY SCRIPT LOADER — echarts + world.js load only when an ECharts chart is drawn
+// ═══════════════════════════════════════════════════
+let _echartsLoaded = false;
+async function ensureECharts() {
+  if (_echartsLoaded) return;
+  const load = src => new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  await load('echarts.min.js');
+  await load('world.js');
+  _echartsLoaded = true;
+}
+
 // ═══════════════════════════════════════════════════
 // CHART DEFINITIONS  (roles defined once via helpers)
 // ═══════════════════════════════════════════════════
@@ -324,6 +436,32 @@ const CHARTS = [
   {id:'tree',        cat:'היררכיה',  name:'Tree Chart',         icon:'🌳', roles:[R.parent(), R.child(), R.val()]},
   {id:'radialtree',  cat:'היררכיה',  name:'Radial Tree',        icon:'🌐', roles:[R.parent(), R.child(), R.val()]},
   // KPI
+  {id:'ban1', cat:'KPI', name:'BAN Card — Style 1', icon:'📌', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
+  {id:'ban2', cat:'KPI', name:'BAN Card — Style 2', icon:'📌', roles:[
+    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
+    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
+  {id:'bantable2', cat:'KPI', name:'KPI Table (מדדים)', icon:'📋', roles:[
+    {id:'val1',    label:'ערך 1',            accepts:'measure', required:true},
+    {id:'val2',    label:'ערך 2',            accepts:'measure', required:false},
+    {id:'val3',    label:'ערך 3',            accepts:'measure', required:false},
+    {id:'val4',    label:'ערך 4',            accepts:'measure', required:false},
+    {id:'prev1',   label:'קודם 1',           accepts:'measure', required:false},
+    {id:'prev2',   label:'קודם 2',           accepts:'measure', required:false},
+    {id:'prev3',   label:'קודם 3',           accepts:'measure', required:false},
+    {id:'prev4',   label:'קודם 4',           accepts:'measure', required:false},
+    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
+    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
+  ]},
   {id:'gauge',       cat:'KPI',      name:'Gauge Chart',        icon:'🎯', roles:[R.val(), R.opt('max','מקסימום','measure')]},
   {id:'gaugeprogress',cat:'KPI',     name:'Progress Bar',       icon:'📏', roles:[R.val(), R.opt('max','מקסימום','measure'), R.opt('dim','קטגוריה','dim')]},
   {id:'gaugemulti',  cat:'KPI',      name:'Multi Gauge',        icon:'🎯', roles:[R.val(), {id:'val2',label:'ערך 2',accepts:'measure',required:false},{id:'val3',label:'ערך 3',accepts:'measure',required:false}]},
@@ -341,13 +479,18 @@ const CHARTS = [
 
 const CATS = ['הכל',...[...new Set(CHARTS.map(c=>c.cat))]];
 
+const BAN_COLOR_DEFAULTS = ['#1e1e1e','#ffffff','#9a9a9a','#2a2a2a'];
+const BAN_COLOR_LABELS   = ['רקע כרטיס','טקסט עליון','טקסט תחתון','רקע כותרת'];
+
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
 let state = {
   chart:null, assignments:{}, worksheetFields:[], worksheet:null,
   echartsInstance:null, activeDropdownRole:null, galleryFilter:'הכל',
-  customColors:null, bgColor:null,
+  customColors:null, bgColor:null, banColors:null, banStyle:1,
+  borderRadius:{tl:0,tr:0,bl:0,br:0},
+  kpiNames:['','','',''],
 };
 
 // ═══════════════════════════════════════════════════
@@ -377,28 +520,57 @@ async function reloadFields() {
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
+// Render-lock: prevents concurrent applyChart calls from FilterChanged storms
+let _rendering = false;
+let _filterDebounceTimer = null;
+let _configureSuppressUntil = 0; // suppresses FilterChanged briefly after Format Extension closes
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await tableau.extensions.initializeAsync({ configure: () => {
-      document.getElementById('marks-card').style.display = '';
+      // Show marks-card when Format Extension is opened
+      const mc = document.getElementById('marks-card');
+      if (mc) mc.style.display = '';
+      // Suppress FilterChanged for 1s after configure closes —
+      // Tableau fires SummaryDataChanged/FilterChanged immediately after
+      // the dialog closes, which causes the viz to flash and redraw for no reason.
+      _configureSuppressUntil = Date.now() + 1000;
     }});
     const ws = tableau.extensions.worksheetContent.worksheet;
     state.worksheet = ws;
     const hasSaved = loadSettings();
-    await loadFields(ws);
     document.getElementById('onboarding').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     if (hasSaved && state.chart) {
+      // Has saved chart: applyChart fetches data and populates worksheetFields as a side effect.
+      // No separate loadFields call needed — saves one round-trip.
       renderMarksCard();
-      await applyChart();
+      await applyChart(); // no saveAsync on startup — settings were just loaded from workbook
     } else {
+      // No saved chart: need loadFields so the marks card can show available fields.
+      await loadFields(ws);
       document.getElementById('onboarding').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
     }
-    ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
-      await loadFields(ws); renderMarksCard(); await applyChart();
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
+      // Debounce: wait 300ms after last FilterChanged before re-rendering
+      // Also skip if we're in the post-configure suppression window
+      clearTimeout(_filterDebounceTimer);
+      _filterDebounceTimer = setTimeout(async () => {
+        if (_rendering) return;
+        if (Date.now() < _configureSuppressUntil) return;
+        _rendering = true;
+        try {
+          // loadFields skipped — applyChart populates worksheetFields via parseDataTable
+          await applyChart();
+          renderMarksCard(); // re-render marks card after fields are refreshed
+        } finally {
+          _rendering = false;
+        }
+      }, 300);
     });
-    ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
+    // MarkSelectionChanged intentionally NOT wired — click-to-filter is disabled,
+    // and re-rendering on every mark click causes the viz to flash/disappear.
     buildGalleryChips();
   } catch(e) { showError('שגיאת אתחול: ' + e); }
 });
@@ -472,11 +644,17 @@ function renderMarksCard() {
   if (!chart) return;
   document.getElementById('mc-icon').textContent = chart.icon;
   document.getElementById('mc-name').textContent = chart.name;
+  // Show font-size button only for BAN charts
+  document.getElementById('fontsize-btn').style.display = ['ban1','ban2'].includes(chart.id) ? '' : 'none';
   const list = document.getElementById('roles-list');
   list.innerHTML = '';
   if (chart.id === 'rtltable') {
     list.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:4px 2px">כל השדות מה-Detail יוצגו בטבלה.</div>';
     document.getElementById('apply-btn').disabled = false;
+    return;
+  }
+  if (chart.id === 'bantable2') {
+    renderBanTable2MarksCard(list);
     return;
   }
   chart.roles.forEach(role => {
@@ -752,7 +930,25 @@ function drawPreview(chart, container) {
 
   const opt = previewMap[chart.id];
   if (opt) { ec.setOption(opt); }
-  else if (chart.id === 'rtltable') {
+  else if (['ban1','ban2'].includes(chart.id)) {
+    ec.dispose();
+    const isBan2 = chart.id === 'ban2';
+    container.innerHTML = `<div style="height:80px;display:flex;align-items:stretch;padding:6px"><div style="flex:1;background:#1c1c1c;border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;direction:rtl"><div style="font-size:7px;color:rgba(255,255,255,.35);text-align:right">מכירות</div>${isBan2
+      ? `<div style="font-size:19px;font-weight:800;color:#fff;direction:ltr;text-align:right">₪2.3M</div><div style="display:flex;justify-content:flex-end"><div style="border:1px solid rgba(80,200,60,.55);border-radius:99px;padding:2px 8px;font-size:8px;color:#fff;background:rgba(255,255,255,.04);direction:ltr">▲ 42.9% שינוי</div></div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;direction:rtl"><div style="font-size:19px;font-weight:800;color:#fff;direction:ltr">₪2.3M</div><div style="border:1px solid rgba(80,200,60,.55);border-radius:99px;padding:2px 8px;font-size:8px;color:#fff;background:rgba(255,255,255,.04);direction:ltr">▲ 42.9% שינוי</div></div>`
+    }<div style="height:.5px;background:rgba(255,255,255,.1)"></div><div style="font-size:7px;color:rgba(255,255,255,.4);text-align:right">₪1.6M</div></div></div>`;
+  } else if (chart.id === 'bantable2') {
+    ec.dispose();
+    container.innerHTML = `<div style="height:80px;overflow:hidden;direction:rtl;background:#141414;border-radius:6px;margin:4px;font-family:inherit">
+      ${[['מכירות','₪2.3M','+42.9%','pos'],['רוחים','₪2.3M','+42.9%','pos'],['הוצאות','₪2.3M','-42.9%','neg']].map((r,i)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.07)">
+        <span style="font-size:7.5px;color:#fff;font-weight:600">${r[0]}</span>
+        <span style="font-size:10px;font-weight:800;color:#fff;direction:ltr">${r[1]}</span>
+        <span style="font-size:7px;padding:1px 5px;border-radius:99px;border:1px solid ${r[3]==='pos'?'rgba(80,200,60,.55)':'rgba(220,60,50,.55)'};color:#fff;direction:ltr">${r[2]}</span>
+        <span style="font-size:7px;color:rgba(255,255,255,.4)">₪1.6M</span>
+      </div>`).join('')}
+    </div>`;
+  } else if (chart.id === 'rtltable') {
     ec.dispose();
     container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;direction:rtl;font-size:10px;color:#555;border:1px solid #e5e7eb;border-radius:4px;margin:4px;background:#f9fafb"><span>א ב ג<br>1 2 3<br>— — —</span></div>';
   } else {
@@ -769,7 +965,11 @@ async function saveSettings() {
     tableau.extensions.settings.set('chartId', state.chart?.id||'');
     tableau.extensions.settings.set('assignments', JSON.stringify(state.assignments||{}));
     tableau.extensions.settings.set('customColors', JSON.stringify(state.customColors||null));
+    tableau.extensions.settings.set('banColors', JSON.stringify(state.banColors||null));
+    tableau.extensions.settings.set('borderRadius', JSON.stringify(state.borderRadius||{tl:0,tr:0,bl:0,br:0}));
     tableau.extensions.settings.set('bgColor', state.bgColor||'');
+    tableau.extensions.settings.set('banFontSizes', JSON.stringify(state.banFontSizes||null));
+    tableau.extensions.settings.set('kpiNames', JSON.stringify(state.kpiNames||['','','','']));
     await tableau.extensions.settings.saveAsync();
   } catch(e) { console.warn('[ECharts] save failed:', e); }
 }
@@ -787,6 +987,15 @@ function loadSettings() {
         state.customColors = colorsRaw ? JSON.parse(colorsRaw) : null;
         COLORS = state.customColors || DEFAULT_COLORS.slice();
         state.bgColor = tableau.extensions.settings.get('bgColor')||null;
+        const banColorsRaw = tableau.extensions.settings.get('banColors');
+        state.banColors = banColorsRaw ? JSON.parse(banColorsRaw) : null;
+        const brRaw = tableau.extensions.settings.get('borderRadius');
+        state.borderRadius = brRaw ? JSON.parse(brRaw) : {tl:0,tr:0,bl:0,br:0};
+        const bfsRaw = tableau.extensions.settings.get('banFontSizes');
+        state.banFontSizes = bfsRaw ? JSON.parse(bfsRaw) : null;
+        const kpiNamesRaw = tableau.extensions.settings.get('kpiNames');
+        state.kpiNames = kpiNamesRaw ? JSON.parse(kpiNamesRaw) : ['','','',''];
+        applyBorderRadius();
         applyBgColor(state.bgColor);
         return true;
       }
@@ -958,43 +1167,105 @@ async function renderTable() {
 // ═══════════════════════════════════════════════════
 // FETCH + RENDER
 // ═══════════════════════════════════════════════════
+// applyChart() — re-render only, no save (used by FilterChanged)
 async function applyChart() {
   hideError();
   const chart = state.chart;
   if (!chart) return;
-  const isTable = chart.id==='rtltable';
+  if (state._applyChartRunning) return;
+  state._applyChartRunning = true;
+  try {
+    await _applyChartInner(chart, false);
+  } finally {
+    state._applyChartRunning = false;
+  }
+}
+
+// applyChartAndSave() — render + save settings (used by user-initiated actions)
+async function applyChartAndSave() {
+  hideError();
+  const chart = state.chart;
+  if (!chart) return;
+  if (state._applyChartRunning) return;
+  state._applyChartRunning = true;
+  try {
+    await _applyChartInner(chart, true);
+  } finally {
+    state._applyChartRunning = false;
+  }
+}
+
+async function _applyChartInner(chart, saveAfter = false) {
+  const isTable    = chart.id==='rtltable';
+  const isBanTable2 = chart.id==='bantable2';
+  const isBan      = ['ban1','ban2'].includes(chart.id);
+
+  // When switching away from BAN, clean up its ResizeObserver and scale ref
+  if (!isBan) {
+    if (state._banResizeObserver) { state._banResizeObserver.disconnect(); state._banResizeObserver = null; }
+    state._banScaleFn = null;
+  }
+
   document.getElementById('echarts-container').style.display = isTable?'none':'block';
   document.getElementById('table-container').style.display = isTable?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
   if (isTable) {
-    try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    try { await renderTable(); if (saveAfter) await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isBanTable2) {
+    if (!state.assignments.val1) { showError('חסר: ערך 1'); return; }
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+      const {rows} = parseDataTable(dt);
+      renderBanTable2(rows, state.assignments, state.kpiNames);
+      applyBorderRadius();
+      if (saveAfter) await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
+    return;
+  }
+  if (isBan) {
+    const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
+    if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
+    try {
+      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+      const {rows} = parseDataTable(dt);
+      renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
+      applyBorderRadius();
+      if (saveAfter) await saveSettings();
+    } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
   const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
   if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
   try {
     const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
+    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
     const {columns, rows} = parseDataTable(dt);
     if (rows.some(row=>Object.values(row).some(v=>v!==null&&String(v).includes('%many%')))||rows.length===0) {
       showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
       return;
     }
     renderECharts(chart, columns, rows, state.assignments);
-    await saveSettings();
+    applyBorderRadius();
+    if (saveAfter) await saveSettings();
   } catch(e) { showError('שגיאת טעינה: '+e); }
 }
 
-async function refreshChart() {
-  if (!state.chart||!state.echartsInstance) return;
-  if (state.chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id])) await applyChart();
-}
 
 function parseDataTable(dt) {
   const columns = dt.columns.map(col=>({
     fieldName: col._fieldName,
     displayName: cleanFieldName(col._fieldName),
     dataType: col._dataType,
+  }));
+  // Keep worksheetFields in sync — avoids a separate loadFields call on every render
+  state.worksheetFields = columns.map(col=>({
+    fieldName: col.fieldName,
+    displayName: col.displayName,
+    dataType: col.dataType,
   }));
   const rows = dt.data.map(row=>
     Object.fromEntries(columns.map((col,i)=>[col.fieldName, normalizeValue(row[i]?.value??row[i], col.dataType)]))
@@ -1015,11 +1286,17 @@ async function ensureMap() {
 // ECHARTS RENDERER
 // ═══════════════════════════════════════════════════
 async function renderECharts(chart, columns, rows, assignments) {
+  // Lazy-load echarts.min.js + world.js on first ECharts render
+  await ensureECharts();
   const container = document.getElementById('echarts-container');
-  if (!state.echartsInstance) {
-    state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
-    state.echartsInstance.on('click', ()=>{});
+  // Always dispose stale instance and clear HTML before re-initializing
+  if (state.echartsInstance) {
+    try { state.echartsInstance.dispose(); } catch(e) {}
+    state.echartsInstance = null;
   }
+  container.innerHTML = '';
+  state.echartsInstance = echarts.init(container, null, {backgroundColor:'transparent'});
+  state.echartsInstance.on('click', ()=>{});
   COLORS = (state.customColors?.length>=4) ? state.customColors.slice() : DEFAULT_COLORS.slice();
   const ec = state.echartsInstance;
   const a  = assignments;
@@ -1531,8 +1808,419 @@ async function renderECharts(chart, columns, rows, assignments) {
 
   if (option) {
     ec.setOption(option, true);
-    window.addEventListener('resize', ()=>ec.resize());
+    // Remove any previous resize listener before adding a new one
+    if (state._echartsResizeHandler) {
+      window.removeEventListener('resize', state._echartsResizeHandler);
+    }
+    state._echartsResizeHandler = () => { if (state.echartsInstance) state.echartsInstance.resize(); };
+    window.addEventListener('resize', state._echartsResizeHandler);
   }
+}
+
+// ═══════════════════════════════════════════════════
+// KPI BAN CARD RENDERER
+// ═══════════════════════════════════════════════════
+function renderBan(rows, assignments, banStyle) {
+  const container = document.getElementById('echarts-container');
+  if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
+
+  const [boxCol, topCol, botCol] = state.banColors || BAN_COLOR_DEFAULTS;
+
+  const nameF    = assignments.name?.fieldName;
+  const valF     = assignments.val?.fieldName;
+  const periodF  = assignments.period?.fieldName;
+  const prevF    = assignments.prev?.fieldName;
+  const prevperF = assignments.prevper?.fieldName;
+
+  let val = 0, prev = 0;
+  const periodVals = new Set(), prevperVals = new Set();
+  rows.forEach(r => {
+    val += (r[valF] ?? 0);
+    if (prevF)    prev += (r[prevF] ?? 0);
+    if (periodF  && r[periodF]  != null) periodVals.add(String(r[periodF]));
+    if (prevperF && r[prevperF] != null) prevperVals.add(String(r[prevperF]));
+  });
+
+  const kpiName     = nameF ? String(rows.find(r => r[nameF] != null)?.[nameF] ?? '') : '';
+  const hebrew      = /[\u0590-\u05FF]/.test(kpiName) || /[\u0590-\u05FF]/.test(String([...periodVals][0]||''));
+  const nd          = hebrew ? 'rtl' : 'ltr';
+  const align       = hebrew ? 'right' : 'left';
+  const cur         = hebrew ? '₪' : '$';
+  const chgWord     = hebrew ? 'שינוי' : 'change';
+  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
+
+  const periodLabel  = periodVals.size  ? [...periodVals][0]  : '';
+  const prevperLabel = prevperVals.size ? [...prevperVals][0] : '';
+
+  const hasPrev = !!prevF && prev !== 0;
+  const pct     = hasPrev ? ((val - prev) / Math.abs(prev)) * 100 : null;
+  const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
+
+  const BADGE = {
+    pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)'  },
+    neg: { border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)'  },
+    neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)' },
+  };
+  const B = BADGE[dir];
+
+  const fmt = n => {
+    const a = Math.abs(n);
+    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
+    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
+    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
+  };
+
+  function scale() {
+    const w = container.offsetWidth  || 300;
+    const h = container.offsetHeight || 200;
+    // Use a balanced unit: don't let height dominate on tall/square cards
+    const u = Math.min(w / 400, h / 220);
+    const fs = state.banFontSizes || {};
+    // s(base, min, max) — uses override if set, else scales from base
+    const s = (key, b, m=10, mx=9999) => {
+      if (fs[key]) return fs[key];
+      return Math.min(mx, Math.max(m, Math.round(u * b)));
+    };
+    const card = container.querySelector('.ban-inner');
+    if (!card) return;
+    card.style.padding = `${Math.min(9999,Math.max(10,Math.round(u*16)))}px ${Math.min(9999,Math.max(12,Math.round(u*24)))}px ${Math.min(9999,Math.max(10,Math.round(u*14)))}px`;
+    const lbl = card.querySelector('.ban-kpi-lbl');
+    if (lbl) { lbl.style.fontSize = `${s('name',13,10,20)}px`; lbl.style.marginBottom = `${Math.max(2,Math.round(u*3))}px`; }
+    const per = card.querySelector('.ban-period-lbl');
+    if (per) per.style.fontSize = `${s('bot',11,9,16)}px`;
+    const valEl = card.querySelector('.ban-kpi-val');
+    // Cap value font: never exceed 42% of card height (unless user override)
+    if (valEl) valEl.style.fontSize = `${fs['value'] ? fs['value'] : Math.min(Math.round(h*0.42), Math.max(20, Math.round(u*58)))}px`;
+    const badge = card.querySelector('.ban-badge');
+    if (badge) {
+      badge.style.padding = `${Math.max(4,Math.round(u*5))}px ${Math.max(9,Math.round(u*13))}px`;
+      badge.style.gap     = `${Math.max(4,Math.round(u*6))}px`;
+      const pctEl = badge.querySelector('.ban-pct');
+      if (pctEl) pctEl.style.fontSize = `${s('badge',13,10,20)}px`;
+      const chgEl = badge.querySelector('.ban-chg');
+      if (chgEl) chgEl.style.fontSize = `${s('badge',11,9,16)}px`;
+      const svg = badge.querySelector('svg');
+      if (svg) { const sz=Math.max(6,Math.min(14,Math.round(u*8))); svg.style.width=sz+'px'; svg.style.height=sz+'px'; }
+    }
+    const botVal = card.querySelector('.ban-bot-val');
+    if (botVal) botVal.style.fontSize = `${s('bot',14,10,20)}px`;
+    card.querySelectorAll('.ban-bot-lbl').forEach(el => el.style.fontSize = `${s('bot',10,9,15)}px`);
+  }
+
+  const arwSVG = dir === 'pos'
+    ? `<svg viewBox="0 0 10 10"><polygon points="5,0 10,10 0,10" fill="${B.arrowFill}"/></svg>`
+    : dir === 'neg'
+    ? `<svg viewBox="0 0 10 10"><polygon points="5,10 10,0 0,0" fill="${B.arrowFill}"/></svg>`
+    : `<svg viewBox="0 0 12 4"><rect x="0" y="1" width="12" height="2.5" rx="1.25" fill="${B.arrowFill}"/></svg>`;
+
+  // Badge: always direction:ltr internally, arrow | % | label
+  const badgeHTML = pct !== null ? `
+    <div class="ban-badge" style="display:inline-flex;align-items:center;border-radius:99px;
+      border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
+      white-space:nowrap;flex-shrink:0;direction:ltr">
+      ${arwSVG}
+      <span class="ban-pct" style="font-weight:700;color:#fff">${Math.abs(pct).toFixed(1)}%</span>
+      <span class="ban-chg" style="font-weight:400;color:rgba(255,255,255,0.65)">${chgWord}</span>
+    </div>` : '';
+
+  // TOP block: KPI name + current period stacked, both inline-start (right in RTL)
+  const topBlock = `
+    <div style="text-align:${align}">
+      <div class="ban-kpi-lbl" style="font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${topCol};opacity:.65">${kpiName}</div>
+      ${periodLabel ? `<div class="ban-period-lbl" style="color:${botCol};opacity:.55">${periodLabel}</div>` : ''}
+    </div>`;
+
+  // BOTTOM block: prev value + prevper stacked, inline-start (right in RTL)
+  const bottomBlock = `
+    <div>
+      <div style="height:1px;background:${topCol}25;margin-bottom:7px"></div>
+      <div style="text-align:${align}">
+        ${hasPrev ? `<div class="ban-bot-val" style="font-weight:700;color:${botCol};opacity:.9;direction:ltr;display:inline-block">${fmt(prev)}</div>` : ''}
+        ${hasPrev ? `<div class="ban-bot-lbl" style="color:${botCol};opacity:.6">${prevperLabel||prevPerWord}</div>` : ''}
+      </div>
+    </div>`;
+
+  // STYLE 1: badge and value same row
+  // LTR: [value LEFT] [badge RIGHT]
+  // RTL: [badge LEFT] [value RIGHT]  ← badge at inline-start (right in RTL) means badge comes LAST in LTR DOM but we flip with direction:rtl on the row
+  const valDiv = `<div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;flex:1;text-align:left">${fmt(val)}</div>`;
+  const midBlock = banStyle === 2
+    ? `<div style="text-align:${align}">
+         <div class="ban-kpi-val" style="font-weight:800;color:${topCol};line-height:1;letter-spacing:-.03em;direction:ltr;text-align:${align}">${fmt(val)}</div>
+       </div>
+       <div style="display:flex;align-items:center;direction:${nd}">
+         ${badgeHTML}
+       </div>`
+    : hebrew
+      ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+           ${badgeHTML}
+           ${valDiv}
+         </div>`
+      : `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;direction:ltr">
+           ${valDiv}
+           ${badgeHTML}
+         </div>`;
+
+  container.innerHTML = `
+    <div style="width:100%;height:100%;display:flex">
+      <div class="ban-inner" style="flex:1;background:${boxCol};overflow:hidden;
+        display:flex;flex-direction:column;justify-content:space-between;gap:4px;direction:${nd}">
+        ${topBlock}
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0">
+          ${midBlock}
+        </div>
+        ${bottomBlock}
+      </div>
+    </div>`;
+
+  scale();
+  // Store scale fn so onFsInput can call it directly without dispatching window resize
+  state._banScaleFn = scale;
+  // Disconnect any previous ResizeObserver before creating a new one
+  if (state._banResizeObserver) {
+    state._banResizeObserver.disconnect();
+  }
+  state._banResizeObserver = new ResizeObserver(scale);
+  state._banResizeObserver.observe(container);
+}
+
+// ═══════════════════════════════════════════════════
+// KPI TABLE (bantable2) — marks card UI
+// ═══════════════════════════════════════════════════
+function renderBanTable2MarksCard(list) {
+  const applyBtn = document.getElementById('apply-btn');
+
+  // Helper: build a measure slot row
+  function makeMeasureRow(roleId, label, required) {
+    const chart = state.chart;
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'role-label';
+    lbl.innerHTML = label + (required ? '<span class="role-required"> *</span>' : '');
+    const assigned = state.assignments[roleId];
+    const slot = document.createElement('div');
+    if (assigned) {
+      slot.className = 'slot-filled';
+      slot.innerHTML = `<span class="slot-name" title="${assigned.fieldName}">${assigned.displayName}</span><button class="slot-remove" onclick="unassign('${roleId}')">✕</button>`;
+      slot.addEventListener('click', e => {
+        if (!e.target.classList.contains('slot-remove'))
+          openSlotDropdown({id:roleId, label, accepts:'measure', required}, slot);
+      });
+    } else {
+      slot.className = 'slot-empty';
+      slot.textContent = required ? 'גרור או לחץ לבחירה' : 'אופציונלי';
+      slot.dataset.roleId = roleId;
+      slot.addEventListener('click', () => openSlotDropdown({id:roleId, label, accepts:'measure', required}, slot));
+      slot.addEventListener('dragover', e => {
+        const f = getDragField();
+        if (f && canAssign('measure', f.dataType, f.fieldName)) { e.preventDefault(); slot.classList.add('drag-over'); }
+      });
+      slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+      slot.addEventListener('drop', e => {
+        e.preventDefault(); slot.classList.remove('drag-over');
+        const f = getDragField();
+        if (f && canAssign('measure', f.dataType, f.fieldName)) assign(roleId, f);
+      });
+    }
+    row.appendChild(lbl); row.appendChild(slot);
+    return row;
+  }
+
+  function makeDimRow(roleId, label) {
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'role-label';
+    lbl.textContent = label;
+    const assigned = state.assignments[roleId];
+    const slot = document.createElement('div');
+    if (assigned) {
+      slot.className = 'slot-filled';
+      slot.innerHTML = `<span class="slot-name" title="${assigned.fieldName}">${assigned.displayName}</span><button class="slot-remove" onclick="unassign('${roleId}')">✕</button>`;
+      slot.addEventListener('click', e => {
+        if (!e.target.classList.contains('slot-remove'))
+          openSlotDropdown({id:roleId, label, accepts:'dim', required:false}, slot);
+      });
+    } else {
+      slot.className = 'slot-empty';
+      slot.textContent = 'אופציונלי';
+      slot.addEventListener('click', () => openSlotDropdown({id:roleId, label, accepts:'dim', required:false}, slot));
+    }
+    row.appendChild(lbl); row.appendChild(slot);
+    return row;
+  }
+
+  function makeNameInput(idx) {
+    const row = document.createElement('div');
+    row.className = 'role-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'role-label';
+    lbl.textContent = `שם ${idx+1}`;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = state.kpiNames[idx] || '';
+    inp.placeholder = `KPI ${idx+1}`;
+    inp.style.cssText = 'flex:1;padding:4px 8px;border-radius:4px;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text);font-size:12px;font-family:inherit;outline:none;';
+    inp.addEventListener('focus', () => inp.style.borderColor = 'var(--teal)');
+    inp.addEventListener('blur',  () => inp.style.borderColor = 'var(--border2)');
+    inp.addEventListener('input', () => {
+      state.kpiNames[idx] = inp.value;
+      checkApplyBtn();
+    });
+    row.appendChild(lbl); row.appendChild(inp);
+    return row;
+  }
+
+  function makeSep(text) {
+    const d = document.createElement('div');
+    d.style.cssText = 'font-size:9px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;padding:6px 2px 2px;border-top:1px solid var(--border);margin-top:4px';
+    d.textContent = text;
+    return d;
+  }
+
+  function checkApplyBtn() {
+    applyBtn.disabled = !state.assignments.val1;
+  }
+
+  list.innerHTML = '';
+
+  // KPI rows: name input + val measure, repeated for up to 4
+  const labels = ['מכירות...','רוחים...','הוצאות...','מדד 4...'];
+  for (let i = 0; i < 4; i++) {
+    const valId  = `val${i+1}`;
+    const prevId = `prev${i+1}`;
+    const isFirst = i === 0;
+    // Separator
+    const sep = makeSep(`KPI ${i+1}${isFirst ? ' *' : ''}`);
+    list.appendChild(sep);
+    // Name text input
+    const nameRow = makeNameInput(i);
+    nameRow.querySelector('input').placeholder = labels[i];
+    list.appendChild(nameRow);
+    // Value measure slot
+    list.appendChild(makeMeasureRow(valId, 'ערך נוכחי', isFirst));
+    // Prev measure slot
+    list.appendChild(makeMeasureRow(prevId, 'ערך קודם', false));
+  }
+
+  // Shared period dims
+  list.appendChild(makeSep('תקופה (משותף)'));
+  list.appendChild(makeDimRow('period',  'תקופה נוכחית'));
+  list.appendChild(makeDimRow('prevper', 'תקופה להשוואה'));
+
+  checkApplyBtn();
+}
+
+
+function renderBanTable2(rows, assignments, kpiNames) {
+  const container = document.getElementById('echarts-container');
+  if (state.echartsInstance) { state.echartsInstance.dispose(); state.echartsInstance = null; }
+
+  const [boxCol, topCol, botCol, hdrCol] = state.banColors || BAN_COLOR_DEFAULTS;
+
+  // Collect period/prevper from data (shared for all rows)
+  const periodF  = assignments.period?.fieldName;
+  const prevperF = assignments.prevper?.fieldName;
+  const periodVals = new Set(), prevperVals = new Set();
+  rows.forEach(r => {
+    if (periodF  && r[periodF]  != null) periodVals.add(String(r[periodF]));
+    if (prevperF && r[prevperF] != null) prevperVals.add(String(r[prevperF]));
+  });
+  const periodLabel  = [...periodVals][0]  || '';
+  const prevperLabel = [...prevperVals][0] || '';
+
+  // Sum each measure across all rows
+  const sumField = (fieldName) => {
+    if (!fieldName) return null;
+    return rows.reduce((acc, r) => acc + (r[fieldName] ?? 0), 0);
+  };
+
+  // Build KPI data — up to 4
+  const kpis = [];
+  for (let i = 1; i <= 4; i++) {
+    const valF  = assignments[`val${i}`]?.fieldName;
+    const prevF = assignments[`prev${i}`]?.fieldName;
+    if (!valF) continue;
+    const val  = sumField(valF);
+    const prev = prevF ? sumField(prevF) : null;
+    kpis.push({ name: (kpiNames[i-1] || `KPI ${i}`), val, prev });
+  }
+
+  if (!kpis.length) return;
+
+  // RTL detection from first KPI name
+  const hebrew = /[֐-׿]/.test(kpis[0].name) || /[֐-׿]/.test(periodLabel);
+  const nd      = hebrew ? 'rtl' : 'ltr';
+  const cur     = hebrew ? '₪' : '$';
+  const chgWord = hebrew ? 'שינוי' : 'change';
+  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
+
+  const fmt = n => {
+    if (n === null || n === undefined) return '—';
+    const a = Math.abs(n);
+    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
+    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
+    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
+  };
+
+  const BADGE = {
+    pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)',   arrow:'▲' },
+    neg: { border:'rgba(220,60,50,0.55)',  arrowFill:'rgba(220,80,70,0.9)',   arrow:'▼' },
+    neu: { border:'rgba(150,150,150,0.4)', arrowFill:'rgba(160,160,160,0.8)', arrow:'—' },
+  };
+
+  const hasPrevCol = kpis.some(k => k.prev !== null);
+
+  const cols = hasPrevCol ? 'auto 1fr auto auto' : 'auto 1fr auto';
+  const hCell = `font-size:10px;font-weight:600;color:${botCol};letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;background:${hdrCol};padding:8px 20px;border-bottom:1px solid ${botCol}30`;
+
+  const headerCells = `
+    <div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">מדד</div>
+    <div style="${hCell};justify-content:center">${periodLabel || 'ערך'}</div>
+    <div style="${hCell};justify-content:center">שינוי</div>
+    ${hasPrevCol ? `<div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
+
+  const dataRows = kpis.map((k, idx) => {
+    const hasPrev = k.prev !== null && k.prev !== 0;
+    const pct     = hasPrev ? ((k.val - k.prev) / Math.abs(k.prev)) * 100 : null;
+    const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
+    const B       = BADGE[dir];
+    const border  = idx < kpis.length - 1 ? `border-bottom:1px solid ${topCol}18` : '';
+
+    const badgeHTML = pct !== null
+      ? `<div style="display:inline-flex;align-items:center;gap:5px;border-radius:99px;
+             border:1.5px solid ${B.border};background:rgba(255,255,255,0.04);
+             padding:4px 12px;white-space:nowrap;direction:ltr">
+           <span style="font-size:12px;color:${B.arrowFill};line-height:1">${B.arrow}</span>
+           <span style="font-weight:700;color:#fff;font-size:13px">${Math.abs(pct).toFixed(1)}%</span>
+         </div>`
+      : '';
+
+    return `
+      <div style="display:flex;align-items:center;padding:12px 20px;${border};justify-content:${hebrew?'flex-end':'flex-start'}">
+        <span style="font-weight:600;font-size:14px;color:${topCol};opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${k.name}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
+        <span style="font-weight:800;font-size:22px;color:${topCol};direction:ltr;letter-spacing:-.02em">${fmt(k.val)}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;padding:12px 20px;${border}">
+        ${badgeHTML}
+      </div>
+      ${hasPrevCol ? `<div style="display:flex;align-items:center;justify-content:${hebrew?'flex-end':'flex-start'};padding:12px 20px;${border}">
+        <span style="font-weight:600;font-size:14px;color:${botCol};opacity:.75;direction:ltr">${hasPrev ? fmt(k.prev) : ''}</span>
+      </div>` : ''}`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="width:100%;height:100%;overflow:auto;background:${boxCol};direction:${nd}">
+      <div style="display:grid;grid-template-columns:${cols};width:100%">
+        ${headerCells}
+        ${dataRows}
+      </div>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1540,29 +2228,263 @@ async function renderECharts(chart, columns, rows, assignments) {
 // ═══════════════════════════════════════════════════
 const COLOR_LABELS = ['צבע 1','צבע 2','צבע 3','צבע 4'];
 
-function openColorEditor() { renderColorSwatches(); document.getElementById('color-modal-overlay').classList.add('open'); }
+function openColorEditor() {
+  const isTable = state.chart?.id === 'bantable2';
+  const isBan   = ['ban1','ban2'].includes(state.chart?.id);
+  if (isTable) {
+    document.getElementById('color-modal-title').textContent = 'ערוך צבעי טבלה';
+    renderTableColorSwatches();
+  } else {
+    document.getElementById('color-modal-title').textContent = isBan ? 'ערוך צבעי BAN' : 'ערוך צבעי גרף';
+    renderColorSwatches();
+  }
+  document.getElementById('color-modal-overlay').classList.add('open');
+}
 function closeColorEditor() { document.getElementById('color-modal-overlay').classList.remove('open'); }
 function onColorOverlayClick(e) { if(e.target===document.getElementById('color-modal-overlay')) closeColorEditor(); }
 
 function renderColorSwatches() {
+  const isBan    = ['ban1','ban2'].includes(state.chart?.id);
+  const colors   = isBan ? (state.banColors || BAN_COLOR_DEFAULTS.slice()) : COLORS;
+  const labels   = isBan ? BAN_COLOR_LABELS : COLOR_LABELS;
   const container = document.getElementById('color-swatches');
   container.innerHTML = '';
-  COLORS.forEach((color, i) => {
+  colors.forEach((color, i) => {
     const row = document.createElement('div'); row.className='color-swatch-row';
     const swatch = document.createElement('div'); swatch.className='color-swatch'; swatch.style.background=color;
     swatch.addEventListener('click', () => {
       const input=document.getElementById('native-color-input');
-      input.value=COLORS[i];
-      input.oninput=()=>{COLORS[i]=input.value;swatch.style.background=input.value;lbl.textContent=COLOR_LABELS[i]+' — '+input.value.toUpperCase();};
+      input.value=colors[i];
+      input.oninput=()=>{
+        colors[i]=input.value;
+        swatch.style.background=input.value;
+        lbl.textContent=labels[i]+' — '+input.value.toUpperCase();
+        if(isBan) state.banColors=colors.slice();
+        else COLORS[i]=input.value;
+      };
       input.click();
     });
-    const lbl = document.createElement('span'); lbl.className='color-swatch-label'; lbl.textContent=COLOR_LABELS[i]+' — '+color.toUpperCase();
+    const lbl = document.createElement('span'); lbl.className='color-swatch-label'; lbl.textContent=labels[i]+' — '+color.toUpperCase();
     row.appendChild(swatch); row.appendChild(lbl); container.appendChild(row);
   });
 }
 
-function resetColors() { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; renderColorSwatches(); }
-function applyColors() { state.customColors=COLORS.slice(); closeColorEditor(); applyChart(); }
+function resetColors() {
+  const isTable = state.chart?.id === 'bantable2';
+  const isBan   = ['ban1','ban2'].includes(state.chart?.id);
+  if (isTable) { state.banColors=null; state.bgColor=null; applyBgColor(null); renderTableColorSwatches(); }
+  else if (isBan) { state.banColors=null; renderColorSwatches(); }
+  else { COLORS=DEFAULT_COLORS.slice(); state.customColors=null; renderColorSwatches(); }
+}
+function applyColors() {
+  const isBan = ['ban1','ban2'].includes(state.chart?.id);
+  if (!isBan && !state.chart?.id === 'bantable2') { state.customColors=COLORS.slice(); }
+  closeColorEditor();
+  applyChart();
+}
+
+function renderTableColorSwatches() {
+  const container = document.getElementById('color-swatches');
+  container.innerHTML = '';
+
+  // 4 controls: value text | header text | header bg | sheet bg
+  const colors = state.banColors ? state.banColors.slice() : BAN_COLOR_DEFAULTS.slice();
+  // ensure 4 slots
+  while (colors.length < 4) colors.push(BAN_COLOR_DEFAULTS[colors.length] || '#ffffff');
+
+  const defs = [
+    { label:'ערך טקסט',    desc:'צבע טקסט ערכים ושמות KPI', idx:1, isBg:false },
+    { label:'כותרת טקסט',  desc:'צבע טקסט כותרת טבלה',      idx:1, isHdrText:true },
+    { label:'כותרת רקע',   desc:'רקע שורת הכותרת',           idx:3, isBg:false },
+    { label:'רקע גיליון',  desc:'רקע הטבלה כולה',            idx:0, isBg:true  },
+  ];
+
+  // Split: topCol (idx 1) serves double duty — value text AND header text both use it.
+  // We'll treat hdr text as a separate slot using botCol (idx 2) for tables.
+  // Redefine for table: [0]=sheet bg, [1]=value text, [2]=hdr text, [3]=hdr bg
+  // Map to existing banColors slots same way renderBanTable uses them.
+
+  const TABLE_SLOTS = [
+    { label:'ערך טקסט',    hint:'ערכים, שמות KPI',         key:1 },
+    { label:'כותרת טקסט',  hint:'טקסט שורת הכותרת',        key:2 },
+    { label:'כותרת רקע',   hint:'רקע שורת הכותרת',         key:3 },
+    { label:'רקע גיליון',  hint:'רקע הטבלה',               key:0 },
+  ];
+
+  TABLE_SLOTS.forEach(({ label, hint, key }) => {
+    const isSheetBg = key === 0 && hint.includes('טבלה');
+    // For sheet bg we use state.bgColor instead of banColors
+    const isBgOverride = label === 'רקע גיליון';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)';
+
+    const currentColor = isBgOverride
+      ? (state.bgColor || '#141414')
+      : (colors[key] || BAN_COLOR_DEFAULTS[key] || '#ffffff');
+
+    const swatch = document.createElement('div');
+    swatch.style.cssText = `width:34px;height:34px;border-radius:8px;border:2px solid rgba(0,0,0,.15);cursor:pointer;flex-shrink:0;background:${currentColor};transition:transform .15s`;
+    swatch.onmouseenter = () => swatch.style.transform='scale(1.1)';
+    swatch.onmouseleave = () => swatch.style.transform='scale(1)';
+
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:13px;font-weight:600;color:var(--text)';
+    lbl.textContent = label;
+    const sub = document.createElement('div');
+    sub.style.cssText = 'font-size:10px;color:var(--text3);margin-top:1px';
+    sub.textContent = currentColor.toUpperCase() + '  ·  ' + hint;
+
+    swatch.addEventListener('click', () => {
+      const input = document.getElementById('native-color-input');
+      input.value = currentColor;
+      input.oninput = () => {
+        const v = input.value;
+        swatch.style.background = v;
+        sub.textContent = v.toUpperCase() + '  ·  ' + hint;
+        if (isBgOverride) {
+          state.bgColor = v;
+          applyBgColor(v);
+        } else {
+          colors[key] = v;
+          state.banColors = colors.slice();
+          applyChart();
+        }
+      };
+      input.click();
+    });
+
+    info.appendChild(lbl); info.appendChild(sub);
+    row.appendChild(swatch); row.appendChild(info);
+    container.appendChild(row);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// BORDER RADIUS
+// ═══════════════════════════════════════════════════
+function toggleRadiusPopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('radius-popover');
+  const btn = document.getElementById('radius-btn');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const br = state.borderRadius || {tl:0,tr:0,bl:0,br:0};
+  document.getElementById('rc-tl').value = br.tl;
+  document.getElementById('rc-tr').value = br.tr;
+  document.getElementById('rc-bl').value = br.bl;
+  document.getElementById('rc-br').value = br.br;
+  const rect = btn.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + 4) + 'px';
+  pop.style.left = Math.max(4, rect.right - 192) + 'px';
+  pop.classList.add('open');
+  setTimeout(() => document.addEventListener('mousedown', closeRadiusOutside), 50);
+}
+
+function closeRadiusOutside(e) {
+  const pop = document.getElementById('radius-popover');
+  if (!pop.contains(e.target) && e.target.id !== 'radius-btn') {
+    pop.classList.remove('open');
+    document.removeEventListener('mousedown', closeRadiusOutside);
+  }
+}
+
+function onRadiusInput() {
+  state.borderRadius = {
+    tl: parseInt(document.getElementById('rc-tl').value)||0,
+    tr: parseInt(document.getElementById('rc-tr').value)||0,
+    bl: parseInt(document.getElementById('rc-bl').value)||0,
+    br: parseInt(document.getElementById('rc-br').value)||0,
+  };
+  applyBorderRadius();
+}
+
+function applyBorderRadius() {
+  const br = state.borderRadius || {tl:0,tr:0,bl:0,br:0};
+  const val = `${br.tl}px ${br.tr}px ${br.br}px ${br.bl}px`;
+  const container = document.getElementById('echarts-container');
+  if (container) { container.style.borderRadius = val; container.style.overflow = 'hidden'; }
+  const tbl = document.getElementById('table-container');
+  if (tbl) { tbl.style.borderRadius = val; tbl.style.overflow = 'hidden'; }
+}
+
+function resetRadius() {
+  state.borderRadius = {tl:0,tr:0,bl:0,br:0};
+  document.getElementById('rc-tl').value = 0;
+  document.getElementById('rc-tr').value = 0;
+  document.getElementById('rc-bl').value = 0;
+  document.getElementById('rc-br').value = 0;
+  applyBorderRadius();
+}
+
+async function saveRadiusAndClose() {
+  document.getElementById('radius-popover').classList.remove('open');
+  document.removeEventListener('mousedown', closeRadiusOutside);
+  await saveSettings();
+}
+
+// ═══════════════════════════════════════════════════
+// FONT SIZE POPOVER (BAN)
+// ═══════════════════════════════════════════════════
+const FS_DEFAULTS = { name: null, value: null, badge: null, bot: null };
+
+function toggleFontsizePopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('fontsize-popover');
+  const btn = document.getElementById('fontsize-btn');
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const fs = state.banFontSizes || {};
+  // Populate sliders with current values or sensible defaults
+  const syncSlider = (key, def) => {
+    const el = document.getElementById('fs-'+key);
+    const valEl = document.getElementById('fs-'+key+'-val');
+    el.value = fs[key] || def;
+    valEl.textContent = (fs[key] || def) + 'px';
+  };
+  syncSlider('name',  13);
+  syncSlider('value', 58);
+  syncSlider('badge', 13);
+  syncSlider('bot',   12);
+  const rect = btn.getBoundingClientRect();
+  pop.style.top  = (rect.bottom + 4) + 'px';
+  pop.style.left = Math.max(4, rect.right - 224) + 'px';
+  pop.classList.add('open');
+  setTimeout(() => document.addEventListener('mousedown', closeFontsizeOutside), 50);
+}
+
+function closeFontsizeOutside(e) {
+  const pop = document.getElementById('fontsize-popover');
+  if (!pop.contains(e.target) && e.target.id !== 'fontsize-btn') {
+    pop.classList.remove('open');
+    document.removeEventListener('mousedown', closeFontsizeOutside);
+  }
+}
+
+function onFsInput(key, val) {
+  document.getElementById('fs-'+key+'-val').textContent = val + 'px';
+  if (!state.banFontSizes) state.banFontSizes = {};
+  state.banFontSizes[key] = parseInt(val);
+  // Live preview — call the BAN scale function directly, never dispatch window resize
+  if (state._banScaleFn) state._banScaleFn();
+}
+
+function resetFontSizes() {
+  state.banFontSizes = null;
+  ['name','value','badge','bot'].forEach(k => {
+    const defs = {name:13,value:58,badge:13,bot:12};
+    document.getElementById('fs-'+k).value = defs[k];
+    document.getElementById('fs-'+k+'-val').textContent = defs[k]+'px';
+  });
+  applyChart();
+}
+
+async function saveFontsizeAndClose() {
+  document.getElementById('fontsize-popover').classList.remove('open');
+  document.removeEventListener('mousedown', closeFontsizeOutside);
+  await saveSettings();
+  applyChart();
+}
 
 // ═══════════════════════════════════════════════════
 // BG COLOR
@@ -1590,8 +2512,11 @@ async function resetBgColor() { state.bgColor=null; applyBgColor(null); await sa
 function showPlaceholder() {
   document.getElementById('placeholder').style.display='flex';
   document.getElementById('table-container').style.display='none';
-  document.getElementById('echarts-container').style.display='block';
-  if(state.echartsInstance) state.echartsInstance.clear();
+  const ec = document.getElementById('echarts-container');
+  ec.style.display='block';
+  // Fully wipe any BAN HTML and dispose ECharts instance
+  if(state.echartsInstance) { try{state.echartsInstance.dispose();}catch(e){} state.echartsInstance=null; }
+  ec.innerHTML='';
 }
 function showError(msg) { document.getElementById('error-msg').textContent=msg; document.getElementById('error-bar').classList.add('show'); }
 function hideError() { document.getElementById('error-bar').classList.remove('show'); }
