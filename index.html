@@ -492,16 +492,10 @@ async function reloadFields() {
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
-// Render-lock: prevents concurrent applyChart calls from FilterChanged storms
-let _rendering = false;
-let _filterDebounceTimer = null;
-
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await tableau.extensions.initializeAsync({ configure: () => {
-      // Only show marks-card; never trigger a re-render from configure
-      const mc = document.getElementById('marks-card');
-      if (mc) mc.style.display = '';
+      document.getElementById('marks-card').style.display = '';
     }});
     const ws = tableau.extensions.worksheetContent.worksheet;
     state.worksheet = ws;
@@ -516,20 +510,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('onboarding').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
     }
-    ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
-      // Debounce: wait 300ms after last FilterChanged before re-rendering
-      clearTimeout(_filterDebounceTimer);
-      _filterDebounceTimer = setTimeout(async () => {
-        if (_rendering) return;
-        _rendering = true;
-        try {
-          await loadFields(ws);
-          renderMarksCard();
-          await applyChart();
-        } finally {
-          _rendering = false;
-        }
-      }, 300);
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
+      await loadFields(ws); renderMarksCard(); await applyChart();
     });
     ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
     buildGalleryChips();
@@ -1132,27 +1114,9 @@ async function applyChart() {
   hideError();
   const chart = state.chart;
   if (!chart) return;
-  // Guard: don't allow concurrent renders (e.g. from FilterChanged + manual draw)
-  if (state._applyChartRunning) return;
-  state._applyChartRunning = true;
-  try {
-    await _applyChartInner(chart);
-  } finally {
-    state._applyChartRunning = false;
-  }
-}
-
-async function _applyChartInner(chart) {
   const isTable    = chart.id==='rtltable';
   const isBanTable2 = chart.id==='bantable2';
   const isBan      = ['ban1','ban2'].includes(chart.id);
-
-  // When switching away from BAN, clean up its ResizeObserver and scale ref
-  if (!isBan) {
-    if (state._banResizeObserver) { state._banResizeObserver.disconnect(); state._banResizeObserver = null; }
-    state._banScaleFn = null;
-  }
-
   document.getElementById('echarts-container').style.display = isTable?'none':'block';
   document.getElementById('table-container').style.display = isTable?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
@@ -1751,12 +1715,7 @@ async function renderECharts(chart, columns, rows, assignments) {
 
   if (option) {
     ec.setOption(option, true);
-    // Remove any previous resize listener before adding a new one
-    if (state._echartsResizeHandler) {
-      window.removeEventListener('resize', state._echartsResizeHandler);
-    }
-    state._echartsResizeHandler = () => { if (state.echartsInstance) state.echartsInstance.resize(); };
-    window.addEventListener('resize', state._echartsResizeHandler);
+    window.addEventListener('resize', ()=>ec.resize());
   }
 }
 
@@ -1918,14 +1877,7 @@ function renderBan(rows, assignments, banStyle) {
     </div>`;
 
   scale();
-  // Store scale fn so onFsInput can call it directly without dispatching window resize
-  state._banScaleFn = scale;
-  // Disconnect any previous ResizeObserver before creating a new one
-  if (state._banResizeObserver) {
-    state._banResizeObserver.disconnect();
-  }
-  state._banResizeObserver = new ResizeObserver(scale);
-  state._banResizeObserver.observe(container);
+  new ResizeObserver(scale).observe(container);
 }
 
 // ═══════════════════════════════════════════════════
@@ -2408,8 +2360,14 @@ function onFsInput(key, val) {
   document.getElementById('fs-'+key+'-val').textContent = val + 'px';
   if (!state.banFontSizes) state.banFontSizes = {};
   state.banFontSizes[key] = parseInt(val);
-  // Live preview — call the BAN scale function directly, never dispatch window resize
-  if (state._banScaleFn) state._banScaleFn();
+  // Live preview — re-run scale() if BAN is rendered
+  const container = document.getElementById('echarts-container');
+  const card = container.querySelector('.ban-inner');
+  if (card) {
+    // Trigger scale manually by dispatching a fake resize
+    const ev = new Event('resize');
+    window.dispatchEvent(ev);
+  }
 }
 
 function resetFontSizes() {
