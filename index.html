@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>ECharts Extension</title>
 <script src="tableau.extensions.js"></script>
+<script src="echarts.min.js"></script>
+<script src="world.js"></script>
 <style>
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-Regular.ttf') format('truetype');font-weight:400}
 @font-face{font-family:'NotoSansHebrew';src:url('NotoSansHebrew-SemiBold.ttf') format('truetype');font-weight:500 600}
@@ -211,7 +213,7 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
     <div class="marks-top">
       <button class="close-mc-btn" onclick="toggleMarksCard()" title="סגור">✕</button>
       <button class="refresh-btn" id="refresh-btn" onclick="reloadFields()" title="רענן שדות">↺</button>
-      <button class="apply-btn" id="apply-btn" onclick="applyChartAndSave()" disabled>צייר</button>
+      <button class="apply-btn" id="apply-btn" onclick="applyChart()" disabled>צייר</button>
       <button class="color-edit-btn" onclick="openColorEditor()" title="ערוך צבעים">🎨</button>
       <button class="color-edit-btn" onclick="openBgColorPicker()" ondblclick="resetBgColor()" title="צבע רקע (כפול=שקוף)">🖼</button>
       <button class="color-edit-btn" id="radius-btn" onclick="toggleRadiusPopover(event)" title="עיגול פינות">⌐</button>
@@ -340,36 +342,6 @@ html,body{height:100%;font-family:'NotoSansHebrew',sans-serif;background:transpa
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════
-// ECharts Extension v13
-// Bug fixes (v11-v12) + performance (v13):
-// - echarts.min.js + world.js lazy-loaded (~1.4MB skipped for BAN/KPI users)
-// - Startup: one getSummaryDataAsync instead of two (loadFields merged into applyChart)
-// - FilterChanged: no longer calls loadFields — fields refreshed from render data
-// - saveAsync() only on explicit user actions, never on FilterChanged re-renders
-// - MarkSelectionChanged removed (was causing flash on every click)
-// - ignoreSelection:true everywhere (data stable regardless of mark selection)
-// - configure() suppresses FilterChanged for 1s after Format Extension closes
-// - FilterChanged debounce 300ms + render lock (no concurrent renders)
-// - Accumulating resize listeners replaced with tracked single listener
-// - ResizeObserver disconnect before recreate (no stacking observers)
-// - onFsInput calls scale() directly instead of dispatching window resize
-// ═══════════════════════════════════════════════════
-// LAZY SCRIPT LOADER — echarts + world.js load only when an ECharts chart is drawn
-// ═══════════════════════════════════════════════════
-let _echartsLoaded = false;
-async function ensureECharts() {
-  if (_echartsLoaded) return;
-  const load = src => new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  await load('echarts.min.js');
-  await load('world.js');
-  _echartsLoaded = true;
-}
-
 // ═══════════════════════════════════════════════════
 // CHART DEFINITIONS  (roles defined once via helpers)
 // ═══════════════════════════════════════════════════
@@ -520,57 +492,28 @@ async function reloadFields() {
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
-// Render-lock: prevents concurrent applyChart calls from FilterChanged storms
-let _rendering = false;
-let _filterDebounceTimer = null;
-let _configureSuppressUntil = 0; // suppresses FilterChanged briefly after Format Extension closes
-
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await tableau.extensions.initializeAsync({ configure: () => {
-      // Show marks-card when Format Extension is opened
-      const mc = document.getElementById('marks-card');
-      if (mc) mc.style.display = '';
-      // Suppress FilterChanged for 1s after configure closes —
-      // Tableau fires SummaryDataChanged/FilterChanged immediately after
-      // the dialog closes, which causes the viz to flash and redraw for no reason.
-      _configureSuppressUntil = Date.now() + 1000;
+      document.getElementById('marks-card').style.display = '';
     }});
     const ws = tableau.extensions.worksheetContent.worksheet;
     state.worksheet = ws;
     const hasSaved = loadSettings();
+    await loadFields(ws);
     document.getElementById('onboarding').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     if (hasSaved && state.chart) {
-      // Has saved chart: applyChart fetches data and populates worksheetFields as a side effect.
-      // No separate loadFields call needed — saves one round-trip.
       renderMarksCard();
-      await applyChart(); // no saveAsync on startup — settings were just loaded from workbook
+      await applyChart();
     } else {
-      // No saved chart: need loadFields so the marks card can show available fields.
-      await loadFields(ws);
       document.getElementById('onboarding').style.display = 'flex';
       document.getElementById('app').style.display = 'none';
     }
-    ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
-      // Debounce: wait 300ms after last FilterChanged before re-rendering
-      // Also skip if we're in the post-configure suppression window
-      clearTimeout(_filterDebounceTimer);
-      _filterDebounceTimer = setTimeout(async () => {
-        if (_rendering) return;
-        if (Date.now() < _configureSuppressUntil) return;
-        _rendering = true;
-        try {
-          // loadFields skipped — applyChart populates worksheetFields via parseDataTable
-          await applyChart();
-          renderMarksCard(); // re-render marks card after fields are refreshed
-        } finally {
-          _rendering = false;
-        }
-      }, 300);
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
+      await loadFields(ws); renderMarksCard(); await applyChart();
     });
-    // MarkSelectionChanged intentionally NOT wired — click-to-filter is disabled,
-    // and re-rendering on every mark click causes the viz to flash/disappear.
+    ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => refreshChart());
     buildGalleryChips();
   } catch(e) { showError('שגיאת אתחול: ' + e); }
 });
@@ -1167,61 +1110,29 @@ async function renderTable() {
 // ═══════════════════════════════════════════════════
 // FETCH + RENDER
 // ═══════════════════════════════════════════════════
-// applyChart() — re-render only, no save (used by FilterChanged)
 async function applyChart() {
   hideError();
   const chart = state.chart;
   if (!chart) return;
-  if (state._applyChartRunning) return;
-  state._applyChartRunning = true;
-  try {
-    await _applyChartInner(chart, false);
-  } finally {
-    state._applyChartRunning = false;
-  }
-}
-
-// applyChartAndSave() — render + save settings (used by user-initiated actions)
-async function applyChartAndSave() {
-  hideError();
-  const chart = state.chart;
-  if (!chart) return;
-  if (state._applyChartRunning) return;
-  state._applyChartRunning = true;
-  try {
-    await _applyChartInner(chart, true);
-  } finally {
-    state._applyChartRunning = false;
-  }
-}
-
-async function _applyChartInner(chart, saveAfter = false) {
   const isTable    = chart.id==='rtltable';
   const isBanTable2 = chart.id==='bantable2';
   const isBan      = ['ban1','ban2'].includes(chart.id);
-
-  // When switching away from BAN, clean up its ResizeObserver and scale ref
-  if (!isBan) {
-    if (state._banResizeObserver) { state._banResizeObserver.disconnect(); state._banResizeObserver = null; }
-    state._banScaleFn = null;
-  }
-
   document.getElementById('echarts-container').style.display = isTable?'none':'block';
   document.getElementById('table-container').style.display = isTable?'block':'none';
   document.getElementById('placeholder').style.display = 'none';
   if (isTable) {
-    try { await renderTable(); if (saveAfter) await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
+    try { await renderTable(); await saveSettings(); } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
   if (isBanTable2) {
     if (!state.assignments.val1) { showError('חסר: ערך 1'); return; }
     try {
       const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
       const {rows} = parseDataTable(dt);
       renderBanTable2(rows, state.assignments, state.kpiNames);
       applyBorderRadius();
-      if (saveAfter) await saveSettings();
+      await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
@@ -1230,11 +1141,11 @@ async function _applyChartInner(chart, saveAfter = false) {
     if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
     try {
       const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
       const {rows} = parseDataTable(dt);
       renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
       applyBorderRadius();
-      if (saveAfter) await saveSettings();
+      await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
     return;
   }
@@ -1242,7 +1153,7 @@ async function _applyChartInner(chart, saveAfter = false) {
   if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
   try {
     const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:false});
     const {columns, rows} = parseDataTable(dt);
     if (rows.some(row=>Object.values(row).some(v=>v!==null&&String(v).includes('%many%')))||rows.length===0) {
       showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
@@ -1250,22 +1161,20 @@ async function _applyChartInner(chart, saveAfter = false) {
     }
     renderECharts(chart, columns, rows, state.assignments);
     applyBorderRadius();
-    if (saveAfter) await saveSettings();
+    await saveSettings();
   } catch(e) { showError('שגיאת טעינה: '+e); }
 }
 
+async function refreshChart() {
+  if (!state.chart||!state.echartsInstance) return;
+  if (state.chart.roles.filter(r=>r.required).every(r=>state.assignments[r.id])) await applyChart();
+}
 
 function parseDataTable(dt) {
   const columns = dt.columns.map(col=>({
     fieldName: col._fieldName,
     displayName: cleanFieldName(col._fieldName),
     dataType: col._dataType,
-  }));
-  // Keep worksheetFields in sync — avoids a separate loadFields call on every render
-  state.worksheetFields = columns.map(col=>({
-    fieldName: col.fieldName,
-    displayName: col.displayName,
-    dataType: col.dataType,
   }));
   const rows = dt.data.map(row=>
     Object.fromEntries(columns.map((col,i)=>[col.fieldName, normalizeValue(row[i]?.value??row[i], col.dataType)]))
@@ -1286,8 +1195,6 @@ async function ensureMap() {
 // ECHARTS RENDERER
 // ═══════════════════════════════════════════════════
 async function renderECharts(chart, columns, rows, assignments) {
-  // Lazy-load echarts.min.js + world.js on first ECharts render
-  await ensureECharts();
   const container = document.getElementById('echarts-container');
   // Always dispose stale instance and clear HTML before re-initializing
   if (state.echartsInstance) {
@@ -1808,12 +1715,7 @@ async function renderECharts(chart, columns, rows, assignments) {
 
   if (option) {
     ec.setOption(option, true);
-    // Remove any previous resize listener before adding a new one
-    if (state._echartsResizeHandler) {
-      window.removeEventListener('resize', state._echartsResizeHandler);
-    }
-    state._echartsResizeHandler = () => { if (state.echartsInstance) state.echartsInstance.resize(); };
-    window.addEventListener('resize', state._echartsResizeHandler);
+    window.addEventListener('resize', ()=>ec.resize());
   }
 }
 
@@ -1975,14 +1877,7 @@ function renderBan(rows, assignments, banStyle) {
     </div>`;
 
   scale();
-  // Store scale fn so onFsInput can call it directly without dispatching window resize
-  state._banScaleFn = scale;
-  // Disconnect any previous ResizeObserver before creating a new one
-  if (state._banResizeObserver) {
-    state._banResizeObserver.disconnect();
-  }
-  state._banResizeObserver = new ResizeObserver(scale);
-  state._banResizeObserver.observe(container);
+  new ResizeObserver(scale).observe(container);
 }
 
 // ═══════════════════════════════════════════════════
@@ -2465,8 +2360,14 @@ function onFsInput(key, val) {
   document.getElementById('fs-'+key+'-val').textContent = val + 'px';
   if (!state.banFontSizes) state.banFontSizes = {};
   state.banFontSizes[key] = parseInt(val);
-  // Live preview — call the BAN scale function directly, never dispatch window resize
-  if (state._banScaleFn) state._banScaleFn();
+  // Live preview — re-run scale() if BAN is rendered
+  const container = document.getElementById('echarts-container');
+  const card = container.querySelector('.ban-inner');
+  if (card) {
+    // Trigger scale manually by dispatching a fake resize
+    const ev = new Event('resize');
+    window.dispatchEvent(ev);
+  }
 }
 
 function resetFontSizes() {
