@@ -6,6 +6,7 @@
 <title>City Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="tableau.extensions.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -287,7 +288,8 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.4 — configure-debug</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.5 — ext-js-fix</div>
+      <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
 
@@ -890,28 +892,36 @@ function onFilterChanged() {
 if (inTableau()) {
   document.addEventListener('DOMContentLoaded', async () => {
     try {
+      document.getElementById('dbg').textContent = '⏳ initializeAsync...';
       await tableau.extensions.initializeAsync({ configure: () => {
         console.log('[city-dashboard] configure callback fired');
+        document.getElementById('dbg').textContent = '✅ configure fired!';
         openS();
       }});
+
+      document.getElementById('dbg').textContent = '✅ initialized';
 
       // Worksheet extension: use worksheetContent, not dashboardContent
       const ws = tableau.extensions.worksheetContent.worksheet;
 
       // First render
       await safeRender();
+      document.getElementById('dbg').textContent = '✅ ready';
 
       // Re-render on filter or mark selection change
       ws.addEventListener(tableau.TableauEventType.FilterChanged, onFilterChanged);
 
     } catch(err) {
       console.error('[city-dashboard] initialize() failed:', err);
+      document.getElementById('dbg').textContent = '❌ ' + err.message;
       renderEmptyState('שגיאה באתחול ה-Extension');
     }
   });
 
 } else {
   // Plain browser — run mock immediately
+  const dbg = document.getElementById('dbg');
+  if (dbg) dbg.textContent = '🖥 mock mode';
   fetchAndRender();
 }
 </script>
