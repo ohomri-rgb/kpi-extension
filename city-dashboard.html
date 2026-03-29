@@ -283,7 +283,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.9 — embed-url</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v3.0 — url-guard-fix</div>
       <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
@@ -671,7 +671,7 @@ function renderSheetViz() {
   const existing = document.getElementById('ch-sheet-iframe');
   if (existing) existing.remove();
 
-  if (!inTableau() || !VIZ_SHEET.serverUrl || !VIZ_SHEET.sheetName) {
+  if (!inTableau() || !VIZ_SHEET.serverUrl) {
     txt.style.display = '';
     return;
   }
