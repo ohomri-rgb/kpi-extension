@@ -288,7 +288,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.6 — auto-cols</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.7 — yr-from-date</div>
       <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
@@ -466,32 +466,38 @@ async function saveSettings() {
 // ─── READ TABLEAU DATA ────────────────────────────────────────────────────────
 async function readTableauData() {
   const worksheet = tableau.extensions.worksheetContent.worksheet;
-
   STATE.city = STATE.city || '';
 
-  // ── Fetch summary data ────────────────────────────────────────────────
+  // ── Fetch ─────────────────────────────────────────────────────────────
   const dataTable = await worksheet.getSummaryDataAsync({ maxRows: 5000 });
   if (!dataTable.data.length) { renderEmptyState('אין נתונים להצגה'); return; }
 
   const columns = dataTable.columns;
 
-  // ── Auto-classify columns ─────────────────────────────────────────────
-  // date/datetime → period | 4-digit year integers → year |
-  // first measure → leading (BAN+chart) | rest → KPIs
+  // ── Classify columns ──────────────────────────────────────────────────
+  // Find the first date/datetime column → period (we extract both month + year from it)
+  // Find numeric measures → leading + KPIs
+  // A separate year integer column is OPTIONAL — we derive year from the date if absent
   let iPeriod  = -1;
-  let iYear    = -1;
+  let iYear    = -1;   // optional dedicated year col
   let iLeading = -1;
   const iKPIs  = [];
 
   columns.forEach((col, i) => {
     const dt = (col.dataType || '').toLowerCase();
-    if (iPeriod === -1 && (dt === 'date' || dt === 'datetime' || dt.includes('date'))) {
-      iPeriod = i; return;
+
+    if (dt === 'date' || dt === 'datetime' || dt.includes('date')) {
+      if (iPeriod === -1) { iPeriod = i; return; }
+      // Second date col — could be a year-granularity duplicate; skip
+      return;
     }
+
     if (dt === 'float' || dt === 'real' || dt === 'int' || dt === 'integer') {
+      // Check if it looks like a dedicated year column (all values 2000-2100)
       if (iYear === -1) {
-        const vals = [...new Set(dataTable.data.slice(0,50).map(r => Number(r[i].value)).filter(v => !isNaN(v)))];
-        if (vals.length >= 1 && vals.length <= 5 && vals.every(v => v >= 2000 && v <= 2100)) {
+        const sample = dataTable.data.slice(0, 50).map(r => Number(r[i].value)).filter(v => !isNaN(v));
+        const uniq   = [...new Set(sample)];
+        if (uniq.length >= 1 && uniq.length <= 5 && uniq.every(v => v >= 2000 && v <= 2100)) {
           iYear = i; return;
         }
       }
@@ -500,39 +506,50 @@ async function readTableauData() {
     }
   });
 
-  // Name-based fallback
+  // Name fallback
   if (iPeriod === -1) iPeriod = columns.findIndex(c => /period|month|date|תקופה|חודש/i.test(c.fieldName));
-  if (iYear   === -1) iYear   = columns.findIndex(c => /^year$|^שנה$/i.test(c.fieldName));
 
-  if (iPeriod === -1 || iYear === -1 || iLeading === -1) {
+  if (iPeriod === -1 || iLeading === -1) {
     const info = columns.map(c => c.fieldName + ':' + c.dataType).join(', ');
     console.warn('[city-dashboard] col detect failed:', info);
-    document.getElementById('dbg').textContent = '⚠️ ' + info.slice(0,50);
+    document.getElementById('dbg').textContent = '⚠️ ' + info.slice(0, 60);
     renderEmptyState('לא זוהו עמודות — בדוק נתונים');
     return;
   }
-  document.getElementById('dbg').textContent = '✅ ' + columns[iPeriod].fieldName.slice(0,8) + '/' + columns[iYear].fieldName.slice(0,8);
+
+  document.getElementById('dbg').textContent = '✅ ' + columns[iPeriod].fieldName.slice(0,10)
+    + (iYear >= 0 ? '/' + columns[iYear].fieldName.slice(0,6) : '/yr←date');
 
   // ── Auto-detect CY / PY ───────────────────────────────────────────────
-  const yearValues = [...new Set(dataTable.data.map(r => Number(r[iYear].value)))]
-    .filter(y => !isNaN(y)).sort((a, b) => b - a);
+  // If no dedicated year col, extract year from the date column
+  function getYear(row) {
+    if (iYear >= 0) return Number(row[iYear].value);
+    const m = monthFromCell(row[iPeriod]);   // reuse date parse
+    const raw = row[iPeriod].value;
+    if (raw instanceof Date) return raw.getFullYear();
+    if (typeof raw === 'string') { const d = new Date(raw); return isNaN(d) ? null : d.getFullYear(); }
+    if (typeof raw === 'number') { return new Date((raw - 25569) * 86400000).getFullYear(); }
+    return null;
+  }
 
-  if (yearValues.length < 1) { renderEmptyState('אין נתונים עם שדה שנה'); return; }
+  const yearValues = [...new Set(dataTable.data.map(r => getYear(r)))]
+    .filter(y => y !== null && !isNaN(y)).sort((a, b) => b - a);
+
+  if (yearValues.length < 1) { renderEmptyState('לא ניתן לזהות שנה מהנתונים'); return; }
   STATE.CY = yearValues[0];
   STATE.PY = yearValues[1] ?? null;
 
-  // ── Bucket rows into monthly arrays per year ──────────────────────────
+  // ── Bucket into month arrays ──────────────────────────────────────────
   const buckets = {
     leading: { [STATE.CY]: Array(12).fill(null), [STATE.PY]: Array(12).fill(null) },
     kpis:    iKPIs.map(() => ({ [STATE.CY]: Array(12).fill(null), [STATE.PY]: Array(12).fill(null) })),
   };
 
-  // Description: optional string column
   const iDesc = columns.findIndex(col => /description|תיאור/i.test(col.fieldName));
   STATE.desc  = iDesc >= 0 ? dataTable.data[0][iDesc].formattedValue : '';
 
   for (const row of dataTable.data) {
-    const yr = Number(row[iYear].value);
+    const yr    = getYear(row);
     if (yr !== STATE.CY && yr !== STATE.PY) continue;
     const month = monthFromCell(row[iPeriod]);
     if (month === null) continue;
@@ -544,29 +561,24 @@ async function readTableauData() {
     });
   }
 
-  // ── Build series ──────────────────────────────────────────────────────
+  // ── Totals + series ───────────────────────────────────────────────────
   const sum = arr => arr.reduce((a, v) => a + (v ?? 0), 0);
   const yoy = (cy, py) => py === 0 ? 0 : ((cy - py) / Math.abs(py)) * 100;
 
   STATE.l_cy = buckets.leading[STATE.CY].map(v => v ?? 0);
   STATE.l_py = STATE.PY ? buckets.leading[STATE.PY].map(v => v ?? 0) : Array(12).fill(0);
 
-  // ── BAN ───────────────────────────────────────────────────────────────
   const banCY = sum(buckets.leading[STATE.CY]);
   const banPY = STATE.PY ? sum(buckets.leading[STATE.PY]) : 0;
   const banFS = fieldSettings(columns[iLeading].fieldName, 0, true);
-
   STATE.ban = {
     fieldId: columns[iLeading].fieldName,
     name:    banFS.displayName || columns[iLeading].fieldName,
-    val:     fmt(banCY),
-    pct:     yoy(banCY, banPY),
-    color:   banFS.color,
-    hib:     banFS.hib,
+    val:     fmt(banCY), pct: yoy(banCY, banPY),
+    color:   banFS.color, hib: banFS.hib,
   };
   cfg.cy = banFS.color;
 
-  // ── Secondary KPIs ────────────────────────────────────────────────────
   STATE.kpis = iKPIs.map(({ fieldId }, ki) => {
     const cy = sum(buckets.kpis[ki][STATE.CY]);
     const py = STATE.PY ? sum(buckets.kpis[ki][STATE.PY]) : 0;
