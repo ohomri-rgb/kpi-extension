@@ -888,7 +888,9 @@ function onFilterChanged() {
 
 // ── Initialize ────────────────────────────────────────────────────────────────
 if (inTableau()) {
-  tableau.extensions.initialize().then(() => {
+  // The configure callback is the correct way to respond to the
+  // Format Extension button and right-click Configure menu item.
+  tableau.extensions.initializeAsync({ configure: () => openS() }).then(() => {
     // First render
     safeRender();
 
@@ -904,9 +906,6 @@ if (inTableau()) {
       tableau.TableauEventType.ParameterChanged,
       onFilterChanged
     );
-
-    // Format Extension button and right-click Configure fire the 'configure' event
-    tableau.extensions.ui.addEventListener('configure', () => openS());
 
   }).catch(err => {
     console.error('[city-dashboard] initialize() failed:', err);
