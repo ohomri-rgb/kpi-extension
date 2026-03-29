@@ -288,7 +288,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.5 — ext-js-fix</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.6 — auto-cols</div>
       <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
@@ -465,129 +465,116 @@ async function saveSettings() {
 
 // ─── READ TABLEAU DATA ────────────────────────────────────────────────────────
 async function readTableauData() {
-  // Worksheet extension API — the worksheet IS the extension's own sheet
   const worksheet = tableau.extensions.worksheetContent.worksheet;
 
-  // ── Field mapping from Marks Card (allowedEncodings) ─────────────────
-  const vizSpec = await worksheet.getVisualSpecificationAsync();
-  const enc     = vizSpec.marksSpecificationsByEncoding;
-  // enc is a Map: encodingId → [ { field } ]
-
-  const periodField  = enc.get('period')?.[0]?.field;
-  const yearField    = enc.get('year')?.[0]?.field;
-  const leadingField = enc.get('leading')?.[0]?.field;
-  const kpiFields    = enc.get('kpi') ?? [];   // array — user may add many
-
-  if (!periodField || !yearField || !leadingField) {
-    renderEmptyState('אנא הגדר שדות בכרטיס הסימנים');
-    return;
-  }
-
-  // ── City name from parameter (worksheet extensions can't access dashboard params)
-  // Will be set via settings panel or left as the tb-name default.
   STATE.city = STATE.city || '';
 
   // ── Fetch summary data ────────────────────────────────────────────────
-  const dataTable = await worksheet.getSummaryDataAsync();
+  const dataTable = await worksheet.getSummaryDataAsync({ maxRows: 5000 });
   if (!dataTable.data.length) { renderEmptyState('אין נתונים להצגה'); return; }
 
-  // ── Map column positions by fieldId ───────────────────────────────────
-  const colMap = {};   // { fieldId: colIndex }
-  dataTable.columns.forEach((col, i) => { colMap[col.fieldName] = i; });
+  const columns = dataTable.columns;
 
-  const iPeriod  = colMap[periodField.name];
-  const iYear    = colMap[yearField.name];
-  const iLeading = colMap[leadingField.name];
-  const iKPIs    = kpiFields.map(f => ({ fieldId: f.field.name, col: colMap[f.field.name] }))
-                             .filter(x => x.col !== undefined);
+  // ── Auto-classify columns ─────────────────────────────────────────────
+  // date/datetime → period | 4-digit year integers → year |
+  // first measure → leading (BAN+chart) | rest → KPIs
+  let iPeriod  = -1;
+  let iYear    = -1;
+  let iLeading = -1;
+  const iKPIs  = [];
 
-  // ── Auto-detect CY / PY from actual year values in data ───────────────
+  columns.forEach((col, i) => {
+    const dt = (col.dataType || '').toLowerCase();
+    if (iPeriod === -1 && (dt === 'date' || dt === 'datetime' || dt.includes('date'))) {
+      iPeriod = i; return;
+    }
+    if (dt === 'float' || dt === 'real' || dt === 'int' || dt === 'integer') {
+      if (iYear === -1) {
+        const vals = [...new Set(dataTable.data.slice(0,50).map(r => Number(r[i].value)).filter(v => !isNaN(v)))];
+        if (vals.length >= 1 && vals.length <= 5 && vals.every(v => v >= 2000 && v <= 2100)) {
+          iYear = i; return;
+        }
+      }
+      if (iLeading === -1) iLeading = i;
+      else iKPIs.push({ fieldId: col.fieldName, col: i });
+    }
+  });
+
+  // Name-based fallback
+  if (iPeriod === -1) iPeriod = columns.findIndex(c => /period|month|date|תקופה|חודש/i.test(c.fieldName));
+  if (iYear   === -1) iYear   = columns.findIndex(c => /^year$|^שנה$/i.test(c.fieldName));
+
+  if (iPeriod === -1 || iYear === -1 || iLeading === -1) {
+    const info = columns.map(c => c.fieldName + ':' + c.dataType).join(', ');
+    console.warn('[city-dashboard] col detect failed:', info);
+    document.getElementById('dbg').textContent = '⚠️ ' + info.slice(0,50);
+    renderEmptyState('לא זוהו עמודות — בדוק נתונים');
+    return;
+  }
+  document.getElementById('dbg').textContent = '✅ ' + columns[iPeriod].fieldName.slice(0,8) + '/' + columns[iYear].fieldName.slice(0,8);
+
+  // ── Auto-detect CY / PY ───────────────────────────────────────────────
   const yearValues = [...new Set(dataTable.data.map(r => Number(r[iYear].value)))]
-    .filter(y => !isNaN(y)).sort((a,b) => b - a);
+    .filter(y => !isNaN(y)).sort((a, b) => b - a);
 
   if (yearValues.length < 1) { renderEmptyState('אין נתונים עם שדה שנה'); return; }
   STATE.CY = yearValues[0];
-  STATE.PY = yearValues[1] ?? null;   // null if only one year present
+  STATE.PY = yearValues[1] ?? null;
 
-  // ── Bucket rows into monthly arrays per year ───────────────────────────
+  // ── Bucket rows into monthly arrays per year ──────────────────────────
   const buckets = {
     leading: { [STATE.CY]: Array(12).fill(null), [STATE.PY]: Array(12).fill(null) },
     kpis:    iKPIs.map(() => ({ [STATE.CY]: Array(12).fill(null), [STATE.PY]: Array(12).fill(null) })),
   };
 
-  // Description: same on every row — read from first row if column exists
-  const iDesc = colMap['Description'];
-  STATE.desc  = iDesc !== undefined ? dataTable.data[0][iDesc].formattedValue : '';
+  // Description: optional string column
+  const iDesc = columns.findIndex(col => /description|תיאור/i.test(col.fieldName));
+  STATE.desc  = iDesc >= 0 ? dataTable.data[0][iDesc].formattedValue : '';
 
   for (const row of dataTable.data) {
     const yr = Number(row[iYear].value);
     if (yr !== STATE.CY && yr !== STATE.PY) continue;
-
     const month = monthFromCell(row[iPeriod]);
     if (month === null) continue;
-
     const lv = toNum(row[iLeading].value);
     if (lv !== null) buckets.leading[yr][month] = lv;
-
     iKPIs.forEach(({ col }, ki) => {
-      if (col === undefined) return;
       const v = toNum(row[col].value);
       if (v !== null) buckets.kpis[ki][yr][month] = v;
     });
   }
 
-  // ── Build series arrays ───────────────────────────────────────────────
+  // ── Build series ──────────────────────────────────────────────────────
   const sum = arr => arr.reduce((a, v) => a + (v ?? 0), 0);
   const yoy = (cy, py) => py === 0 ? 0 : ((cy - py) / Math.abs(py)) * 100;
 
   STATE.l_cy = buckets.leading[STATE.CY].map(v => v ?? 0);
   STATE.l_py = STATE.PY ? buckets.leading[STATE.PY].map(v => v ?? 0) : Array(12).fill(0);
 
-  // ── BAN (leading KPI) ─────────────────────────────────────────────────
+  // ── BAN ───────────────────────────────────────────────────────────────
   const banCY = sum(buckets.leading[STATE.CY]);
   const banPY = STATE.PY ? sum(buckets.leading[STATE.PY]) : 0;
-  const banFS = fieldSettings(leadingField.name, 0, true);   // index 0 = leading
+  const banFS = fieldSettings(columns[iLeading].fieldName, 0, true);
 
   STATE.ban = {
-    fieldId: leadingField.name,
-    name:    banFS.displayName || leadingField.name,
+    fieldId: columns[iLeading].fieldName,
+    name:    banFS.displayName || columns[iLeading].fieldName,
     val:     fmt(banCY),
     pct:     yoy(banCY, banPY),
     color:   banFS.color,
     hib:     banFS.hib,
   };
-  cfg.cy = banFS.color;   // chart CY line matches BAN color
+  cfg.cy = banFS.color;
 
-  // ── Secondary KPIs (variable count) ──────────────────────────────────
+  // ── Secondary KPIs ────────────────────────────────────────────────────
   STATE.kpis = iKPIs.map(({ fieldId }, ki) => {
     const cy = sum(buckets.kpis[ki][STATE.CY]);
     const py = STATE.PY ? sum(buckets.kpis[ki][STATE.PY]) : 0;
-    const fs = fieldSettings(fieldId, ki + 1, false);   // index offset by 1 (after leading)
-    return {
-      fieldId,
-      name:    fs.displayName || fieldId,
-      val:     fmt(cy),
-      pct:     yoy(cy, py),
-      color:   fs.color,
-      hib:     fs.hib,
-    };
+    const fs = fieldSettings(fieldId, ki + 1, false);
+    return { fieldId, name: fs.displayName || fieldId, val: fmt(cy), pct: yoy(cy, py), color: fs.color, hib: fs.hib };
   });
 }
 
-// ─── PER-FIELD SETTINGS ───────────────────────────────────────────────────────
-// Returns persisted settings for a fieldId, or sensible defaults.
-// colorIndex drives DEFAULT_COLORS cycling for first-time fields.
-function fieldSettings(fieldId, colorIndex, defaultHib) {
-  if (FIELD_SETTINGS[fieldId]) return FIELD_SETTINGS[fieldId];
-  // First time we've seen this field — create defaults and remember them
-  const defaults = {
-    displayName: fieldId,
-    color:       DEFAULT_COLORS[colorIndex % DEFAULT_COLORS.length],
-    hib:         defaultHib,
-  };
-  FIELD_SETTINGS[fieldId] = defaults;
-  return defaults;
-}
 
 // ─── DATE HELPERS ─────────────────────────────────────────────────────────────
 function monthFromCell(cell) {
@@ -893,10 +880,19 @@ if (inTableau()) {
   document.addEventListener('DOMContentLoaded', async () => {
     try {
       document.getElementById('dbg').textContent = '⏳ initializeAsync...';
+      let _cfgOpen = false;
       await tableau.extensions.initializeAsync({ configure: () => {
         console.log('[city-dashboard] configure callback fired');
         document.getElementById('dbg').textContent = '✅ configure fired!';
+        if (_cfgOpen) return;
+        _cfgOpen = true;
         openS();
+        const obs = new MutationObserver(() => {
+          if (!document.getElementById('s-panel').classList.contains('open')) {
+            _cfgOpen = false; obs.disconnect();
+          }
+        });
+        obs.observe(document.getElementById('s-panel'), { attributes: true, attributeFilter: ['class'] });
       }});
 
       document.getElementById('dbg').textContent = '✅ initialized';
