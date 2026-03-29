@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>City Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0e18;
+  --border:rgba(255,255,255,0.09);
+  --text:#eef0f8;
+  --text2:#7a8099;
+  --text3:#3a4055;
+  --accent:#f5c842;
+  --green:#22c97a;
+  --red:#f05a5a;
+}
+html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+
+/*
+  EXACT WIREFRAME GRID:
+  ┌────────────────────────────────────────────────────┐
+  │  [img box LEFT]              [tag+city+report RIGHT]│  68px topbar
+  ├──────────────────────┬─────────────────────────────┤
+  │                      │  [headline box]              │
+  │  [placeholder box]   │  [BAN: +% | ₪value box]     │  top half
+  │                      ├─────────────────────────────┤
+  │  [chart]             │  [% box | name+value | bar] │  bottom half ×4
+  └──────────────────────┴─────────────────────────────┘
+*/
+.app{
+  display:grid;
+  grid-template-columns: 55% 45%;
+  grid-template-rows: 60px 1fr;
+  grid-template-areas: "tb tb" "ch st";
+  height:100vh;
+}
+
+/* ── TOPBAR ─────────────────────────────────────────── */
+.tb{
+  grid-area:tb;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;   /* img LEFT, city RIGHT */
+  padding:0 20px;
+  border-bottom:1px solid var(--border);
+}
+.tb-img{
+  width:52px;height:36px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  background:rgba(255,255,255,0.03);
+  flex-shrink:0;
+}
+.tb-right{
+  display:flex;flex-direction:column;align-items:flex-end;gap:0;
+  cursor:default;
+}
+.tb-tag{font-size:10px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:5px;margin-bottom:1px}
+.tb-tag-dot{width:5px;height:5px;background:var(--accent);border-radius:50%}
+.tb-name{font-size:24px;font-weight:900;color:var(--text);letter-spacing:-1px;line-height:1}
+.tb-report{font-size:10px;color:var(--text3);margin-top:1px}
+
+/* ── LEFT COLUMN ────────────────────────────────────── */
+.ch{
+  grid-area:ch;
+  display:flex;
+  flex-direction:column;
+  min-height:0;min-width:0;overflow:hidden;
+  border-right:1px solid var(--border);
+}
+/* Top half of left col: sheet iframe / placeholder */
+.ch-placeholder{
+  flex:0 0 50%;
+  background:rgba(0,0,0,0.2);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;position:relative;
+}
+.ch-placeholder-txt{font-size:11px;color:var(--text3)}
+.ch-sheet-iframe{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  border:none;display:block;
+  background:transparent;
+}
+
+/* Bottom half: chart */
+.ch-bottom{
+  flex:1;
+  display:flex;flex-direction:column;
+  padding:10px 10px 10px 16px;
+  min-height:0;
+}
+.ch-hdr{flex-shrink:0;margin-bottom:4px;text-align:right}
+.ch-title{font-size:10px;color:var(--text2);margin-bottom:3px}
+.ch-leg{display:flex;gap:12px;align-items:center;justify-content:flex-end}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.leg-line{width:16px;height:2px;border-radius:2px;flex-shrink:0}
+.leg-cy{background:var(--accent)}
+.leg-py{background:rgba(255,255,255,0.28)}
+#chart{flex:1;min-height:0;min-width:0}
+
+/* ── RIGHT COLUMN ───────────────────────────────────── */
+.st{
+  grid-area:st;
+  display:flex;flex-direction:column;
+  min-height:0;overflow:hidden;
+}
+
+/* TOP HALF of right col: headline + BAN */
+.st-top{
+  flex:0 0 50%;
+  display:flex;flex-direction:column;
+  border-bottom:1px solid var(--border);
+  min-height:0;
+}
+
+/* Headline block — has its own border box in wireframe */
+.st-hl-block{
+  flex-shrink:0;
+  padding:14px 20px 12px 12px;
+  border-bottom:1px solid var(--border);
+}
+.st-year{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;text-align:right}
+.st-hl{font-size:clamp(22px,2.6vw,34px);font-weight:900;line-height:1.25;color:var(--text);letter-spacing:-.5px;margin-bottom:8px;text-align:right}
+.st-hl .ac{color:var(--accent)}
+.st-desc{font-size:13px;color:var(--text2);line-height:1.6;text-align:right}
+
+/* BAN row — fills rest of top half
+   Layout: [% plain text LEFT] [value box RIGHT]
+   The VALUE is inside a bordered box.
+   Between them: flex spacer.
+*/
+.ban-row{
+  flex:1;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  padding:0 0 0 20px;
+  min-height:0;
+}
+.ban-pct-block{
+  display:flex;flex-direction:column;
+  align-items:flex-end;
+  gap:2px;
+  flex-shrink:0;
+  padding:0 24px 0 20px;
+}
+.ban-pct{font-size:clamp(24px,3vw,40px);font-weight:900;line-height:1}
+.ban-pct.up{color:var(--green)}
+.ban-pct.down{color:var(--red)}
+.ban-vs{font-size:10px;color:var(--text3)}
+
+/* Spacer between % and value box */
+.ban-spacer{flex:0 0 24px}
+
+/* Value box — bordered rectangle like wireframe */
+.ban-val-box{
+  flex:1;
+  display:flex;flex-direction:column;
+  align-items:flex-end;
+  border:none;
+  padding:10px 12px 10px 0;
+  gap:3px;
+}
+
+.ban-val-name{font-size:12px;font-weight:700;color:var(--text2)}
+.ban-val-num{font-size:clamp(34px,4vw,54px);font-weight:900;color:var(--text);letter-spacing:-2px;line-height:1}
+
+/* ── BOTTOM HALF of right col: 4 KPI rows ────────────
+   Each row:
+   LEFT:  % inside a RECTANGULAR BORDERED BOX
+   RIGHT: name (small, top-right) + value (big, bottom-right) + thin right border line
+   Gap/spacer between % box and value block.
+────────────────────────────────────────────────────── */
+.kpi-stack{
+  flex:1;
+  display:flex;flex-direction:column;
+  min-height:0;
+}
+.kpi-row{
+  flex:1;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  border-bottom:1px solid var(--border);
+  padding:0;
+  gap:0;
+  min-height:0;
+}
+.kpi-row:last-child{border-bottom:none}
+
+/* % box — rectangular border */
+
+.kpi-bar{width:5px;height:55%;border-radius:3px;flex-shrink:0;align-self:center;margin-right:0}
+.ban-bar{width:6px;height:60%;border-radius:3px;flex-shrink:0;align-self:center;margin-right:0}
+
+.kpi-pct-box{
+  flex-shrink:0;
+  border:none;
+  padding:0 24px 0 16px;
+  display:flex;align-items:center;justify-content:flex-end;
+  align-self:center;
+}
+.kpi-pct{font-size:clamp(14px,1.6vw,20px);font-weight:900;white-space:nowrap}
+.kpi-pct.up{color:var(--green)}
+.kpi-pct.down{color:var(--red)}
+.kpi-pct.flat{color:var(--text3)}
+
+/* Spacer between % box and value */
+.kpi-spacer{flex:1}
+.kpi-right{display:flex;flex-direction:row;align-items:center;gap:28px}
+
+/* Value block — right side, with thin color line at far right */
+.kpi-val-block{
+  flex:1;
+  display:flex;flex-direction:column;
+  align-items:flex-end;
+  gap:2px;
+  padding-right:12px;
+  align-self:center;
+}
+/* thin color bar at far right */
+
+.kpi-name{font-size:12px;font-weight:700;color:var(--text2);line-height:1}
+.kpi-val{font-size:clamp(18px,2.2vw,28px);font-weight:900;color:var(--text);letter-spacing:-.5px;line-height:1}
+
+/* ── SETTINGS ─────────────────────────────────────── */
+.s-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:299;display:none}
+.s-ov.open{display:block}
+.s-panel{position:fixed;top:0;right:0;bottom:0;width:256px;background:#181c27;border-left:1px solid rgba(255,255,255,.1);z-index:300;transform:translateX(100%);transition:transform .28s cubic-bezier(.22,1,.36,1);display:flex;flex-direction:column;overflow-y:auto}
+.s-panel.open{transform:translateX(0)}
+.s-hdr{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.s-hdr h3{font-size:13px;font-weight:700;color:var(--text)}
+.s-x{background:none;border:1px solid rgba(255,255,255,.12);border-radius:6px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:13px}
+.s-body{padding:12px 16px;display:flex;flex-direction:column;gap:16px}
+.s-gl{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px}
+.s-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.s-row label{font-size:11px;color:var(--text2)}
+.s-row input[type=color]{width:32px;height:20px;border:1px solid rgba(255,255,255,.12);border-radius:4px;background:none;cursor:pointer;padding:1px}
+.s-row input[type=range]{width:84px;accent-color:var(--accent)}
+.s-row select{background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 7px;font-size:11px;font-family:'Heebo',sans-serif}
+.s-apply{background:var(--accent);color:#0b0e18;border:none;border-radius:7px;padding:8px;font-size:12px;font-weight:700;font-family:'Heebo',sans-serif;cursor:pointer;width:100%}
+</style>
+</head>
+<body>
+
+<div class="s-ov" id="s-ov" onclick="closeS()"></div>
+<div class="s-panel" id="s-panel">
+  <div class="s-hdr"><h3>הגדרות תצוגה</h3><button class="s-x" onclick="closeS()">✕</button></div>
+  <div class="s-body">
+    <div><div class="s-gl">גרף</div>
+      <div class="s-row"><label>שנה נוכחית</label><input type="color" id="c-cy" value="#f5c842"></div>
+      <div class="s-row"><label>עובי קו</label><input type="range" id="c-lw" min="1" max="5" value="2"></div>
+    </div>
+    <div><div class="s-gl">צבעי KPI</div><div id="kcolors"></div></div>
+    <div><div class="s-gl">כיוון חיובי</div><div id="kdirs"></div></div>
+    <div>
+      <div class="s-gl">תצוגת עיר</div>
+      <div class="s-row">
+        <label>כתובת שרת</label>
+        <input type="text" id="c-server" placeholder="https://tableau.company.com"
+          style="width:130px;background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 6px;font-size:11px;font-family:'Heebo',sans-serif">
+      </div>
+      <div class="s-row">
+        <label>גיליון להצגה</label>
+        <select id="c-sheet" style="background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 7px;font-size:11px;font-family:'Heebo',sans-serif;max-width:130px">
+          <option value="">— בחר גיליון —</option>
+        </select>
+      </div>
+    </div>
+    <button class="s-apply" onclick="applyS()">החל שינויים</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="tb">
+    <div class="tb-img"></div>
+    <div class="tb-right" ondblclick="openS()">
+      <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
+      <div class="tb-name" id="tb-name">תל אביב</div>
+      <div class="tb-report">סקירה כללית</div>
+    </div>
+  </div>
+
+  <!-- LEFT COL -->
+  <div class="ch">
+    <div class="ch-placeholder" id="ch-placeholder">
+      <span class="ch-placeholder-txt" id="ch-placeholder-txt">תמונת עיר</span>
+    </div>
+    <div class="ch-bottom">
+      <div class="ch-hdr">
+        <div class="ch-title">פעילות כלכלית משולבת (מדד, אלפים) — 2024 לעומת 2025</div>
+        <div class="ch-leg">
+          <div class="leg-item"><div class="leg-line leg-cy"></div><span>2025</span></div>
+          <div class="leg-item"><div class="leg-line leg-py"></div><span>2024</span></div>
+        </div>
+      </div>
+      <div id="chart"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT COL -->
+  <div class="st">
+
+    <!-- TOP HALF: headline + BAN -->
+    <div class="st-top">
+
+      <!-- Headline block -->
+      <div class="st-hl-block">
+        <div class="st-year">הסיפור של 2025</div>
+        <div class="st-hl">לתל אביב הייתה <span class="ac">השנה הטובה</span><br>ביותר בזיכרון האחרון.</div>
+        <div class="st-desc" id="st-desc"></div>
+      </div>
+
+      <!-- BAN: [% LEFT] [spacer] [value box RIGHT] -->
+      <div class="ban-row">
+        <div class="ban-pct-block">
+          <div class="ban-pct up" id="ban-pct">▲ +14.2%</div>
+        </div>
+        <div class="ban-val-box" id="ban-val-box">
+          <div class="ban-val-name" id="ban-name">סך מכירות</div>
+          <div class="ban-val-num" id="ban-val">₪17.5B</div>
+        </div>
+        <div class="ban-bar" id="ban-bar" style="background:#f5c842"></div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM HALF: 4 KPI rows -->
+    <!-- Each row: [% rect box LEFT] [spacer] [name+value+bar RIGHT] -->
+    <div class="kpi-stack" id="kpi-stack"></div>
+
+  </div>
+</div>
+
+<script>
+/*
+  ═══════════════════════════════════════════════════════════════════════════════
+  TREX MANIFEST — add these allowedEncodings to echarts-extension.trex so
+  Tableau exposes the Marks Card field assignment UI to the user:
+
+  "encoding": {
+    "allowedEncodings": [
+      { "id": "period",  "displayName": "תקופה (חודש/תאריך)", "dataType": "date" },
+      { "id": "year",    "displayName": "שנה",                "dataType": "integer" },
+      { "id": "leading", "displayName": "KPI מוביל",          "dataType": "float" },
+      { "id": "kpi",     "displayName": "KPI משני",           "dataType": "float",
+        "allowMultiple": true }
+    ]
+  }
+
+  The user drags fields onto these slots once. This file reads them via
+  getVisualSpecificationAsync() — no field names are hardcoded anywhere.
+  ═══════════════════════════════════════════════════════════════════════════════
+*/
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const MON = ["ינו","פבר","מרץ","אפר","מאי","יוני","יולי","אוג","ספט","אוק","נוב","דצמ"];
+
+// Default KPI colors cycled when a new field appears for the first time
+const DEFAULT_COLORS = ["#f5c842","#4a90c4","#22c97a","#a78bfa","#f05a5a","#f0954a","#5ac8fa","#bf5af2"];
+const DEFAULT_BAN_COLOR = "#f5c842";
+
+// ─── RUNTIME STATE ────────────────────────────────────────────────────────────
+// Populated entirely from Tableau data — nothing hardcoded.
+let STATE = {
+  CY: null,        // auto-detected current year (max)
+  PY: null,        // auto-detected prior year (second-max)
+  desc: '',
+  city: '',
+  ban:  { fieldId:'', name:'', val:'—', pct:0, color:DEFAULT_BAN_COLOR, hib:true },
+  kpis: [],        // [{ fieldId, name, displayName, val, pct, color, hib }, ...]
+  l_cy: Array(12).fill(0),
+  l_py: Array(12).fill(0),
+};
+
+// Persisted display settings keyed by Tableau fieldId
+// { [fieldId]: { displayName, color, hib } }
+let FIELD_SETTINGS = {};
+
+// City sheet iframe state
+let VIZ_SHEET = { serverUrl: '', sheetName: '' };
+
+let cfg = { cy: DEFAULT_BAN_COLOR, lw: 2 };
+let CI  = null;
+
+// ─── MOCK DATA (browser-only preview, never used inside Tableau) ──────────────
+const MOCK = {
+  city: 'תל אביב',
+  desc: 'בכל מדד כלכלי מרכזי — מכירות, רישום עסקים ותיירות — שנת 2025 שברה שיאים.',
+  CY: 2025, PY: 2024,
+  ban:  { fieldId:'mock_ban',  name:'סך מכירות',    val:'₪17.5B', pct:14.2,  color:'#f5c842', hib:true  },
+  kpis: [
+    { fieldId:'mock_k1', name:'עסקים פעילים', val:'18,340', pct:8.6,   color:'#4a90c4', hib:true  },
+    { fieldId:'mock_k2', name:'תיירים',       val:'2.31M',  pct:19.4,  color:'#22c97a', hib:true  },
+    { fieldId:'mock_k3', name:'עמלות',        val:'1,240',  pct:19.4,  color:'#a78bfa', hib:false },
+    { fieldId:'mock_k4', name:'ביטולים',      val:'1,240',  pct:-12.1, color:'#f05a5a', hib:false },
+  ],
+  l_cy: [173,171,185,196,216,240,256,262,248,238,268,330],
+  l_py: [170,168,175,182,200,220,235,240,225,210,245,260],
+};
+
+// ─── TABLEAU DETECTION ────────────────────────────────────────────────────────
+function inTableau() {
+  return typeof tableau !== 'undefined' && tableau.extensions;
+}
+
+// ─── ENTRY POINT ─────────────────────────────────────────────────────────────
+// Phase 2 will wrap this in tableau.extensions.initialize().then(...)
+async function fetchAndRender() {
+  if (!inTableau()) {
+    applyMock();
+    render();
+    return;
+  }
+  try {
+    await loadSettings();
+    await readTableauData();
+    render();
+  } catch(err) {
+    console.error('[city-dashboard] fetchAndRender:', err);
+    renderEmptyState('שגיאה בטעינת הנתונים');
+  }
+}
+
+// ─── SETTINGS PERSISTENCE ────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const raw = tableau.extensions.settings.get('fieldSettings');
+    if (raw) FIELD_SETTINGS = JSON.parse(raw);
+    const rawCfg = tableau.extensions.settings.get('chartCfg');
+    if (rawCfg) cfg = { ...cfg, ...JSON.parse(rawCfg) };
+    const rawViz = tableau.extensions.settings.get('vizSheet');
+    if (rawViz) VIZ_SHEET = { ...VIZ_SHEET, ...JSON.parse(rawViz) };
+  } catch(e) {
+    console.warn('[city-dashboard] loadSettings:', e);
+  }
+}
+
+// saveSettings() is called ONLY from an explicit user action (applyS).
+// Never call on FilterChanged — on Tableau Desktop, saveAsync() marks the
+// workbook dirty and can trigger an iframe reload.
+async function saveSettings() {
+  if (!inTableau()) return;
+  try {
+    tableau.extensions.settings.set('fieldSettings', JSON.stringify(FIELD_SETTINGS));
+    tableau.extensions.settings.set('chartCfg',      JSON.stringify({ cy: cfg.cy, lw: cfg.lw }));
+    tableau.extensions.settings.set('vizSheet',       JSON.stringify(VIZ_SHEET));
+    await tableau.extensions.settings.saveAsync();
+  } catch(e) {
+    console.warn('[city-dashboard] saveSettings:', e);
+  }
+}
+
+// ─── READ TABLEAU DATA ────────────────────────────────────────────────────────
+async function readTableauData() {
+  const dash      = tableau.extensions.dashboardContent.dashboard;
+  const worksheet = dash.activeSheet;   // viz extension = its own sheet
+
+  // ── Field mapping from Marks Card (allowedEncodings) ─────────────────
+  const vizSpec = await worksheet.getVisualSpecificationAsync();
+  const enc     = vizSpec.marksSpecificationsByEncoding;
+  // enc is a Map: encodingId → [ { field } ]
+
+  const periodField  = enc.get('period')?.[0]?.field;
+  const yearField    = enc.get('year')?.[0]?.field;
+  const leadingField = enc.get('leading')?.[0]?.field;
+  const kpiFields    = enc.get('kpi') ?? [];   // array — user may add many
+
+  if (!periodField || !yearField || !leadingField) {
+    renderEmptyState('אנא הגדר שדות בכרטיס הסימנים');
+    return;
+  }
+
+  // ── City name from parameter (optional — graceful if absent) ─────────
+  try {
+    const params    = await dash.getParametersAsync();
+    const cityParam = params.find(p => p.name === 'mycity');
+    STATE.city = cityParam ? cityParam.currentValue.formattedValue : '';
+  } catch(_) {}
+
+  // ── Fetch summary data ────────────────────────────────────────────────
+  const dataTable = await worksheet.getSummaryDataAsync();
+  if (!dataTable.data.length) { renderEmptyState('אין נתונים להצגה'); return; }
+
+  // ── Map column positions by fieldId ───────────────────────────────────
+  const colMap = {};   // { fieldId: colIndex }
+  dataTable.columns.forEach((col, i) => { colMap[col.fieldName] = i; });
+
+  const iPeriod  = colMap[periodField.name];
+  const iYear    = colMap[yearField.name];
+  const iLeading = colMap[leadingField.name];
+  const iKPIs    = kpiFields.map(f => ({ fieldId: f.field.name, col: colMap[f.field.name] }))
+                             .filter(x => x.col !== undefined);
+
+  // ── Auto-detect CY / PY from actual year values in data ───────────────
+  const yearValues = [...new Set(dataTable.data.map(r => Number(r[iYear].value)))]
+    .filter(y => !isNaN(y)).sort((a,b) => b - a);
+
+  if (yearValues.length < 1) { renderEmptyState('אין נתונים עם שדה שנה'); return; }
+  STATE.CY = yearValues[0];
+  STATE.PY = yearValues[1] ?? null;   // null if only one year present
+
+  // ── Bucket rows into monthly arrays per year ───────────────────────────
+  const buckets = {
+    leading: { [STATE.CY]: Array(12).fill(null), [STATE.PY]: Array(12).fill(null) },
+    kpis:    iKPIs.map(() => ({ [STATE.CY]: Array(12).fill(null), [STATE.PY]: Array(12).fill(null) })),
+  };
+
+  // Description: same on every row — read from first row if column exists
+  const iDesc = colMap['Description'];
+  STATE.desc  = iDesc !== undefined ? dataTable.data[0][iDesc].formattedValue : '';
+
+  for (const row of dataTable.data) {
+    const yr = Number(row[iYear].value);
+    if (yr !== STATE.CY && yr !== STATE.PY) continue;
+
+    const month = monthFromCell(row[iPeriod]);
+    if (month === null) continue;
+
+    const lv = toNum(row[iLeading].value);
+    if (lv !== null) buckets.leading[yr][month] = lv;
+
+    iKPIs.forEach(({ col }, ki) => {
+      if (col === undefined) return;
+      const v = toNum(row[col].value);
+      if (v !== null) buckets.kpis[ki][yr][month] = v;
+    });
+  }
+
+  // ── Build series arrays ───────────────────────────────────────────────
+  const sum = arr => arr.reduce((a, v) => a + (v ?? 0), 0);
+  const yoy = (cy, py) => py === 0 ? 0 : ((cy - py) / Math.abs(py)) * 100;
+
+  STATE.l_cy = buckets.leading[STATE.CY].map(v => v ?? 0);
+  STATE.l_py = STATE.PY ? buckets.leading[STATE.PY].map(v => v ?? 0) : Array(12).fill(0);
+
+  // ── BAN (leading KPI) ─────────────────────────────────────────────────
+  const banCY = sum(buckets.leading[STATE.CY]);
+  const banPY = STATE.PY ? sum(buckets.leading[STATE.PY]) : 0;
+  const banFS = fieldSettings(leadingField.name, 0, true);   // index 0 = leading
+
+  STATE.ban = {
+    fieldId: leadingField.name,
+    name:    banFS.displayName || leadingField.name,
+    val:     fmt(banCY),
+    pct:     yoy(banCY, banPY),
+    color:   banFS.color,
+    hib:     banFS.hib,
+  };
+  cfg.cy = banFS.color;   // chart CY line matches BAN color
+
+  // ── Secondary KPIs (variable count) ──────────────────────────────────
+  STATE.kpis = iKPIs.map(({ fieldId }, ki) => {
+    const cy = sum(buckets.kpis[ki][STATE.CY]);
+    const py = STATE.PY ? sum(buckets.kpis[ki][STATE.PY]) : 0;
+    const fs = fieldSettings(fieldId, ki + 1, false);   // index offset by 1 (after leading)
+    return {
+      fieldId,
+      name:    fs.displayName || fieldId,
+      val:     fmt(cy),
+      pct:     yoy(cy, py),
+      color:   fs.color,
+      hib:     fs.hib,
+    };
+  });
+}
+
+// ─── PER-FIELD SETTINGS ───────────────────────────────────────────────────────
+// Returns persisted settings for a fieldId, or sensible defaults.
+// colorIndex drives DEFAULT_COLORS cycling for first-time fields.
+function fieldSettings(fieldId, colorIndex, defaultHib) {
+  if (FIELD_SETTINGS[fieldId]) return FIELD_SETTINGS[fieldId];
+  // First time we've seen this field — create defaults and remember them
+  const defaults = {
+    displayName: fieldId,
+    color:       DEFAULT_COLORS[colorIndex % DEFAULT_COLORS.length],
+    hib:         defaultHib,
+  };
+  FIELD_SETTINGS[fieldId] = defaults;
+  return defaults;
+}
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────────
+function monthFromCell(cell) {
+  const v = cell.value;
+  if (v instanceof Date) return isNaN(v) ? null : v.getMonth();
+  if (typeof v === 'string') { const d = new Date(v); return isNaN(d) ? null : d.getMonth(); }
+  if (typeof v === 'number') { const d = new Date((v - 25569) * 86400000); return isNaN(d) ? null : d.getMonth(); }
+  return null;
+}
+function toNum(v) { const n = Number(v); return isNaN(n) ? null : n; }
+function fmt(n) {
+  if (n == null || isNaN(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if (a >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if (a >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return n.toLocaleString('he-IL');
+}
+
+// ─── MOCK ─────────────────────────────────────────────────────────────────────
+function applyMock() {
+  Object.assign(STATE, MOCK);
+  cfg.cy = MOCK.ban.color;
+}
+
+// ─── CITY SHEET IFRAME ───────────────────────────────────────────────────────
+
+/**
+ * Build the Tableau Server embed URL for a given sheet, stripping all chrome.
+ * URL pattern: {serverUrl}/views/{workbookName}/{sheetName}?:embed=yes&:toolbar=no&...
+ * Sheet names with spaces become underscores in the URL path.
+ */
+function buildSheetUrl(serverUrl, workbookName, sheetName) {
+  const base  = serverUrl.replace(/\/$/, '');
+  const wName = encodeURIComponent(workbookName.replace(/\s+/g, '_'));
+  const sName = encodeURIComponent(sheetName.replace(/\s+/g, '_'));
+  return `${base}/views/${wName}/${sName}?:embed=yes&:toolbar=no&:tabs=no&:showVizHome=no&:device=desktop`;
+}
+
+function renderSheetViz() {
+  const placeholder = document.getElementById('ch-placeholder');
+  const txt         = document.getElementById('ch-placeholder-txt');
+
+  // Remove any existing iframe
+  const existing = document.getElementById('ch-sheet-iframe');
+  if (existing) existing.remove();
+
+  if (!inTableau() || !VIZ_SHEET.serverUrl || !VIZ_SHEET.sheetName) {
+    txt.style.display = '';
+    return;
+  }
+
+  try {
+    const workbook = tableau.extensions.dashboardContent.dashboard.workbook;
+    const url      = buildSheetUrl(VIZ_SHEET.serverUrl, workbook.name, VIZ_SHEET.sheetName);
+    const iframe   = document.createElement('iframe');
+    iframe.id              = 'ch-sheet-iframe';
+    iframe.className       = 'ch-sheet-iframe';
+    iframe.src             = url;
+    iframe.allowFullscreen = true;
+    // Hide placeholder text once iframe loads
+    iframe.addEventListener('load', () => { txt.style.display = 'none'; });
+    placeholder.appendChild(iframe);
+  } catch(e) {
+    console.warn('[city-dashboard] renderSheetViz:', e);
+    txt.style.display = '';
+  }
+}
+
+// ─── EMPTY STATE ──────────────────────────────────────────────────────────────
+function renderEmptyState(msg = 'אין נתונים להצגה') {
+  document.getElementById('st-desc').textContent = msg;
+  document.getElementById('ban-pct').textContent = '— %';
+  document.getElementById('ban-pct').className   = 'ban-pct flat';
+  document.getElementById('ban-val').textContent  = '—';
+  document.getElementById('ban-name').textContent = '—';
+  document.getElementById('kpi-stack').innerHTML  = '';
+  window._l_cy = Array(12).fill(0);
+  window._l_py = Array(12).fill(0);
+  renderChart();
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render() {
+  // City name
+  if (STATE.city) document.getElementById('tb-name').textContent = STATE.city;
+
+  // Year labels
+  const cyLabel = String(STATE.CY ?? '—');
+  const pyLabel = String(STATE.PY ?? '—');
+  document.querySelectorAll('.leg-cy + span, .leg-item:last-child span').forEach((el,i)=>{
+    if(i===0) el.textContent = cyLabel;
+    if(i===1) el.textContent = pyLabel;
+  });
+  // Update legend spans directly
+  const legItems = document.querySelectorAll('.leg-item span');
+  if(legItems[0]) legItems[0].textContent = cyLabel;
+  if(legItems[1]) legItems[1].textContent = pyLabel;
+
+  // Description
+  document.getElementById('st-desc').textContent = STATE.desc;
+
+  // BAN
+  const { ban } = STATE;
+  const banGood  = ban.hib ? ban.pct > 0 : ban.pct < 0;
+  document.getElementById('ban-pct').className   = 'ban-pct ' + (banGood ? 'up' : 'down');
+  document.getElementById('ban-pct').textContent = (ban.pct > 0 ? '▲ +' : '▼ ') + Math.abs(ban.pct).toFixed(1) + '%';
+  document.getElementById('ban-name').textContent = ban.name;
+  document.getElementById('ban-val').textContent  = ban.val;
+  document.getElementById('ban-bar').style.background = ban.color;
+
+  // KPI rows — fully dynamic, renders however many STATE.kpis has
+  document.getElementById('kpi-stack').innerHTML = STATE.kpis.map(k => {
+    const good = k.hib ? k.pct > 0 : k.pct < 0;
+    const cls  = good ? 'up' : Math.abs(k.pct) < 0.05 ? 'flat' : 'down';
+    return `<div class="kpi-row">
+      <div class="kpi-pct-box">
+        <div class="kpi-pct ${cls}">${k.pct > 0 ? '▲' : '▼'} ${k.pct > 0 ? '+' : ''}${Math.abs(k.pct).toFixed(1)}%</div>
+      </div>
+      <div class="kpi-val-block">
+        <div class="kpi-name">${k.name}</div>
+        <div class="kpi-val">${k.val}</div>
+      </div>
+      <div class="kpi-bar" style="background:${k.color}"></div>
+    </div>`;
+  }).join('');
+
+  // Chart line color tracks BAN color
+  cfg.cy = ban.color;
+  document.querySelector('.leg-cy').style.background = cfg.cy;
+
+  window._l_cy = STATE.l_cy;
+  window._l_py = STATE.l_py;
+  window._CY   = STATE.CY;
+  window._PY   = STATE.PY;
+  renderChart();
+  renderSheetViz();
+}
+
+function renderChart() {
+  const el  = document.getElementById('chart');
+  const l_cy = window._l_cy || Array(12).fill(0);
+  const l_py = window._l_py || Array(12).fill(0);
+  const cyL  = String(window._CY ?? '—');
+  const pyL  = String(window._PY ?? '—');
+  if (!CI) { CI = echarts.init(el, null, {renderer:'svg'}); new ResizeObserver(() => CI.resize()).observe(el); }
+  CI.setOption({
+    animation: true, backgroundColor: 'transparent',
+    grid: {top:6, right:8, bottom:26, left:42, containLabel:false},
+    tooltip: {
+      trigger: 'axis', backgroundColor:'#181c27', borderColor:'rgba(255,255,255,0.08)', borderWidth:1,
+      textStyle: {color:'#eef0f8', fontSize:11, fontFamily:'Heebo'},
+      formatter: p => {
+        let s = `<div style="font-weight:700;margin-bottom:4px">${p[0].name}</div>`;
+        p.forEach(x => {
+          const c = x.seriesName === cyL ? cfg.cy : 'rgba(255,255,255,0.35)';
+          s += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+            <span style="width:14px;height:2px;background:${c};display:inline-block;border-radius:2px"></span>
+            <span style="color:#7a8099;flex:1">${x.seriesName}</span>
+            <span style="font-weight:700">${x.value}</span></div>`;
+        });
+        return s;
+      }
+    },
+    xAxis: {type:'category', data:MON, axisLine:{lineStyle:{color:'rgba(255,255,255,0.06)'}}, axisTick:{show:false}, axisLabel:{color:'#3a4055',fontSize:10,fontFamily:'Heebo'}},
+    yAxis: {type:'value', min:0, axisLabel:{color:'#3a4055',fontSize:10,fontFamily:'Heebo'}, splitLine:{lineStyle:{color:'rgba(255,255,255,0.04)'}}, axisLine:{show:false}, axisTick:{show:false}},
+    series: [
+      {name:pyL, type:'line', data:l_py, smooth:.4, symbol:'none',
+        lineStyle:{color:'rgba(255,255,255,0.28)', width:cfg.lw},
+        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(255,255,255,0.07)'},{offset:1,color:'rgba(255,255,255,0)'}]}}},
+      {name:cyL, type:'line', data:l_cy, smooth:.4, symbol:'none',
+        lineStyle:{color:cfg.cy, width:cfg.lw+1},
+        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:cfg.cy+'2e'},{offset:1,color:cfg.cy+'00'}]}}},
+    ]
+  }, true);
+}
+
+// ─── SETTINGS PANEL ───────────────────────────────────────────────────────────
+// Shows all live fields (BAN + KPIs) with display name, color, hib direction.
+// Phase 3 will add tableau.extensions.settings.saveAsync() here.
+function openS() {
+  const allFields = [STATE.ban, ...STATE.kpis];
+  document.getElementById('kcolors').innerHTML = allFields.map((k, i) =>
+    `<div class="s-row">
+       <label>${k.fieldId}</label>
+       <div style="display:flex;gap:6px;align-items:center">
+         <input type="text"  id="kn${i}" value="${k.name}"  style="width:90px;background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 6px;font-size:11px;font-family:'Heebo',sans-serif">
+         <input type="color" id="kc${i}" value="${k.color}">
+       </div>
+     </div>`
+  ).join('');
+  document.getElementById('kdirs').innerHTML = allFields.map((k, i) =>
+    `<div class="s-row">
+       <label>${k.name || k.fieldId}</label>
+       <select id="kd${i}">
+         <option value="1" ${k.hib ? 'selected' : ''}>↑ חיובי</option>
+         <option value="0" ${!k.hib ? 'selected' : ''}>↓ חיובי</option>
+       </select>
+     </div>`
+  ).join('');
+  document.getElementById('c-cy').value     = cfg.cy;
+  document.getElementById('c-lw').value     = cfg.lw;
+  document.getElementById('c-server').value = VIZ_SHEET.serverUrl;
+
+  // Populate sheet dropdown from live workbook worksheets
+  const sheetSel = document.getElementById('c-sheet');
+  sheetSel.innerHTML = '<option value="">— בחר גיליון —</option>';
+  if (inTableau()) {
+    try {
+      const sheets = tableau.extensions.dashboardContent.dashboard.worksheets;
+      sheets.forEach(ws => {
+        const opt      = document.createElement('option');
+        opt.value      = ws.name;
+        opt.textContent = ws.name;
+        opt.selected   = ws.name === VIZ_SHEET.sheetName;
+        sheetSel.appendChild(opt);
+      });
+    } catch(e) {
+      console.warn('[city-dashboard] sheet list:', e);
+    }
+  } else {
+    // Browser preview — show mock options so UI is visible
+    ['גיליון עירוני', 'מפת עיר', 'תרשים מגמות'].forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = name;
+      opt.selected = name === VIZ_SHEET.sheetName;
+      sheetSel.appendChild(opt);
+    });
+  }
+
+  document.getElementById('s-ov').classList.add('open');
+  document.getElementById('s-panel').classList.add('open');
+}
+
+function closeS() {
+  document.getElementById('s-ov').classList.remove('open');
+  document.getElementById('s-panel').classList.remove('open');
+}
+
+function applyS() {
+  cfg.cy = document.getElementById('c-cy').value;
+  cfg.lw = +document.getElementById('c-lw').value;
+
+  const allFields = [STATE.ban, ...STATE.kpis];
+  allFields.forEach((k, i) => {
+    const displayName = document.getElementById(`kn${i}`).value.trim() || k.fieldId;
+    const color       = document.getElementById(`kc${i}`).value;
+    const hib         = document.getElementById(`kd${i}`).value === '1';
+    k.name  = displayName;
+    k.color = color;
+    k.hib   = hib;
+    FIELD_SETTINGS[k.fieldId] = { displayName, color, hib };
+  });
+
+  VIZ_SHEET.serverUrl = document.getElementById('c-server').value.trim();
+  VIZ_SHEET.sheetName = document.getElementById('c-sheet').value;
+
+  render();
+  closeS();
+  saveSettings();   // async — fires after UI updates, never blocks render
+}
+
+// ─── PHASE 2 — EXTENSION INFRASTRUCTURE ──────────────────────────────────────
+
+// ── Render lock ───────────────────────────────────────────────────────────────
+// Prevents concurrent renders if FilterChanged fires while one is in flight.
+let _renderInProgress = false;
+let _renderQueued     = false;
+
+async function safeRender() {
+  if (_renderInProgress) {
+    // Another render is running — queue exactly one more, drop the rest
+    _renderQueued = true;
+    return;
+  }
+  _renderInProgress = true;
+  try {
+    await fetchAndRender();
+  } finally {
+    _renderInProgress = false;
+    if (_renderQueued) {
+      _renderQueued = false;
+      safeRender();   // drain the single queued render
+    }
+  }
+}
+
+// ── Debounce ──────────────────────────────────────────────────────────────────
+// Tableau can fire FilterChanged several times in quick succession (e.g. when
+// multiple filters update together). We wait 300ms of silence before rendering.
+let _debounceTimer = null;
+const DEBOUNCE_MS  = 300;
+
+function onFilterChanged() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => safeRender(), DEBOUNCE_MS);
+}
+
+// ── Initialize ────────────────────────────────────────────────────────────────
+if (inTableau()) {
+  tableau.extensions.initialize().then(() => {
+    // First render
+    safeRender();
+
+    // Register FilterChanged on the embedded worksheet
+    const worksheet = tableau.extensions.dashboardContent.dashboard.activeSheet;
+    worksheet.addEventListener(
+      tableau.TableauEventType.FilterChanged,
+      onFilterChanged
+    );
+
+    // Also re-render when a parameter changes (e.g. mycity parameter)
+    tableau.extensions.dashboardContent.dashboard.addEventListener(
+      tableau.TableauEventType.ParameterChanged,
+      onFilterChanged
+    );
+
+  }).catch(err => {
+    console.error('[city-dashboard] initialize() failed:', err);
+    renderEmptyState('שגיאה באתחול ה-Extension');
+  });
+
+} else {
+  // Plain browser — run mock immediately
+  fetchAndRender();
+}
+</script>
+</body>
+</html>
