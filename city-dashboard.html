@@ -462,8 +462,8 @@ async function saveSettings() {
 
 // ─── READ TABLEAU DATA ────────────────────────────────────────────────────────
 async function readTableauData() {
-  const dash      = tableau.extensions.dashboardContent.dashboard;
-  const worksheet = dash.activeSheet;   // viz extension = its own sheet
+  // Worksheet extension API — the worksheet IS the extension's own sheet
+  const worksheet = tableau.extensions.worksheetContent.worksheet;
 
   // ── Field mapping from Marks Card (allowedEncodings) ─────────────────
   const vizSpec = await worksheet.getVisualSpecificationAsync();
@@ -480,12 +480,9 @@ async function readTableauData() {
     return;
   }
 
-  // ── City name from parameter (optional — graceful if absent) ─────────
-  try {
-    const params    = await dash.getParametersAsync();
-    const cityParam = params.find(p => p.name === 'mycity');
-    STATE.city = cityParam ? cityParam.currentValue.formattedValue : '';
-  } catch(_) {}
+  // ── City name from parameter (worksheet extensions can't access dashboard params)
+  // Will be set via settings panel or left as the tb-name default.
+  STATE.city = STATE.city || '';
 
   // ── Fetch summary data ────────────────────────────────────────────────
   const dataTable = await worksheet.getSummaryDataAsync();
@@ -641,8 +638,8 @@ function renderSheetViz() {
   }
 
   try {
-    const workbook = tableau.extensions.dashboardContent.dashboard.workbook;
-    const url      = buildSheetUrl(VIZ_SHEET.serverUrl, workbook.name, VIZ_SHEET.sheetName);
+    const workbook = tableau.extensions.worksheetContent.worksheet.workbook;
+    const url      = buildSheetUrl(VIZ_SHEET.serverUrl, workbook?.name || '', VIZ_SHEET.sheetName);
     const iframe   = document.createElement('iframe');
     iframe.id              = 'ch-sheet-iframe';
     iframe.className       = 'ch-sheet-iframe';
@@ -797,7 +794,8 @@ function openS() {
   sheetSel.innerHTML = '<option value="">— בחר גיליון —</option>';
   if (inTableau()) {
     try {
-      const sheets = tableau.extensions.dashboardContent.dashboard.worksheets;
+      // Worksheet extension: list sheets via workbook
+      const sheets = tableau.extensions.worksheetContent.worksheet.workbook?.worksheets || [];
       sheets.forEach(ws => {
         const opt      = document.createElement('option');
         opt.value      = ws.name;
@@ -888,28 +886,23 @@ function onFilterChanged() {
 
 // ── Initialize ────────────────────────────────────────────────────────────────
 if (inTableau()) {
-  // The configure callback is the correct way to respond to the
-  // Format Extension button and right-click Configure menu item.
-  tableau.extensions.initializeAsync({ configure: () => openS() }).then(() => {
-    // First render
-    safeRender();
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      await tableau.extensions.initializeAsync({ configure: () => openS() });
 
-    // Register FilterChanged on the embedded worksheet
-    const worksheet = tableau.extensions.dashboardContent.dashboard.activeSheet;
-    worksheet.addEventListener(
-      tableau.TableauEventType.FilterChanged,
-      onFilterChanged
-    );
+      // Worksheet extension: use worksheetContent, not dashboardContent
+      const ws = tableau.extensions.worksheetContent.worksheet;
 
-    // Also re-render when a parameter changes (e.g. mycity parameter)
-    tableau.extensions.dashboardContent.dashboard.addEventListener(
-      tableau.TableauEventType.ParameterChanged,
-      onFilterChanged
-    );
+      // First render
+      await safeRender();
 
-  }).catch(err => {
-    console.error('[city-dashboard] initialize() failed:', err);
-    renderEmptyState('שגיאה באתחול ה-Extension');
+      // Re-render on filter or mark selection change
+      ws.addEventListener(tableau.TableauEventType.FilterChanged, onFilterChanged);
+
+    } catch(err) {
+      console.error('[city-dashboard] initialize() failed:', err);
+      renderEmptyState('שגיאה באתחול ה-Extension');
+    }
   });
 
 } else {
