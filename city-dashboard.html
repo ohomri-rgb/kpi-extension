@@ -231,6 +231,8 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .kpi-name{font-size:12px;font-weight:700;color:var(--text2);line-height:1}
 .kpi-val{font-size:clamp(18px,2.2vw,28px);font-weight:900;color:var(--text);letter-spacing:-.5px;line-height:1}
 
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* ── SETTINGS ─────────────────────────────────────── */
 .s-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:299;display:none}
 .s-ov.open{display:block}
@@ -263,11 +265,11 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
     <div><div class="s-gl">כיוון חיובי</div><div id="kdirs"></div></div>
     <div>
       <div class="s-gl">תצוגת עיר</div>
-      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-        <label style="font-size:10px;color:var(--text3)">הדבק כתובת View מ-Tableau</label>
-        <input type="text" id="c-server"
-          placeholder="https://prod-ch-a.online.tableau.com/#/site/SITE/views/WB/SHEET"
-          style="width:100%;background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:4px 7px;font-size:10px;font-family:'Heebo',sans-serif">
+      <div class="s-row">
+        <label>גיליון להצגה</label>
+        <select id="c-vizsheet" style="background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 7px;font-size:11px;font-family:'Heebo',sans-serif;max-width:140px">
+          <option value="">— בחר גיליון —</option>
+        </select>
       </div>
     </div>
     <button class="s-apply" onclick="applyS()">החל שינויים</button>
@@ -283,7 +285,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v3.0 — url-guard-fix</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v3.1 — vizimage</div>
       <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
@@ -292,6 +294,10 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
   <div class="ch">
     <div class="ch-placeholder" id="ch-placeholder">
       <span class="ch-placeholder-txt" id="ch-placeholder-txt">תמונת עיר</span>
+      <img id="ch-viz-img" class="ch-sheet-iframe" style="display:none;object-fit:cover" alt="city viz"/>
+      <div id="ch-spinner" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,.4)">
+        <div style="width:24px;height:24px;border:3px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite"></div>
+      </div>
     </div>
     <div class="ch-bottom">
       <div class="ch-hdr">
@@ -385,7 +391,7 @@ let STATE = {
 let FIELD_SETTINGS = {};
 
 // City sheet iframe state
-let VIZ_SHEET = { serverUrl: '', sheetName: '' };
+let VIZ_SHEET = { sheetName: '' };
 
 // ─── PER-FIELD SETTINGS ───────────────────────────────────────────────────────
 function fieldSettings(fieldId, colorIndex, defaultHib) {
@@ -449,7 +455,7 @@ async function loadSettings() {
     const rawCfg = tableau.extensions.settings.get('chartCfg');
     if (rawCfg) cfg = { ...cfg, ...JSON.parse(rawCfg) };
     const rawViz = tableau.extensions.settings.get('vizSheet');
-    if (rawViz) VIZ_SHEET = { ...VIZ_SHEET, ...JSON.parse(rawViz) };
+    if (rawViz) { const v = JSON.parse(rawViz); VIZ_SHEET.sheetName = v.sheetName || ''; }
   } catch(e) {
     console.warn('[city-dashboard] loadSettings:', e);
   }
@@ -621,78 +627,49 @@ function applyMock() {
   cfg.cy = MOCK.ban.color;
 }
 
-// ─── CITY SHEET IFRAME ───────────────────────────────────────────────────────
+// ─── CITY SHEET IMAGE (createVizImageAsync) ──────────────────────────────────
 
-/**
- * Build the Tableau Server embed URL for a given sheet, stripping all chrome.
- * URL pattern: {serverUrl}/views/{workbookName}/{sheetName}?:embed=yes&:toolbar=no&...
- * Sheet names with spaces become underscores in the URL path.
- */
-/**
- * Convert any Tableau URL format to a clean embed URL.
- *
- * Accepts:
- *   A) Full hash URL:  https://server/#/site/SITE/views/WB/SHEET
- *   B) Online path:    https://server/t/SITE/views/WB/SHEET
- *   C) Server path:    https://server/views/WB/SHEET
- *   D) Already embed:  any URL with :embed=yes already present
- *
- * Always appends the chrome-stripping params.
- */
-function buildEmbedUrl(rawUrl) {
-  if (!rawUrl) return '';
-  const params = '?:embed=yes&:toolbar=no&:tabs=no&:showVizHome=no&:device=desktop&:apiID=host0';
+async function renderSheetViz() {
+  const txt     = document.getElementById('ch-placeholder-txt');
+  const img     = document.getElementById('ch-viz-img');
+  const spinner = document.getElementById('ch-spinner');
 
-  // Strip existing query string — we'll replace with our own
-  let url = rawUrl.split('?')[0].trim();
-
-  // Case A: hash URL — https://host/#/site/SITE/views/WB/SHEET
-  //         or       — https://host/#/site/SITE/workbooks/WB/views/SHEET/...
-  const hashMatch = url.match(/^(https?:\/\/[^\/]+)\/#\/site\/([^\/]+)\/(?:workbooks\/[^\/]+\/)?views\/([^\/]+)\/(.+)$/);
-  if (hashMatch) {
-    const [, host, site, wb, sheet] = hashMatch;
-    return `${host}/t/${site}/views/${wb}/${sheet.replace(/\/+$/, '')}${params}`;
-  }
-
-  // Case B/C: already a /views/ path — just append params
-  if (url.includes('/views/')) {
-    return url + params;
-  }
-
-  // Fallback: return as-is with params
-  return url + params;
-}
-
-function renderSheetViz() {
-  const placeholder = document.getElementById('ch-placeholder');
-  const txt         = document.getElementById('ch-placeholder-txt');
-
-  // Remove any existing iframe
-  const existing = document.getElementById('ch-sheet-iframe');
-  if (existing) existing.remove();
-
-  if (!inTableau() || !VIZ_SHEET.serverUrl) {
-    txt.style.display = '';
+  if (!inTableau() || !VIZ_SHEET.sheetName) {
+    txt.style.display    = '';
+    img.style.display    = 'none';
+    spinner.style.display = 'none';
     return;
   }
 
+  // Show spinner, hide stale image while rendering
+  spinner.style.display = 'flex';
+  txt.style.display     = 'none';
+
   try {
-    // VIZ_SHEET.serverUrl now holds either a full view URL or base server URL
-    // VIZ_SHEET.sheetName is the display label (shown in dropdown) but the
-    // actual embed URL is built purely from serverUrl via buildEmbedUrl()
-    const url    = buildEmbedUrl(VIZ_SHEET.serverUrl);
-    if (!url) { txt.style.display = ''; return; }
-    const iframe = document.createElement('iframe');
-    iframe.id              = 'ch-sheet-iframe';
-    iframe.className       = 'ch-sheet-iframe';
-    iframe.src             = url;
-    iframe.allowFullscreen = true;
-    // Hide placeholder text once iframe loads
-    iframe.addEventListener('load', () => { txt.style.display = 'none'; });
-    placeholder.appendChild(iframe);
+    const workbook = tableau.extensions.worksheetContent.worksheet.workbook;
+    const sheet    = workbook.worksheets.find(ws => ws.name === VIZ_SHEET.sheetName);
+
+    if (!sheet) {
+      console.warn('[city-dashboard] sheet not found:', VIZ_SHEET.sheetName);
+      txt.style.display    = '';
+      img.style.display    = 'none';
+      spinner.style.display = 'none';
+      return;
+    }
+
+    const imgData = await sheet.createVizImageAsync({
+      maxImageSize: { maxWidth: 800, maxHeight: 600 },
+    });
+
+    img.src           = 'data:image/png;base64,' + imgData;
+    img.style.display = 'block';
+    spinner.style.display = 'none';
+
   } catch(e) {
     console.warn('[city-dashboard] renderSheetViz:', e);
-    txt.style.display = '';
+    txt.style.display    = '';
+    img.style.display    = 'none';
+    spinner.style.display = 'none';
   }
 }
 
@@ -763,7 +740,7 @@ function render() {
   window._CY   = STATE.CY;
   window._PY   = STATE.PY;
   renderChart();
-  renderSheetViz();
+  renderSheetViz();  // async — fires in background
 }
 
 function renderChart() {
@@ -828,9 +805,25 @@ function openS() {
        </select>
      </div>`
   ).join('');
-  document.getElementById('c-cy').value     = cfg.cy;
-  document.getElementById('c-lw').value     = cfg.lw;
-  document.getElementById('c-server').value = VIZ_SHEET.serverUrl;
+  document.getElementById('c-cy').value = cfg.cy;
+  document.getElementById('c-lw').value = cfg.lw;
+
+  // Populate sheet dropdown from workbook sheets
+  const sel = document.getElementById('c-vizsheet');
+  sel.innerHTML = '<option value="">— בחר גיליון —</option>';
+  if (inTableau()) {
+    try {
+      const myName = tableau.extensions.worksheetContent.worksheet.name;
+      const sheets = tableau.extensions.worksheetContent.worksheet.workbook.worksheets;
+      sheets.forEach(ws => {
+        if (ws.name === myName) return;  // skip own sheet
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = ws.name;
+        opt.selected = ws.name === VIZ_SHEET.sheetName;
+        sel.appendChild(opt);
+      });
+    } catch(e) { console.warn('[city-dashboard] sheet list:', e); }
+  }
 
   document.getElementById('s-ov').classList.add('open');
   document.getElementById('s-panel').classList.add('open');
@@ -856,8 +849,7 @@ function applyS() {
     FIELD_SETTINGS[k.fieldId] = { displayName, color, hib };
   });
 
-  VIZ_SHEET.serverUrl = document.getElementById('c-server').value.trim();
-  VIZ_SHEET.sheetName = '';  // no longer used — URL is the full view path
+  VIZ_SHEET.sheetName = document.getElementById('c-vizsheet').value;
 
   render();
   closeS();
