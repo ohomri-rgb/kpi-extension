@@ -285,7 +285,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v3.1 — vizimage</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v3.2 — workbook-fix</div>
       <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
@@ -646,8 +646,19 @@ async function renderSheetViz() {
   txt.style.display     = 'none';
 
   try {
-    const workbook = tableau.extensions.worksheetContent.worksheet.workbook;
-    const sheet    = workbook.worksheets.find(ws => ws.name === VIZ_SHEET.sheetName);
+    // Get the target worksheet — try workbook.worksheets, fallback to getWorksheetAsync
+    let sheet = null;
+    try {
+      const wb = tableau.extensions.worksheetContent.worksheet.workbook;
+      sheet = wb.worksheets.find(ws => ws.name === VIZ_SHEET.sheetName);
+    } catch(_) {}
+
+    // Fallback: environment workbook sheets
+    if (!sheet) {
+      try {
+        sheet = await tableau.extensions.worksheetContent.worksheet.workbook.getWorksheetAsync(VIZ_SHEET.sheetName);
+      } catch(_) {}
+    }
 
     if (!sheet) {
       console.warn('[city-dashboard] sheet not found:', VIZ_SHEET.sheetName);
@@ -813,15 +824,49 @@ function openS() {
   sel.innerHTML = '<option value="">— בחר גיליון —</option>';
   if (inTableau()) {
     try {
-      const myName = tableau.extensions.worksheetContent.worksheet.name;
-      const sheets = tableau.extensions.worksheetContent.worksheet.workbook.worksheets;
-      sheets.forEach(ws => {
-        if (ws.name === myName) return;  // skip own sheet
-        const opt = document.createElement('option');
-        opt.value = opt.textContent = ws.name;
-        opt.selected = ws.name === VIZ_SHEET.sheetName;
-        sel.appendChild(opt);
-      });
+      // worksheetContent.worksheet.workbook requires min-api 1.10
+      // We use getWorksheetNamesAsync as a safe alternative
+      const myName  = tableau.extensions.worksheetContent.worksheet.name;
+      let sheets = [];
+
+      // Try workbook.worksheets first (api ≥ 1.10)
+      try {
+        sheets = tableau.extensions.worksheetContent.worksheet.workbook.worksheets || [];
+      } catch(_) {}
+
+      // Fallback: use environment sheetNames if available
+      if (!sheets.length) {
+        try {
+          const names = tableau.extensions.environment.workbook?.publishedSheetsInfo?.map(s => ({ name: s.name })) || [];
+          sheets = names;
+        } catch(_) {}
+      }
+
+      if (sheets.length) {
+        sheets.forEach(ws => {
+          if (ws.name === myName) return;
+          const opt = document.createElement('option');
+          opt.value = opt.textContent = ws.name;
+          opt.selected = ws.name === VIZ_SHEET.sheetName;
+          sel.appendChild(opt);
+        });
+      } else {
+        // Last resort: show text input instead of dropdown
+        sel.style.display = 'none';
+        let inp = document.getElementById('c-vizsheet-txt');
+        if (!inp) {
+          inp = document.createElement('input');
+          inp.id = 'c-vizsheet-txt';
+          inp.type = 'text';
+          inp.placeholder = 'הקלד שם גיליון';
+          inp.value = VIZ_SHEET.sheetName;
+          inp.style.cssText = 'width:140px;background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 6px;font-size:11px;font-family:Heebo,sans-serif';
+          sel.parentNode.appendChild(inp);
+        } else {
+          inp.value = VIZ_SHEET.sheetName;
+          inp.style.display = '';
+        }
+      }
     } catch(e) { console.warn('[city-dashboard] sheet list:', e); }
   }
 
@@ -849,7 +894,9 @@ function applyS() {
     FIELD_SETTINGS[k.fieldId] = { displayName, color, hib };
   });
 
-  VIZ_SHEET.sheetName = document.getElementById('c-vizsheet').value;
+  const selEl = document.getElementById('c-vizsheet');
+  const txtEl = document.getElementById('c-vizsheet-txt');
+  VIZ_SHEET.sheetName = (txtEl && txtEl.style.display !== 'none' ? txtEl.value.trim() : selEl?.value) || '';
 
   render();
   closeS();
