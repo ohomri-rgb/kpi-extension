@@ -766,6 +766,7 @@ function renderChart() {
 // Shows all live fields (BAN + KPIs) with display name, color, hib direction.
 // Phase 3 will add tableau.extensions.settings.saveAsync() here.
 function openS() {
+  console.log('[city-dashboard] openS() called');
   const allFields = [STATE.ban, ...STATE.kpis];
   document.getElementById('kcolors').innerHTML = allFields.map((k, i) =>
     `<div class="s-row">
@@ -888,7 +889,10 @@ function onFilterChanged() {
 if (inTableau()) {
   document.addEventListener('DOMContentLoaded', async () => {
     try {
-      await tableau.extensions.initializeAsync({ configure: () => openS() });
+      await tableau.extensions.initializeAsync({ configure: () => {
+        console.log('[city-dashboard] configure callback fired');
+        openS();
+      }});
 
       // Worksheet extension: use worksheetContent, not dashboardContent
       const ws = tableau.extensions.worksheetContent.worksheet;
