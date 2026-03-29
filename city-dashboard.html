@@ -263,16 +263,11 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
     <div><div class="s-gl">כיוון חיובי</div><div id="kdirs"></div></div>
     <div>
       <div class="s-gl">תצוגת עיר</div>
-      <div class="s-row">
-        <label>כתובת שרת</label>
-        <input type="text" id="c-server" placeholder="https://prod-xx.online.tableau.com/#/site/sitename"
-          style="width:130px;background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 6px;font-size:11px;font-family:'Heebo',sans-serif">
-      </div>
-      <div class="s-row">
-        <label>גיליון להצגה</label>
-        <select id="c-sheet" style="background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:3px 7px;font-size:11px;font-family:'Heebo',sans-serif;max-width:130px">
-          <option value="">— בחר גיליון —</option>
-        </select>
+      <div class="s-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+        <label style="font-size:10px;color:var(--text3)">הדבק כתובת View מ-Tableau</label>
+        <input type="text" id="c-server"
+          placeholder="https://prod-ch-a.online.tableau.com/#/site/SITE/views/WB/SHEET"
+          style="width:100%;background:#1d2130;border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text);padding:4px 7px;font-size:10px;font-family:'Heebo',sans-serif">
       </div>
     </div>
     <button class="s-apply" onclick="applyS()">החל שינויים</button>
@@ -288,7 +283,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
       <div class="tb-tag"><span class="tb-tag-dot"></span><span>מודיעין עירוני · 2025</span></div>
       <div class="tb-name" id="tb-name">תל אביב</div>
       <div class="tb-report">סקירה כללית</div>
-      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.8 — fieldSettings+map</div>
+      <div style="font-size:9px;color:#f05a5a;font-weight:700;letter-spacing:.05em">v2.9 — embed-url</div>
       <div id="dbg" style="font-size:9px;color:#f5c842;font-weight:600">⏳ init...</div>
     </div>
   </div>
@@ -633,22 +628,39 @@ function applyMock() {
  * URL pattern: {serverUrl}/views/{workbookName}/{sheetName}?:embed=yes&:toolbar=no&...
  * Sheet names with spaces become underscores in the URL path.
  */
-function buildSheetUrl(serverUrl, workbookName, sheetName) {
-  const base  = serverUrl.replace(/\/$/, '');
-  const wName = encodeURIComponent(workbookName.replace(/\s+/g, '_'));
-  const sName = encodeURIComponent(sheetName.replace(/\s+/g, '_'));
-  // Tableau Online URLs already contain /t/{site} — user should paste the full
-  // base URL including site path. For a direct view URL like:
-  //   https://prod-ch-a.online.tableau.com/#/site/vizext14-c8e6e1f905/views/Superstore/Overview
-  // Convert the # hash path to a proper embed path
-  if (serverUrl.includes('#/site/') || serverUrl.includes('/site/')) {
-    // User pasted a full view URL — extract base + site, build embed path from it
-    const m = serverUrl.match(/^(https?:\/\/[^\/]+)(?:\/t\/|\/#\/site\/|\/site\/)([^\/]+)/);
-    if (m) {
-      return `${m[1]}/t/${m[2]}/views/${wName}/${sName}?:embed=yes&:toolbar=no&:tabs=no&:showVizHome=no&:device=desktop`;
-    }
+/**
+ * Convert any Tableau URL format to a clean embed URL.
+ *
+ * Accepts:
+ *   A) Full hash URL:  https://server/#/site/SITE/views/WB/SHEET
+ *   B) Online path:    https://server/t/SITE/views/WB/SHEET
+ *   C) Server path:    https://server/views/WB/SHEET
+ *   D) Already embed:  any URL with :embed=yes already present
+ *
+ * Always appends the chrome-stripping params.
+ */
+function buildEmbedUrl(rawUrl) {
+  if (!rawUrl) return '';
+  const params = '?:embed=yes&:toolbar=no&:tabs=no&:showVizHome=no&:device=desktop&:apiID=host0';
+
+  // Strip existing query string — we'll replace with our own
+  let url = rawUrl.split('?')[0].trim();
+
+  // Case A: hash URL — https://host/#/site/SITE/views/WB/SHEET
+  //         or       — https://host/#/site/SITE/workbooks/WB/views/SHEET/...
+  const hashMatch = url.match(/^(https?:\/\/[^\/]+)\/#\/site\/([^\/]+)\/(?:workbooks\/[^\/]+\/)?views\/([^\/]+)\/(.+)$/);
+  if (hashMatch) {
+    const [, host, site, wb, sheet] = hashMatch;
+    return `${host}/t/${site}/views/${wb}/${sheet.replace(/\/+$/, '')}${params}`;
   }
-  return `${base}/views/${wName}/${sName}?:embed=yes&:toolbar=no&:tabs=no&:showVizHome=no&:device=desktop`;
+
+  // Case B/C: already a /views/ path — just append params
+  if (url.includes('/views/')) {
+    return url + params;
+  }
+
+  // Fallback: return as-is with params
+  return url + params;
 }
 
 function renderSheetViz() {
@@ -665,9 +677,12 @@ function renderSheetViz() {
   }
 
   try {
-    const workbook = tableau.extensions.worksheetContent.worksheet.workbook;
-    const url      = buildSheetUrl(VIZ_SHEET.serverUrl, workbook?.name || '', VIZ_SHEET.sheetName);
-    const iframe   = document.createElement('iframe');
+    // VIZ_SHEET.serverUrl now holds either a full view URL or base server URL
+    // VIZ_SHEET.sheetName is the display label (shown in dropdown) but the
+    // actual embed URL is built purely from serverUrl via buildEmbedUrl()
+    const url    = buildEmbedUrl(VIZ_SHEET.serverUrl);
+    if (!url) { txt.style.display = ''; return; }
+    const iframe = document.createElement('iframe');
     iframe.id              = 'ch-sheet-iframe';
     iframe.className       = 'ch-sheet-iframe';
     iframe.src             = url;
@@ -817,33 +832,6 @@ function openS() {
   document.getElementById('c-lw').value     = cfg.lw;
   document.getElementById('c-server').value = VIZ_SHEET.serverUrl;
 
-  // Populate sheet dropdown from live workbook worksheets
-  const sheetSel = document.getElementById('c-sheet');
-  sheetSel.innerHTML = '<option value="">— בחר גיליון —</option>';
-  if (inTableau()) {
-    try {
-      // Worksheet extension: list sheets via workbook
-      const sheets = tableau.extensions.worksheetContent.worksheet.workbook?.worksheets || [];
-      sheets.forEach(ws => {
-        const opt      = document.createElement('option');
-        opt.value      = ws.name;
-        opt.textContent = ws.name;
-        opt.selected   = ws.name === VIZ_SHEET.sheetName;
-        sheetSel.appendChild(opt);
-      });
-    } catch(e) {
-      console.warn('[city-dashboard] sheet list:', e);
-    }
-  } else {
-    // Browser preview — show mock options so UI is visible
-    ['גיליון עירוני', 'מפת עיר', 'תרשים מגמות'].forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = opt.textContent = name;
-      opt.selected = name === VIZ_SHEET.sheetName;
-      sheetSel.appendChild(opt);
-    });
-  }
-
   document.getElementById('s-ov').classList.add('open');
   document.getElementById('s-panel').classList.add('open');
 }
@@ -869,7 +857,7 @@ function applyS() {
   });
 
   VIZ_SHEET.serverUrl = document.getElementById('c-server').value.trim();
-  VIZ_SHEET.sheetName = document.getElementById('c-sheet').value;
+  VIZ_SHEET.sheetName = '';  // no longer used — URL is the full view path
 
   render();
   closeS();
