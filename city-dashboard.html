@@ -905,6 +905,9 @@ if (inTableau()) {
       onFilterChanged
     );
 
+    // Format Extension button and right-click Configure fire the 'configure' event
+    tableau.extensions.ui.addEventListener('configure', () => openS());
+
   }).catch(err => {
     console.error('[city-dashboard] initialize() failed:', err);
     renderEmptyState('שגיאה באתחול ה-Extension');
