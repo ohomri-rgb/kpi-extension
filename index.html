@@ -1853,6 +1853,8 @@ async function renderECharts(chart, columns, rows, assignments) {
       showError(`סוג גרף לא נתמך: ${chart.id}`);
       return;
   }
+
+  if (option) {
     ec.setOption(option, true);
     // Remove any previous resize listener before adding a new one
     if (state._echartsResizeHandler) {
