@@ -747,7 +747,12 @@ function buildGalleryChips() {
   ).join('');
 }
 
-function openGallery() { document.getElementById('modal-overlay').classList.add('open'); renderGallery(); }
+async function openGallery() {
+  document.getElementById('modal-overlay').classList.add('open');
+  // Pre-load ECharts so mini-previews are ready; if it fails, previews fall back to placeholders
+  try { await ensureECharts(); } catch(e) { console.warn('[ECharts Extension] Could not pre-load echarts for gallery previews:', e); }
+  renderGallery();
+}
 function closeGallery() { document.getElementById('modal-overlay').classList.remove('open'); }
 function onOverlayClick(e) { if (e.target===document.getElementById('modal-overlay')) closeGallery(); }
 function setGalleryFilter(cat, el) {
@@ -891,6 +896,11 @@ const mkMapOpt = (extraGeo={}, series=[]) => _mapCache['world'] ? ({...BASE,
 
 function drawPreview(chart, container) {
   if (!container || container.children.length) return;
+  // Safety guard: echarts may not be loaded yet (race between lazy-load and gallery open)
+  if (typeof echarts === 'undefined') {
+    container.innerHTML = '<div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:18px;opacity:.3">' + chart.icon + '</div>';
+    return;
+  }
   const canvas = document.createElement('canvas');
   canvas.width = 150; canvas.height = 80;
   canvas.style.cssText = 'width:150px;height:80px';
