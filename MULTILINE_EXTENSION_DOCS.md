@@ -133,7 +133,8 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
   - Hex code input field (`#RRGGBB`)
 - Both inputs stay in sync
 - Line color, fill, hover dots, and tooltip swatches all update **live** on pick
-- Colors persist in `colorMap{}` in memory and in `localStorage` (`mlc_colorMap`) across sessions
+- Colors persist in `colorMap{}` in memory, in **Tableau Settings API** (`mlc_colorMap`, saved inside the workbook), and mirrored to `localStorage` for live sync
+- Colors survive workbook close/reopen and sheet ↔ dashboard switching (stored in workbook via Settings API)
 - Colors sync **live across all open instances** (sheet ↔ dashboard) via `window.storage` event
 
 ### 3. Timeframe Switching
@@ -160,7 +161,8 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
 - One **swatch pill per unique value** appears in the top-right header (next to חודשי badge)
 - Clicking a swatch opens the color picker popover labelled `BG: <value>`
 - Picking a color immediately applies it as the extension background
-- Colors persist in `bgColorMap{}` in memory and in `localStorage` (`mlc_bgColorMap`) across sessions
+- Colors persist in `bgColorMap{}` in memory, in **Tableau Settings API** (`mlc_bgColorMap`, saved inside the workbook), and mirrored to `localStorage` for live sync
+- Colors survive workbook close/reopen and sheet ↔ dashboard switching (stored in workbook via Settings API)
 - Colors sync **live across all open instances** (sheet ↔ dashboard) via `window.storage` event
 - If slot D is empty, no swatches appear and background stays white
 
@@ -173,11 +175,13 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
 - Month and quarter labels are in Hebrew
 - Timeframe badge shows Hebrew text (חודשי / רבעוני)
 
-### 8. Cross-Instance Color Sync (v31+)
-- `colorMap` and `bgColorMap` are saved to `localStorage` on every color change
-- All open browser instances (sheet tab + dashboard tab) share the same `localStorage` origin
-- A `window.storage` event listener fires in every other instance when one saves a color
-- The receiving instance applies the new colors to the chart and legend swatches immediately — no reload needed
+### 8. Cross-Instance Color Sync & Workbook Persistence (v32+)
+- `colorMap` and `bgColorMap` are saved to **Tableau Settings API** on every color change via `saveAsync()`
+- Settings are stored **inside the workbook file** — colors survive close/reopen and roam with the workbook
+- `loadFromSettings()` runs immediately after `initializeAsync()`, before the first render — chart and background appear with correct colors on first load
+- `localStorage` is also written on every save as a secondary layer for live cross-instance sync
+- A `window.storage` event listener fires in every other open instance (sheet tab ↔ dashboard tab) when one saves a color, applying the new colors immediately without reload
+- Fallback: if Settings is empty (e.g. first load), `localStorage` values are used if present
 
 ---
 
@@ -314,7 +318,8 @@ Applied after v19 to reduce file size without changing behaviour.
 | v28 | Superseded | Added `titleAlign: 'right'` and `bodyAlign: 'right'` to tooltip. Added `title` callback. |
 | v29 | Superseded | Removed `rtl: true` / `textDirection: 'rtl'` which conflicted with `titleAlign` in Chart.js v4 — `titleAlign: 'right'` now takes full effect. |
 | v30 | Superseded | Removed dots (`pointRadius: 0`). Hover dots retained (`pointHoverRadius: 5`). `colorMap` and `bgColorMap` now persisted to `localStorage` (`mlc_colorMap`, `mlc_bgColorMap`) and loaded on startup. |
-| v31 | ✅ Current | Live cross-instance color sync via `window.storage` event listener. When colors change in one instance (sheet/dashboard), all other open instances update immediately without reload. |
+| v31 | Superseded | Live cross-instance color sync via `window.storage` event listener. When colors change in one instance (sheet/dashboard), all other open instances update immediately without reload. |
+| v32 | ✅ Current | Persistence fix: switched from `localStorage` to **Tableau Settings API** (`saveAsync`) for storing `colorMap` and `bgColorMap`. Colors now survive workbook close/reopen and sheet ↔ dashboard switching. `loadFromSettings()` called after `initializeAsync()` so colors apply before first render. `localStorage` retained as secondary layer for live cross-instance sync. |
 
 ---
 
@@ -333,6 +338,7 @@ Applied after v19 to reduce file size without changing behaviour.
 | Layer 1 always returning -1 despite spec succeeding | Code read `enc.fieldList[0].fieldName` — property doesn't exist in Tableau Cloud API; correct property is `enc.field.name` | Read `enc.field.name` first (v19) |
 | Wrong measure selected when multiple integer columns present | Layer 3 integer fallback picked `YEAR(Order Date)` before actual measure | Float-first pass + exclude date-part field names from integer pass (v18) |
 | Colors not syncing between sheet and dashboard | Each iframe loads independently with empty in-memory maps | `localStorage` persistence + `window.storage` event listener for live sync (v30/v31) |
+| Colors reset on workbook close/reopen or sheet ↔ dashboard switch | `localStorage` is browser-tab scoped and not tied to the workbook; Tableau Cloud sandboxed iframes may block or reset it | Switched to Tableau Settings API (`saveAsync`) — colors stored inside the workbook file (v32) |
 | Tooltip title not right-aligned despite `titleAlign: 'right'` | `rtl: true` overrides `titleAlign` in Chart.js v4 | Removed `rtl: true`; use `titleAlign`/`bodyAlign` only (v29) |
 | Dot colors not updating on color pick | `el._options` guard skipped nulling when value was `undefined` | Null unconditionally; use `ch.update()` not `ch.update('none')` (v22) |
 | BG color picker not opening | `document click` listener fired immediately after swatch click, closing popover before it opened | Ignore clicks on `.bg-swatch-item` and `.legend-item` in outside-click handler (v21) |
@@ -360,7 +366,7 @@ The extension will then fall back to dataType sniffing silently and render norma
 1. Push files to GitHub repo
 2. Whitelist exact HTML URL in Tableau Cloud Settings → Extensions
 3. Load `multiline_cloud.trex` in workbook
-4. Confirm version badge shows **v31**
+4. Confirm version badge shows **v32**
 5. Drag `SUM(measure)` → slot B
 6. Drag a **continuous Month** date → slot A (right-click pill → Continuous → Month)
 7. Drag a dimension → slot C (optional — one line per value)
