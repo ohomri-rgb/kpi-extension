@@ -244,7 +244,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ar
   <div class="modal">
     <div class="modal-header"><h2>בחר סוג גרף</h2><button class="modal-close" onclick="closeGallery()">✕</button></div>
     <div class="modal-controls">
-      <input class="modal-search" type="text" placeholder="חפש..." oninput="renderGallery()" id="gallery-search"/>
+      <input class="modal-search" type="text" placeholder="חפש..." oninput="clearTimeout(window._gSearchT);window._gSearchT=setTimeout(renderGallery,150)" id="gallery-search"/>
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="gallery-chips"></div>
     </div>
     <div class="modal-body" id="gallery-body"></div>
@@ -393,6 +393,15 @@ const R = {
   opt: (id,lbl,a)  => ({id,        label:lbl,       accepts:a,     required:false}),
 };
 
+// Shared role definition for BAN card styles 1 & 2 (identical fields, different layout)
+const BAN_ROLES = [
+  {id:'name',    label:'שם KPI',         accepts:'dim',     required:true},
+  {id:'val',     label:'ערך נוכחי',      accepts:'measure', required:true},
+  {id:'period',  label:'תקופה נוכחית',   accepts:'dim',     required:false},
+  {id:'prev',    label:'ערך קודם',       accepts:'measure', required:false},
+  {id:'prevper', label:'תקופה להשוואה',  accepts:'dim',     required:false},
+];
+
 const CHARTS = [
   // קו ושטח
   {id:'line',        cat:'קו ושטח',  name:'Line Chart',         icon:'📈', roles:[R.x(), R.y(), R.group()]},
@@ -403,7 +412,7 @@ const CHARTS = [
   {id:'confidenceband',cat:'קו ושטח',name:'Confidence Band',    icon:'📉', roles:[R.x(), {id:'mid',label:'קו מרכזי',accepts:'measure',required:true},{id:'upper',label:'גבול עליון',accepts:'measure',required:true},{id:'lower',label:'גבול תחתון',accepts:'measure',required:true}]},
   // עמודות
   {id:'bar',         cat:'עמודות',   name:'Bar Chart',          icon:'📊', roles:[R.x(), R.y(), R.color()]},
-  {id:'hbar',        cat:'עמודות',   name:'Horizontal Bar',     icon:'📊', roles:[R.x('dim'), {id:'y',label:'ציר Y',accepts:'dim',required:true}, R.opt('x2','ערך X','measure')]},
+  {id:'hbar',        cat:'עמודות',   name:'Horizontal Bar',     icon:'📊', roles:[{id:'y',label:'ציר Y',accepts:'dim',required:true}, R.x('measure')]},
   {id:'stackedbar',  cat:'עמודות',   name:'Stacked Bar',        icon:'📊', roles:[R.x(), R.y(), R.stack()]},
   {id:'dualaxis',    cat:'עמודות',   name:'Dual Axis',          icon:'📊', roles:[R.x(), R.y1(), R.y2()]},
   {id:'waterfall',   cat:'עמודות',   name:'Waterfall',          icon:'🌊', roles:[R.x(), R.y()]},
@@ -439,20 +448,8 @@ const CHARTS = [
   {id:'tree',        cat:'היררכיה',  name:'Tree Chart',         icon:'🌳', roles:[R.parent(), R.child(), R.val()]},
   {id:'radialtree',  cat:'היררכיה',  name:'Radial Tree',        icon:'🌐', roles:[R.parent(), R.child(), R.val()]},
   // KPI
-  {id:'ban1', cat:'KPI', name:'BAN Card — Style 1', icon:'📌', roles:[
-    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
-    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
-    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
-    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
-    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
-  ]},
-  {id:'ban2', cat:'KPI', name:'BAN Card — Style 2', icon:'📌', roles:[
-    {id:'name',    label:'שם KPI',          accepts:'dim',     required:true},
-    {id:'val',     label:'ערך נוכחי',        accepts:'measure', required:true},
-    {id:'period',  label:'תקופה נוכחית',     accepts:'dim',     required:false},
-    {id:'prev',    label:'ערך קודם',         accepts:'measure', required:false},
-    {id:'prevper', label:'תקופה להשוואה',    accepts:'dim',     required:false},
-  ]},
+  {id:'ban1', cat:'KPI', name:'BAN Card — Style 1', icon:'📌', roles:BAN_ROLES},
+  {id:'ban2', cat:'KPI', name:'BAN Card — Style 2', icon:'📌', roles:BAN_ROLES},
   {id:'bantable2', cat:'KPI', name:'KPI Table (מדדים)', icon:'📋', roles:[
     {id:'val1',    label:'ערך 1',            accepts:'measure', required:true},
     {id:'val2',    label:'ערך 2',            accepts:'measure', required:false},
@@ -523,8 +520,7 @@ async function reloadFields() {
 // ═══════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════
-// Render-lock: prevents concurrent applyChart calls from FilterChanged storms
-let _rendering = false;
+// Render-lock: single flag guards both user-initiated and FilterChanged renders
 let _filterDebounceTimer = null;
 let _configureSuppressUntil = 0; // suppresses FilterChanged briefly after Format Extension closes
 
@@ -562,13 +558,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       _filterDebounceTimer = setTimeout(async () => {
         if (_rendering) return;
         if (Date.now() < _configureSuppressUntil) return;
-        _rendering = true;
+        if (state._applyChartRunning) return;
+        state._applyChartRunning = true;
         try {
           // loadFields skipped — applyChart populates worksheetFields via parseDataTable
           await applyChart();
           renderMarksCard(); // re-render marks card after fields are refreshed
         } finally {
-          _rendering = false;
+          state._applyChartRunning = false;
         }
       }, 300);
     });
@@ -590,7 +587,7 @@ async function loadFields(ws) {
       }));
       return;
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[ECharts Extension] getSummaryDataAsync failed, trying underlying tables:', e); }
   try {
     const tables = await ws.getUnderlyingTablesAsync();
     if (tables?.length > 0) {
@@ -708,8 +705,8 @@ function openSlotDropdown(role, anchorEl) {
     if (!fields.length) return;
     html += `<div class="slot-dropdown-label">${headerLabel}</div>`;
     fields.forEach(f => {
-      const idx = state.worksheetFields.indexOf(f);
-      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown(${idx})"><span class="tag dim-tag ${tagClass}">${tagLabel}</span>${f.displayName}</div>`;
+      const safeField = f.fieldName.replace(/'/g, '&#39;');
+      html += `<div class="slot-dropdown-item" onclick="assignFromDropdown('${safeField}')"><span class="tag dim-tag ${tagClass}">${tagLabel}</span>${f.displayName}</div>`;
     });
   };
   renderGroup(dims, 'dim', 'ממד', 'ממדים');
@@ -722,8 +719,8 @@ function openSlotDropdown(role, anchorEl) {
   setTimeout(() => document.addEventListener('mousedown', closeDropdownOutside), 100);
 }
 
-function assignFromDropdown(idx) {
-  const f = state.worksheetFields[idx];
+function assignFromDropdown(fieldName) {
+  const f = state.worksheetFields.find(f => f.fieldName === fieldName);
   if (f && state.activeDropdownRole) assign(state.activeDropdownRole.id, f);
   closeSlotDropdown();
 }
@@ -801,7 +798,31 @@ function selectChart(chart) {
 // ═══════════════════════════════════════════════════
 const DEFAULT_COLORS = ['#0057e8','#e8006a','#00a651','#f5a623'];
 let COLORS = DEFAULT_COLORS.slice();
-const getColors = () => state.customColors || DEFAULT_COLORS;
+const TABLE_NUM_LOCALE = 'en-US'; // number format used in RTL table cells
+
+// Shared currency formatter used by all BAN / KPI renderers
+function fmtCurrency(n, cur) {
+  if (n === null || n === undefined) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return cur + (n/1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
+  if (a >= 1e6) return cur + (n/1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
+  if (a >= 1e3) return cur + (n/1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  return cur + n.toLocaleString(undefined, {maximumFractionDigits:2});
+}
+
+// Shared locale detection for BAN / KPI — returns config object
+const HEBREW_RE = /[\u0590-\u05FF]/;
+function detectLocale(text) {
+  const hebrew = HEBREW_RE.test(String(text||''));
+  return {
+    hebrew,
+    nd:          hebrew ? 'rtl' : 'ltr',
+    align:       hebrew ? 'right' : 'left',
+    cur:         hebrew ? '₪' : '$',
+    chgWord:     hebrew ? 'שינוי' : 'change',
+    prevPerWord: hebrew ? 'תקופה קודמת' : 'prev period',
+  };
+}
 
 const XD = ['A','B','C','D','E'];
 const V1 = [12,19,8,22,15];
@@ -998,6 +1019,10 @@ function loadSettings() {
         state.banFontSizes = bfsRaw ? JSON.parse(bfsRaw) : null;
         const kpiNamesRaw = tableau.extensions.settings.get('kpiNames');
         state.kpiNames = kpiNamesRaw ? JSON.parse(kpiNamesRaw) : ['','','',''];
+        const mlColorRaw   = tableau.extensions.settings.get('mlColorMap');
+        const mlBgColorRaw = tableau.extensions.settings.get('mlBgColorMap');
+        state.mlColorMap   = mlColorRaw   ? JSON.parse(mlColorRaw)   : {};
+        state.mlBgColorMap = mlBgColorRaw ? JSON.parse(mlBgColorRaw) : {};
         applyBorderRadius();
         applyBgColor(state.bgColor);
         return true;
@@ -1027,8 +1052,8 @@ const tblFmtCell = (val, fval, dataType) => {
   if (val==null||val===''||val==='%null%') return {text:'—',num:false};
   const t=(dataType||'').toLowerCase();
   if (t.includes('date')) return {text:fval||String(val),num:false};
-  if (/float|real|double|number/.test(t)){const n=parseFloat(val);return {text:isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'),num:true};}
-  if (/int/.test(t)){const n=parseInt(val,10);return {text:isNaN(n)?(fval||String(val)):n.toLocaleString('en-US'),num:true};}
+  if (/float|real|double|number/.test(t)){const n=parseFloat(val);return {text:isNaN(n)?(fval||String(val)):n.toLocaleString(TABLE_NUM_LOCALE),num:true};}
+  if (/int/.test(t)){const n=parseInt(val,10);return {text:isNaN(n)?(fval||String(val)):n.toLocaleString(TABLE_NUM_LOCALE),num:true};}
   return {text:fval||String(val),num:false};
 };
 const tblApplyParamOrder = (rawCols, paramValue) => {
@@ -1170,6 +1195,13 @@ async function renderTable() {
 // ═══════════════════════════════════════════════════
 // FETCH + RENDER
 // ═══════════════════════════════════════════════════
+// Shared data fetch — resolves worksheet, fetches summary data, parses it
+async function fetchData() {
+  const ws = state.worksheet || tableau.extensions.worksheetContent.worksheet;
+  const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+  return parseDataTable(dt);
+}
+
 // applyChart() — re-render only, no save (used by FilterChanged)
 async function applyChart() {
   hideError();
@@ -1219,23 +1251,8 @@ async function _applyChartInner(chart, saveAfter = false) {
   if (isBanTable2) {
     if (!state.assignments.val1) { showError('חסר: ערך 1'); return; }
     try {
-      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
-      const {rows} = parseDataTable(dt);
+      const {rows} = await fetchData();
       renderBanTable2(rows, state.assignments, state.kpiNames);
-      applyBorderRadius();
-      if (saveAfter) await saveSettings();
-    } catch(e) { showError('שגיאת טעינה: '+e); }
-    return;
-  }
-  if (isBan) {
-    const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
-    if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
-    try {
-      const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-      const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
-      const {rows} = parseDataTable(dt);
-      renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
       applyBorderRadius();
       if (saveAfter) await saveSettings();
     } catch(e) { showError('שגיאת טעינה: '+e); }
@@ -1244,9 +1261,13 @@ async function _applyChartInner(chart, saveAfter = false) {
   const missing = chart.roles.filter(r=>r.required&&!state.assignments[r.id]).map(r=>r.label);
   if (missing.length) { showError('חסרים שדות: '+missing.join(', ')); return; }
   try {
-    const ws = state.worksheet||tableau.extensions.worksheetContent.worksheet;
-    const dt = await ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
-    const {columns, rows} = parseDataTable(dt);
+    const {columns, rows} = await fetchData();
+    if (isBan) {
+      renderBan(rows, state.assignments, chart.id === 'ban2' ? 2 : 1);
+      applyBorderRadius();
+      if (saveAfter) await saveSettings();
+      return;
+    }
     if (rows.some(row=>Object.values(row).some(v=>v!==null&&String(v).includes('%many%')))||rows.length===0) {
       showError('רמת פירוט לא מוגדרת — גרור ממדים ל-Detail ב-Marks Card של Tableau');
       return;
@@ -1318,10 +1339,23 @@ async function renderECharts(chart, columns, rows, assignments) {
   const tgtField   = a.tgt?.fieldName;
   const parentField= a.parent?.fieldName;
 
-  // Shared builders
+  // Memoized O(1) row lookup — builds a Map per unique (key1, key2) field pair on first call
+  const _rowIndexCache = new Map();
+  const findRow = (rows, key, val, key2, val2) => {
+    const cacheKey = key2 ? `${key}|||${key2}` : key;
+    if (!_rowIndexCache.has(cacheKey)) {
+      const idx = new Map();
+      rows.forEach(r => {
+        const k = key2 ? `${r[key]}|||${r[key2]}` : String(r[key]);
+        if (!idx.has(k)) idx.set(k, r);
+      });
+      _rowIndexCache.set(cacheKey, idx);
+    }
+    const idx = _rowIndexCache.get(cacheKey);
+    const k = key2 ? `${val}|||${val2}` : String(val);
+    return idx.get(k);
+  };
   const uniqSorted = (arr) => [...new Set(arr)].sort();
-  const findRow = (rows, key, val, key2, val2) =>
-    rows.find(r => r[key]===val && (key2===undefined || r[key2]===val2));
   const gridBase = (bottom=30, right=16, left=50, top=20) => ({bottom, top, right, left});
 
   const lineOrArea = (isArea) => {
@@ -1444,14 +1478,20 @@ async function renderECharts(chart, columns, rows, assignments) {
     };
   };
 
+  // Shared parent→children map builder used by treeChart and sunburstChart
+  const buildParentMap = (childField) => {
+    const parentMap = new Map();
+    rows.forEach(r => {
+      const p = String(r[parentField] ?? '(ללא)'), c = String(r[childField] ?? '(ללא)'), v = r[valField] || 0;
+      if (!parentMap.has(p)) parentMap.set(p, new Map());
+      const cm = parentMap.get(p); cm.set(c, (cm.get(c) || 0) + v);
+    });
+    return parentMap;
+  };
+
   const treeChart = (radial) => {
     const childField = a.child?.fieldName;
-    const parentMap = new Map();
-    rows.forEach(r=>{
-      const p=String(r[parentField]??'(ללא)'), c=String(r[childField]??'(ללא)'), v=r[valField]||0;
-      if(!parentMap.has(p)) parentMap.set(p,new Map());
-      const cm=parentMap.get(p); cm.set(c,(cm.get(c)||0)+v);
-    });
+    const parentMap = buildParentMap(childField);
     const allChildren = new Set(); parentMap.forEach(cm=>cm.forEach((_,c)=>allChildren.add(c)));
     const roots = [...parentMap.keys()].filter(p=>!allChildren.has(p));
     const buildNode = (name) => {
@@ -1479,12 +1519,7 @@ async function renderECharts(chart, columns, rows, assignments) {
 
   const sunburstChart = () => {
     const childField = a.child?.fieldName;
-    const parentMap = new Map();
-    rows.forEach(r=>{
-      const p=String(r[parentField]??'(ללא)'), c=String(r[childField]??'(ללא)'), v=r[valField]||0;
-      if(!parentMap.has(p)) parentMap.set(p,new Map());
-      const cm=parentMap.get(p); cm.set(c,(cm.get(c)||0)+v);
-    });
+    const parentMap = buildParentMap(childField);
     return {
       tooltip:{trigger:'item',formatter:'{b}: {c}'},
       series:[{type:'sunburst', data:[...parentMap.entries()].map(([p,childMap],pi)=>({
@@ -1510,6 +1545,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       break;
     }
     case 'stackedarea': {
+      if (!groupField) { showError('חסר שדה Group'); return; }
       const xVals=uniqSorted(rows.map(r=>r[xField])), groups=uniqSorted(rows.map(r=>r[groupField]));
       option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
         series:groups.map((g,i)=>({name:String(g),type:'line',stack:'total',smooth:true,areaStyle:{opacity:.6},itemStyle:{color:COLORS[i%COLORS.length]},lineStyle:{width:1},symbolSize:0,
@@ -1517,6 +1553,7 @@ async function renderECharts(chart, columns, rows, assignments) {
       break;
     }
     case 'stackedline': {
+      if (!groupField) { showError('חסר שדה Group'); return; }
       const xVals=uniqSorted(rows.map(r=>r[xField])), groups=uniqSorted(rows.map(r=>r[groupField]));
       option={tooltip:{trigger:'axis'},legend:{bottom:0,type:'scroll'},xAxis:{type:'category',data:xVals,axisLabel:{rotate:xVals.length>8?30:0}},yAxis:{type:'value'},grid:gridBase(xVals.length>8?55:40),
         series:groups.map((g,i)=>({name:String(g),type:'line',stack:'total',data:xVals.map(x=>{const r=findRow(rows,xField,x,groupField,g);return r?r[yField]:null;}),
@@ -1595,15 +1632,16 @@ async function renderECharts(chart, columns, rows, assignments) {
     case 'rose': option = pieDonutRose(['15%','65%'], true); break;
     case 'nestedpie': {
       const outerF=a.outer?.fieldName, innerF=a.inner?.fieldName;
+      const hexToRgba=(h,a)=>{const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;};
+      const alphaStops=[1,.8,.67,.53,.4];
       const outerGroups=[...new Set(rows.map(r=>String(r[outerF])))];
       const outerData=outerGroups.map((g,i)=>({name:g,value:rows.filter(r=>String(r[outerF])===g).reduce((s,r)=>s+(r[valField]||0),0),itemStyle:{color:COLORS[i%COLORS.length]}}));
       const innerData=[];
       outerGroups.forEach((og,oi)=>{
         const innerGroups=[...new Set(rows.filter(r=>String(r[outerF])===og).map(r=>String(r[innerF])))];
-        const alphas=['ff','cc','aa','88','66'];
         innerGroups.forEach((ig,ii)=>{
           const v=rows.filter(r=>String(r[outerF])===og&&String(r[innerF])===ig).reduce((s,r)=>s+(r[valField]||0),0);
-          innerData.push({name:`${og} › ${ig}`,value:v,itemStyle:{color:COLORS[oi%COLORS.length]+alphas[ii%5]}});
+          innerData.push({name:`${og} › ${ig}`,value:v,itemStyle:{color:hexToRgba(COLORS[oi%COLORS.length],alphaStops[ii%5])}});
         });
       });
       option={tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},legend:{bottom:0,type:'scroll'},
@@ -1667,7 +1705,7 @@ async function renderECharts(chart, columns, rows, assignments) {
     case 'parallel': {
       const measures=['val','val2','val3','val4','val5'].map(id=>a[id]?{id,field:a[id].fieldName,label:a[id].displayName}:null).filter(Boolean);
       const dimF3=a.dim?.fieldName, categories=[...new Set(rows.map(r=>String(r[dimF3])))];
-      if(rows.length>1000) showError('אזהרה: יותר מ-1,000 שורות');
+      if(rows.length>1000) console.warn('[ECharts Extension] Parallel chart: more than 1,000 rows may affect performance');
       option={tooltip:{trigger:'item',formatter:p=>`${p.data.name}`},
         legend:{bottom:0,type:'scroll',data:categories.map(String)},
         parallelAxis:measures.map((m,i)=>({dim:i,name:m.label})),
@@ -1694,7 +1732,9 @@ async function renderECharts(chart, columns, rows, assignments) {
     }
     case 'gaugeprogress': {
       if(a.dim?.fieldName){
-        const dimF=a.dim.fieldName, cats=[...new Set(rows.map(r=>r[dimF]))].slice(0,5);
+        const dimF=a.dim.fieldName, allCats=[...new Set(rows.map(r=>r[dimF]))];
+        if(allCats.length>5) showError(`מוצגות 5 קטגוריות מתוך ${allCats.length} — Progress Bar מוגבל ל-5`);
+        const cats=allCats.slice(0,5);
         const series=cats.map((cat,i)=>{const catRows=rows.filter(r=>r[dimF]===cat),val=catRows.reduce((s,r)=>s+(r[valField]||0),0),gaugeMax=Math.ceil(val*1.5/10)*10||100;
           return {type:'gauge',radius:'100%',center:[`${(i/cats.length)*100+50/cats.length}%`,'60%'],startAngle:200,endAngle:-20,min:0,max:gaugeMax,
             progress:{show:true,width:6,itemStyle:{color:COLORS[i%COLORS.length]}},axisLine:{lineStyle:{width:6,color:[[1,'#e8e8e8']]}},
@@ -1756,6 +1796,8 @@ async function renderECharts(chart, columns, rows, assignments) {
       const maxV=Math.max(...calData.map(d=>d[1]));
       const vmap={min:0,max:maxV,calculable:true,orient:'horizontal',bottom:10,left:'center',inRange:{color:['#e8f0ff','#0057e8']}};
       if(chart.id==='calendar'){
+        const years=[...new Set(calData.map(d=>d[0].slice(0,4)))];
+        if(years.length>1) showError(`הנתונים מכסים ${years.length} שנים — השתמש ב-Multi-year Calendar`);
         const year=calData[0][0].slice(0,4);
         option={tooltip:{formatter:p=>`${p.data[0]}: ${p.data[1]}`},visualMap:vmap,
           calendar:{top:30,left:30,right:30,bottom:50,range:year,itemStyle:{borderWidth:.5,borderColor:'#e0dfd8'},dayLabel:{nameMap:'he',color:'#888',fontSize:10},monthLabel:{nameMap:'he',color:'#555',fontSize:11},yearLabel:{color:'#555',fontSize:12},splitLine:{lineStyle:{color:'#ddd',width:.5}}},
@@ -1807,9 +1849,10 @@ async function renderECharts(chart, columns, rows, assignments) {
           data:rows.filter(r=>r[slatF]!=null&&r[slonF]!=null&&r[tlatF]!=null&&r[tlonF]!=null).map((r,i)=>({coords:[[r[slonF],r[slatF]],[r[tlonF],r[tlatF]]],name:dimF2?String(r[dimF2]):'',lineStyle:{color:COLORS[i%COLORS.length],width:valF2?Math.max(1,(r[valF2]/maxV)*4):1.5,opacity:.7,curveness:.3}}))}]};
       break;
     }
+    default:
+      showError(`סוג גרף לא נתמך: ${chart.id}`);
+      return;
   }
-
-  if (option) {
     ec.setOption(option, true);
     // Remove any previous resize listener before adding a new one
     if (state._echartsResizeHandler) {
@@ -1845,18 +1888,14 @@ function renderBan(rows, assignments, banStyle) {
   });
 
   const kpiName     = nameF ? String(rows.find(r => r[nameF] != null)?.[nameF] ?? '') : '';
-  const hebrew      = /[\u0590-\u05FF]/.test(kpiName) || /[\u0590-\u05FF]/.test(String([...periodVals][0]||''));
-  const nd          = hebrew ? 'rtl' : 'ltr';
-  const align       = hebrew ? 'right' : 'left';
-  const cur         = hebrew ? '₪' : '$';
-  const chgWord     = hebrew ? 'שינוי' : 'change';
-  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
+  const loc         = detectLocale(kpiName || [...periodVals][0] || '');
+  const {nd, align, cur, chgWord, prevPerWord} = loc;
 
   const periodLabel  = periodVals.size  ? [...periodVals][0]  : '';
   const prevperLabel = prevperVals.size ? [...prevperVals][0] : '';
 
-  const hasPrev = !!prevF && prev !== 0;
-  const pct     = hasPrev ? ((val - prev) / Math.abs(prev)) * 100 : null;
+  const hasPrev = !!prevF;
+  const pct     = (hasPrev && prev !== 0) ? ((val - prev) / Math.abs(prev)) * 100 : null;
   const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
 
   const BADGE = {
@@ -1866,13 +1905,7 @@ function renderBan(rows, assignments, banStyle) {
   };
   const B = BADGE[dir];
 
-  const fmt = n => {
-    const a = Math.abs(n);
-    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
-    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
-    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
-    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
-  };
+  const fmt = n => fmtCurrency(n, cur);
 
   function scale() {
     const w = container.offsetWidth  || 300;
@@ -1996,7 +2029,6 @@ function renderBanTable2MarksCard(list) {
 
   // Helper: build a measure slot row
   function makeMeasureRow(roleId, label, required) {
-    const chart = state.chart;
     const row = document.createElement('div');
     row.className = 'role-row';
     const lbl = document.createElement('span');
@@ -2153,21 +2185,11 @@ function renderBanTable2(rows, assignments, kpiNames) {
 
   if (!kpis.length) return;
 
-  // RTL detection from first KPI name
-  const hebrew = /[֐-׿]/.test(kpis[0].name) || /[֐-׿]/.test(periodLabel);
-  const nd      = hebrew ? 'rtl' : 'ltr';
-  const cur     = hebrew ? '₪' : '$';
-  const chgWord = hebrew ? 'שינוי' : 'change';
-  const prevPerWord = hebrew ? 'תקופה קודמת' : 'prev period';
-
-  const fmt = n => {
-    if (n === null || n === undefined) return '—';
-    const a = Math.abs(n);
-    if (a >= 1e9) return cur+(n/1e9).toFixed(2).replace(/\.?0+$/,'')+'B';
-    if (a >= 1e6) return cur+(n/1e6).toFixed(2).replace(/\.?0+$/,'')+'M';
-    if (a >= 1e3) return cur+(n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
-    return cur+n.toLocaleString(undefined,{maximumFractionDigits:2});
-  };
+  // RTL detection from first KPI name — use shared detectLocale helper
+  const loc = detectLocale(kpis[0].name || periodLabel);
+  const {nd, cur, prevPerWord} = loc;
+  const hebrew = loc.hebrew;
+  const fmt = n => fmtCurrency(n, cur);
 
   const BADGE = {
     pos: { border:'rgba(80,200,60,0.55)',  arrowFill:'rgba(80,200,60,0.9)',   arrow:'▲' },
@@ -2187,8 +2209,8 @@ function renderBanTable2(rows, assignments, kpiNames) {
     ${hasPrevCol ? `<div style="${hCell};justify-content:${hebrew?'flex-end':'flex-start'}">${prevperLabel || prevPerWord}</div>` : ''}`;
 
   const dataRows = kpis.map((k, idx) => {
-    const hasPrev = k.prev !== null && k.prev !== 0;
-    const pct     = hasPrev ? ((k.val - k.prev) / Math.abs(k.prev)) * 100 : null;
+    const hasPrev = k.prev !== null;
+    const pct     = (hasPrev && k.prev !== 0) ? ((k.val - k.prev) / Math.abs(k.prev)) * 100 : null;
     const dir     = pct === null ? 'neu' : pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'neu';
     const B       = BADGE[dir];
     const border  = idx < kpis.length - 1 ? `border-bottom:1px solid ${topCol}18` : '';
@@ -2281,7 +2303,7 @@ function resetColors() {
 }
 function applyColors() {
   const isBan = ['ban1','ban2'].includes(state.chart?.id);
-  if (!isBan && !state.chart?.id === 'bantable2') { state.customColors=COLORS.slice(); }
+  if (!isBan && state.chart?.id !== 'bantable2') { state.customColors=COLORS.slice(); }
   closeColorEditor();
   applyChart();
 }
@@ -2294,18 +2316,6 @@ function renderTableColorSwatches() {
   const colors = state.banColors ? state.banColors.slice() : BAN_COLOR_DEFAULTS.slice();
   // ensure 4 slots
   while (colors.length < 4) colors.push(BAN_COLOR_DEFAULTS[colors.length] || '#ffffff');
-
-  const defs = [
-    { label:'ערך טקסט',    desc:'צבע טקסט ערכים ושמות KPI', idx:1, isBg:false },
-    { label:'כותרת טקסט',  desc:'צבע טקסט כותרת טבלה',      idx:1, isHdrText:true },
-    { label:'כותרת רקע',   desc:'רקע שורת הכותרת',           idx:3, isBg:false },
-    { label:'רקע גיליון',  desc:'רקע הטבלה כולה',            idx:0, isBg:true  },
-  ];
-
-  // Split: topCol (idx 1) serves double duty — value text AND header text both use it.
-  // We'll treat hdr text as a separate slot using botCol (idx 2) for tables.
-  // Redefine for table: [0]=sheet bg, [1]=value text, [2]=hdr text, [3]=hdr bg
-  // Map to existing banColors slots same way renderBanTable uses them.
 
   const TABLE_SLOTS = [
     { label:'ערך טקסט',    hint:'ערכים, שמות KPI',         key:1 },
