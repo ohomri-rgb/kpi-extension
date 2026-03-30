@@ -55,7 +55,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'No
     <div style="display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0">
       <div id="bg-legend"></div>
       <div id="timeframe-badge"></div>
-      <div id="version">v31</div>
+      <div id="version">v32</div>
     </div>
   </div>
   <div id="error"></div>
@@ -77,8 +77,34 @@ const QUARTER_LABELS = ['רבעון 1','רבעון 2','רבעון 3','רבעון
 
 let ch = null, ws = null, timer = null, firstLoad = true;
 const LS_LINE = 'mlc_colorMap', LS_BG = 'mlc_bgColorMap';
-const colorMap  = JSON.parse(localStorage.getItem(LS_LINE) || '{}');
-const bgColorMap = JSON.parse(localStorage.getItem(LS_BG)  || '{}');
+const colorMap   = {};
+const bgColorMap = {};
+
+/* ── Tableau Settings helpers ── */
+function tsGet(key) {
+  try { return tableau.extensions.settings.get(key) || null; } catch(e) { return null; }
+}
+async function tsSave() {
+  try {
+    tableau.extensions.settings.set(LS_LINE, JSON.stringify(colorMap));
+    tableau.extensions.settings.set(LS_BG,   JSON.stringify(bgColorMap));
+    await tableau.extensions.settings.saveAsync();
+    // Also mirror to localStorage for live cross-instance sync
+    localStorage.setItem(LS_LINE, JSON.stringify(colorMap));
+    localStorage.setItem(LS_BG,   JSON.stringify(bgColorMap));
+  } catch(e) { console.warn('Settings save failed:', e); }
+}
+function loadFromSettings() {
+  try {
+    const lm = tsGet(LS_LINE); if (lm) Object.assign(colorMap,  JSON.parse(lm));
+    const bm = tsGet(LS_BG);   if (bm) Object.assign(bgColorMap, JSON.parse(bm));
+  } catch(e) { console.warn('Settings load failed:', e); }
+  // Fallback: also pull from localStorage in case settings is empty
+  try {
+    const ll = localStorage.getItem(LS_LINE); if (ll && !Object.keys(colorMap).length)  Object.assign(colorMap,  JSON.parse(ll));
+    const lb = localStorage.getItem(LS_BG);   if (lb && !Object.keys(bgColorMap).length) Object.assign(bgColorMap, JSON.parse(lb));
+  } catch(e) {}
+}
 
 /* ── color popover ── */
 let _popTarget = null; // {label, swatchEl, isBg}
@@ -102,13 +128,13 @@ function applyColor(hex) {
   swatchEl.style.background = hex;
   if (isBg) {
     bgColorMap[label] = hex;
-    localStorage.setItem(LS_BG, JSON.stringify(bgColorMap));
+    tsSave();
     applyBgFromMap();
     return;
   }
   if (!ch) return;
   colorMap[label] = hex;
-  localStorage.setItem(LS_LINE, JSON.stringify(colorMap));
+  tsSave();
   ch.data.datasets.forEach((ds, i) => {
     if (ds.label === label) {
       ds.borderColor = ds.pointBackgroundColor = ds.pointHoverBackgroundColor = hex;
@@ -346,6 +372,7 @@ window.addEventListener('storage', e => {
 async function init() {
   if (typeof tableau === 'undefined') { setTimeout(init, 50); return; }
   await tableau.extensions.initializeAsync();
+  loadFromSettings();
   ws = tableau.extensions.worksheetContent.worksheet;
   load();
   ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, debouncedLoad);
