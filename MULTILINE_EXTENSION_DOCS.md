@@ -133,8 +133,7 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
   - Hex code input field (`#RRGGBB`)
 - Both inputs stay in sync
 - Line color, fill, hover dots, and tooltip swatches all update **live** on pick
-- Colors persist in `colorMap{}` in memory, in **Tableau Settings API** (`mlc_colorMap`, saved inside the workbook), and mirrored to `localStorage` for live sync
-- Colors survive workbook close/reopen and sheet ↔ dashboard switching (stored in workbook via Settings API)
+- Colors persist in `colorMap{}` in memory and in `localStorage` (`mlc_colorMap`) across sessions
 - Colors sync **live across all open instances** (sheet ↔ dashboard) via `window.storage` event
 
 ### 3. Timeframe Switching
@@ -153,18 +152,18 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
 ### 5. Version Badge
 - Top-right corner, yellow background, black text
 - Always visible — used to confirm which version is loaded
-- Format: `v31`, etc.
+- Format: `v33`, etc.
 
 ### 6. BG Color Slot (v20+)
 - **Slot D** in the Marks card, labelled "BG Color"
 - Drag any string/dimension field into slot D
-- One **swatch pill per unique value** appears in the top-right header (next to חודשי badge)
+- BG color swatches appear inside the **Settings popup** (⚙️ button, top-right) — not in the header
 - Clicking a swatch opens the color picker popover labelled `BG: <value>`
 - Picking a color immediately applies it as the extension background
-- Colors persist in `bgColorMap{}` in memory, in **Tableau Settings API** (`mlc_bgColorMap`, saved inside the workbook), and mirrored to `localStorage` for live sync
-- Colors survive workbook close/reopen and sheet ↔ dashboard switching (stored in workbook via Settings API)
+- Colors persist in `bgColorMap{}` in memory, in **Tableau Settings API** (saved inside the workbook), and mirrored to `localStorage` for live sync
+- Colors survive workbook close/reopen and sheet ↔ dashboard switching
 - Colors sync **live across all open instances** (sheet ↔ dashboard) via `window.storage` event
-- If slot D is empty, no swatches appear and background stays white
+- If slot D is empty, the BG section in the Settings popup shows a placeholder message
 
 > **Note:** Tableau's native color picker cannot be triggered from within an extension. The BG color picker is the extension's own popover — the same one used for line colors.
 
@@ -181,7 +180,16 @@ This layer should rarely fire in practice now that layer 1 reads the correct pro
 - `loadFromSettings()` runs immediately after `initializeAsync()`, before the first render — chart and background appear with correct colors on first load
 - `localStorage` is also written on every save as a secondary layer for live cross-instance sync
 - A `window.storage` event listener fires in every other open instance (sheet tab ↔ dashboard tab) when one saves a color, applying the new colors immediately without reload
-- Fallback: if Settings is empty (e.g. first load), `localStorage` values are used if present
+- Fallback: if Settings is empty (e.g. first load on a new machine), `localStorage` values are used if present
+
+### 9. Settings Popup (v33+)
+- A **⚙️ gear button** in the top-right header replaces the visible version badge, timeframe badge, and BG swatches
+- Clicking the button opens a popup panel containing:
+  - **גרסה** — current version number
+  - **תצוגה** — current timeframe mode (חודשי / רבעוני), updates live on parameter change
+  - **צבע רקע** — BG color swatches (one per unique value in slot D); click to open color picker
+- Popup closes on outside click or ✕ button
+- Header is now clean — only the measure name and the ⚙️ button are visible
 
 ---
 
@@ -319,7 +327,8 @@ Applied after v19 to reduce file size without changing behaviour.
 | v29 | Superseded | Removed `rtl: true` / `textDirection: 'rtl'` which conflicted with `titleAlign` in Chart.js v4 — `titleAlign: 'right'` now takes full effect. |
 | v30 | Superseded | Removed dots (`pointRadius: 0`). Hover dots retained (`pointHoverRadius: 5`). `colorMap` and `bgColorMap` now persisted to `localStorage` (`mlc_colorMap`, `mlc_bgColorMap`) and loaded on startup. |
 | v31 | Superseded | Live cross-instance color sync via `window.storage` event listener. When colors change in one instance (sheet/dashboard), all other open instances update immediately without reload. |
-| v32 | ✅ Current | Persistence fix: switched from `localStorage` to **Tableau Settings API** (`saveAsync`) for storing `colorMap` and `bgColorMap`. Colors now survive workbook close/reopen and sheet ↔ dashboard switching. `loadFromSettings()` called after `initializeAsync()` so colors apply before first render. `localStorage` retained as secondary layer for live cross-instance sync. |
+| v32 | Superseded | Persistence fix: switched from `localStorage` to **Tableau Settings API** (`saveAsync`) for storing `colorMap` and `bgColorMap`. Colors now survive workbook close/reopen and sheet ↔ dashboard switching. `loadFromSettings()` called after `initializeAsync()` so colors apply before first render. `localStorage` retained as secondary layer for live cross-instance sync. |
+| v33 | ✅ Current | UI cleanup: removed version badge, timeframe badge, and BG swatches from header. Replaced with a single **⚙️ settings button** that opens a popup showing version, timeframe mode, and BG color swatches. Header now shows only measure name and settings button. |
 
 ---
 
@@ -339,6 +348,7 @@ Applied after v19 to reduce file size without changing behaviour.
 | Wrong measure selected when multiple integer columns present | Layer 3 integer fallback picked `YEAR(Order Date)` before actual measure | Float-first pass + exclude date-part field names from integer pass (v18) |
 | Colors not syncing between sheet and dashboard | Each iframe loads independently with empty in-memory maps | `localStorage` persistence + `window.storage` event listener for live sync (v30/v31) |
 | Colors reset on workbook close/reopen or sheet ↔ dashboard switch | `localStorage` is browser-tab scoped and not tied to the workbook; Tableau Cloud sandboxed iframes may block or reset it | Switched to Tableau Settings API (`saveAsync`) — colors stored inside the workbook file (v32) |
+| `(blank)` swatch and version/timeframe badges cluttering header | BG slot D field with null values produced a visible `(blank)` pill; version and timeframe badges always visible | Moved all three into a ⚙️ settings popup — header is now clean (v33) |
 | Tooltip title not right-aligned despite `titleAlign: 'right'` | `rtl: true` overrides `titleAlign` in Chart.js v4 | Removed `rtl: true`; use `titleAlign`/`bodyAlign` only (v29) |
 | Dot colors not updating on color pick | `el._options` guard skipped nulling when value was `undefined` | Null unconditionally; use `ch.update()` not `ch.update('none')` (v22) |
 | BG color picker not opening | `document click` listener fired immediately after swatch click, closing popover before it opened | Ignore clicks on `.bg-swatch-item` and `.legend-item` in outside-click handler (v21) |
@@ -366,12 +376,12 @@ The extension will then fall back to dataType sniffing silently and render norma
 1. Push files to GitHub repo
 2. Whitelist exact HTML URL in Tableau Cloud Settings → Extensions
 3. Load `multiline_cloud.trex` in workbook
-4. Confirm version badge shows **v32**
+4. Confirm ⚙️ settings button is visible top-right (click to verify version shows **v33**)
 5. Drag `SUM(measure)` → slot B
 6. Drag a **continuous Month** date → slot A (right-click pill → Continuous → Month)
 7. Drag a dimension → slot C (optional — one line per value)
-8. Drag a string/dimension field → slot D (optional — enables BG color picker swatches in header)
+8. Drag a string/dimension field → slot D (optional — enables BG color swatches inside the ⚙️ settings popup)
 9. Set Parameter 1 to `month` or `quarter`
 10. Verify correct number of lines matches distinct group values
 11. Test line color picker: click legend swatch → line + tooltip swatch should update, and sync to dashboard
-12. Test BG color picker: click swatch pill in header → background color updates live and syncs to dashboard
+12. Test BG color picker: click ⚙️ button → click a BG swatch → background color updates live and syncs to dashboard
