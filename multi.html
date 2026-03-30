@@ -35,10 +35,23 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'No
 #color-pop-hex:focus{border-color:#6366f1;box-shadow:0 0 0 2px #eef2ff}
 #color-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
 #color-pop-close:hover{color:#374151}
-#bg-legend{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.bg-swatch-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280;font-weight:500;cursor:pointer;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:2px 7px;transition:border-color .15s}
-.bg-swatch-item:hover{border-color:#6366f1;color:#6366f1}
-.bg-swatch-dot{width:12px;height:12px;border-radius:3px;border:1px solid #d1d5db;flex-shrink:0}
+#bg-legend{display:none}
+.bg-swatch-dot{width:14px;height:14px;border-radius:3px;border:1px solid #d1d5db;flex-shrink:0;cursor:pointer}
+#settings-btn{width:22px;height:22px;border-radius:5px;border:1px solid #e5e7eb;background:#f9fafb;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s;padding:0}
+#settings-btn:hover{border-color:#6366f1}
+#settings-btn svg{width:13px;height:13px;stroke:#9ca3af;transition:stroke .15s}
+#settings-btn:hover svg{stroke:#6366f1}
+#settings-pop{position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:14px 16px 12px;min-width:210px;display:none;flex-direction:column;gap:10px}
+#settings-pop.open{display:flex}
+#settings-pop-close{position:absolute;top:8px;right:10px;font-size:14px;color:#9ca3af;cursor:pointer;line-height:1;background:none;border:none;padding:2px 4px}
+#settings-pop-close:hover{color:#374151}
+.sp-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sp-label{font-size:11px;font-weight:600;color:#374151}
+.sp-val{font-size:11px;color:#6b7280;background:#f3f4f6;border-radius:4px;padding:2px 7px}
+.sp-divider{height:1px;background:#f3f4f6}
+.sp-bg-swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sp-bg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7280;cursor:pointer;padding:3px 6px;border-radius:5px;border:1px solid transparent;transition:border-color .15s}
+.sp-bg-item:hover{border-color:#6366f1;color:#6366f1}
 </style>
 </head><body>
 <div id="color-pop">
@@ -50,12 +63,32 @@ html,body{width:100%;height:100%;overflow:hidden;background:#fff;font-family:'No
   </div>
 </div>
 <div id="app">
-  <div id="header">
+  <div id="settings-pop">
+  <button id="settings-pop-close">✕</button>
+  <div class="sp-row">
+    <span class="sp-label">גרסה</span>
+    <span class="sp-val" id="sp-version">v33</span>
+  </div>
+  <div class="sp-divider"></div>
+  <div class="sp-row">
+    <span class="sp-label">תצוגה</span>
+    <span class="sp-val" id="sp-timeframe">חודשי</span>
+  </div>
+  <div class="sp-divider"></div>
+  <div class="sp-row"><span class="sp-label">צבע רקע</span></div>
+  <div class="sp-bg-swatches" id="sp-bg-swatches"></div>
+</div>
+<div id="header">
     <div id="measure-name"></div>
     <div style="display:flex;align-items:center;gap:6px;direction:ltr;flex-shrink:0">
       <div id="bg-legend"></div>
-      <div id="timeframe-badge"></div>
-      <div id="version">v32</div>
+      <div id="timeframe-badge" style="display:none"></div>
+      <div id="version" style="display:none">v33</div>
+      <button id="settings-btn" title="הגדרות">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
     </div>
   </div>
   <div id="error"></div>
@@ -77,33 +110,23 @@ const QUARTER_LABELS = ['רבעון 1','רבעון 2','רבעון 3','רבעון
 
 let ch = null, ws = null, timer = null, firstLoad = true;
 const LS_LINE = 'mlc_colorMap', LS_BG = 'mlc_bgColorMap';
-const colorMap   = {};
-const bgColorMap = {};
+const colorMap = {}, bgColorMap = {};
 
-/* ── Tableau Settings helpers ── */
-function tsGet(key) {
-  try { return tableau.extensions.settings.get(key) || null; } catch(e) { return null; }
-}
+function tsGet(key) { try { return tableau.extensions.settings.get(key) || null; } catch(e) { return null; } }
 async function tsSave() {
   try {
     tableau.extensions.settings.set(LS_LINE, JSON.stringify(colorMap));
-    tableau.extensions.settings.set(LS_BG,   JSON.stringify(bgColorMap));
+    tableau.extensions.settings.set(LS_BG, JSON.stringify(bgColorMap));
     await tableau.extensions.settings.saveAsync();
-    // Also mirror to localStorage for live cross-instance sync
     localStorage.setItem(LS_LINE, JSON.stringify(colorMap));
-    localStorage.setItem(LS_BG,   JSON.stringify(bgColorMap));
+    localStorage.setItem(LS_BG, JSON.stringify(bgColorMap));
   } catch(e) { console.warn('Settings save failed:', e); }
 }
 function loadFromSettings() {
-  try {
-    const lm = tsGet(LS_LINE); if (lm) Object.assign(colorMap,  JSON.parse(lm));
-    const bm = tsGet(LS_BG);   if (bm) Object.assign(bgColorMap, JSON.parse(bm));
-  } catch(e) { console.warn('Settings load failed:', e); }
-  // Fallback: also pull from localStorage in case settings is empty
-  try {
-    const ll = localStorage.getItem(LS_LINE); if (ll && !Object.keys(colorMap).length)  Object.assign(colorMap,  JSON.parse(ll));
-    const lb = localStorage.getItem(LS_BG);   if (lb && !Object.keys(bgColorMap).length) Object.assign(bgColorMap, JSON.parse(lb));
-  } catch(e) {}
+  try { const v = tsGet(LS_LINE); if (v) Object.assign(colorMap, JSON.parse(v)); } catch(e) {}
+  try { const v = tsGet(LS_BG);   if (v) Object.assign(bgColorMap, JSON.parse(v)); } catch(e) {}
+  try { const v = localStorage.getItem(LS_LINE); if (v && !Object.keys(colorMap).length) Object.assign(colorMap, JSON.parse(v)); } catch(e) {}
+  try { const v = localStorage.getItem(LS_BG);   if (v && !Object.keys(bgColorMap).length) Object.assign(bgColorMap, JSON.parse(v)); } catch(e) {}
 }
 
 /* ── color popover ── */
@@ -130,6 +153,9 @@ function applyColor(hex) {
     bgColorMap[label] = hex;
     tsSave();
     applyBgFromMap();
+    // Update swatch in settings popup too
+    const dot = document.querySelector(`.sp-bg-item[data-val="${label}"] .bg-swatch-dot`);
+    if (dot) dot.style.background = hex;
     return;
   }
   if (!ch) return;
@@ -167,29 +193,50 @@ G('color-pop-hex').addEventListener('input', e => {
 });
 G('color-pop-hex').addEventListener('keydown', e => { if (e.key === 'Enter') G('color-pop').classList.remove('open'); });
 G('color-pop-close').addEventListener('click', () => G('color-pop').classList.remove('open'));
-document.addEventListener('click', e => { 
-  if (!G('color-pop').contains(e.target) && !e.target.closest('.bg-swatch-item') && !e.target.closest('.legend-item')) 
-    G('color-pop').classList.remove('open'); 
+document.addEventListener('click', e => {
+  if (!G('color-pop').contains(e.target) && !e.target.closest('.sp-bg-item') && !e.target.closest('.legend-item'))
+    G('color-pop').classList.remove('open');
+  if (!G('settings-pop').contains(e.target) && !e.target.closest('#settings-btn'))
+    G('settings-pop').classList.remove('open');
 });
 
-/* ── bg legend (header swatches for BG slot values) ── */
+/* ── bg swatches inside settings popup ── */
 function buildBgLegend(bgValues) {
-  const el = G('bg-legend');
-  if (!bgValues.length) { el.innerHTML = ''; return; }
+  const el = G('sp-bg-swatches');
+  if (!el) return;
+  if (!bgValues.length) {
+    el.innerHTML = '<span style="font-size:10px;color:#9ca3af">אין שדה BG Color בסלוט D</span>';
+    return;
+  }
   el.innerHTML = bgValues.map(v => {
     const color = bgColorMap[v] || '#ffffff';
-    return `<div class="bg-swatch-item" data-val="${v}" title="Set background color for: ${v}">
-      <div class="bg-swatch-dot" style="background:${color}"></div>
+    return `<div class="sp-bg-item" data-val="${v}" title="${v}">
+      <div class="bg-swatch-dot" style="background:${color};border-color:#d1d5db"></div>
       <span>${v}</span>
     </div>`;
   }).join('');
-  el.querySelectorAll('.bg-swatch-item').forEach(item => {
+  el.querySelectorAll('.sp-bg-item').forEach(item => {
     const val = item.dataset.val;
     item.addEventListener('click', e =>
       openColorPop(val, bgColorMap[val] || '#ffffff', item.querySelector('.bg-swatch-dot'), true, e)
     );
   });
 }
+
+/* ── settings popup ── */
+function openSettingsPop(e) {
+  e.stopPropagation();
+  const pop = G('settings-pop'), btn = G('settings-btn');
+  const rect = btn.getBoundingClientRect();
+  const vw = window.innerWidth;
+  let x = rect.right + 4;
+  if (x + 220 > vw) x = rect.left - 220;
+  pop.style.left = x + 'px';
+  pop.style.top = rect.bottom + 4 + 'px';
+  pop.classList.toggle('open');
+}
+G('settings-btn').addEventListener('click', openSettingsPop);
+G('settings-pop-close').addEventListener('click', () => G('settings-pop').classList.remove('open'));
 
 /* ── legend ── */
 function buildLegend(datasets) {
@@ -216,7 +263,9 @@ async function load() {
     const isQuarter = timeframe === 'quarter';
     const xLabels = isQuarter ? QUARTER_LABELS : MONTH_LABELS;
     const numBuckets = xLabels.length;
-    G('timeframe-badge').textContent = isQuarter ? 'רבעוני' : 'חודשי';
+    const tfText = isQuarter ? 'רבעוני' : 'חודשי';
+    G('timeframe-badge').textContent = tfText;
+    const spTf = G('sp-timeframe'); if (spTf) spTf.textContent = tfText;
 
     const dt = await ws.getSummaryDataAsync({ignoreSelection:true});
     const cols = dt.columns, rows = dt.data;
@@ -364,7 +413,6 @@ window.addEventListener('storage', e => {
     const updated = JSON.parse(e.newValue);
     Object.assign(bgColorMap, updated);
     applyBgFromMap();
-    // Rebuild bg swatches
     buildBgLegend(Object.keys(bgColorMap));
   }
 });
