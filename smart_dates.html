@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>Smart Date Comparison</title>
+<script src="tableau.extensions.js"></script>
+<script src="chart.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,'Arial Hebrew',sans-serif;background:transparent}
+#app{display:flex;flex-direction:column;height:100%}
+
+/* ── Toggle bar ── */
+#tbar{display:flex;align-items:center;gap:6px;padding:2px 8px;background:rgba(249,250,251,0.98);border-bottom:1px solid #e5e7eb;min-height:22px;flex-shrink:0}
+#tog{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:10px;padding:0;line-height:1;flex-shrink:0}
+#plbl{flex:1;font-size:10px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cfgbtn{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:14px;padding:2px;line-height:1;flex-shrink:0}
+#cfgbtn:hover{color:#374151}
+
+/* ── Control panel ── */
+#ctrl{background:rgba(249,250,251,0.98);border-bottom:1px solid #e5e7eb;padding:5px 8px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+#ctrl.hi{display:none}
+.crow{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+
+/* Pill buttons */
+.pill{padding:3px 8px;border-radius:10px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:11px;color:#374151;white-space:nowrap;transition:border-color .12s,background .12s,color .12s;line-height:1.4}
+.pill:hover{border-color:#6366f1;color:#6366f1}
+.pill.on{background:#6366f1;border-color:#6366f1;color:#fff}
+
+/* Segment controls */
+.seg{display:inline-flex;border:1px solid #d1d5db;border-radius:7px;overflow:hidden;flex-shrink:0}
+.seg button{padding:3px 7px;background:#fff;border:none;border-right:1px solid #d1d5db;cursor:pointer;font-size:11px;color:#374151;white-space:nowrap;line-height:1.4}
+.seg button:last-child{border-right:none}
+.seg button.on{background:#6366f1;color:#fff}
+.seg button:hover:not(.on){background:#f3f4f6}
+
+/* Apply */
+#applybtn{padding:4px 12px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0}
+#applybtn:hover{background:#4f46e5}
+.sp{flex:1}
+
+/* Date inputs row */
+#freerow{flex-wrap:wrap;gap:5px}
+#freerow label{font-size:11px;color:#6b7280;white-space:nowrap}
+#freerow input[type=date]{padding:2px 4px;border:1px solid #d1d5db;border-radius:6px;font-size:11px;color:#374151;background:#fff;cursor:pointer}
+.rsep{color:#9ca3af;font-size:11px}
+
+/* ── Viz area ── */
+#viz{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:8px;gap:8px;min-height:0}
+
+/* KPI cards */
+#karea{display:flex;gap:8px;flex-shrink:0}
+.kc{flex:1;background:#1e1e1e;border-radius:10px;padding:10px 12px;min-width:0;overflow:hidden}
+.kn{font-size:10px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.kv{font-weight:700;color:#fff;font-size:clamp(14px,3.5vw,26px);line-height:1.1;letter-spacing:-0.5px}
+.kg{font-size:11px;margin-top:4px;font-weight:600}
+.up{color:#16a34a}.dn{color:#dc2626}.nt{color:#9a9a9a}
+.kp{font-size:9px;color:#4b5563;margin-top:5px;line-height:1.5}
+
+/* Chart area */
+#carea{flex:1;min-height:60px;position:relative}
+#carea canvas{position:absolute;top:0;left:0;width:100%!important;height:100%!important}
+
+/* Status + version */
+#status{font-size:11px;color:#9ca3af;text-align:center;padding:2px;flex-shrink:0}
+#ver{font-size:9px;color:#e5e7eb;text-align:right;padding:0 4px 2px;flex-shrink:0}
+
+/* ── Config overlay ── */
+#cfgov{position:absolute;inset:0;background:rgba(0,0,0,0.45);z-index:100;display:none;align-items:flex-start;justify-content:center;padding:20px 12px;overflow-y:auto}
+#cfgov.op{display:flex}
+.cbox{background:#fff;border-radius:12px;padding:16px;width:310px;max-width:95vw}
+.chdr{font-size:13px;font-weight:600;color:#111;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.cxbtn{background:none;border:none;cursor:pointer;color:#9ca3af;font-size:20px;line-height:1;padding:0}
+.csec{margin-bottom:10px}
+.clbl{font-size:11px;color:#6b7280;margin-bottom:4px}
+.csel{width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:11px;color:#374151;background:#fff}
+.csave{width:100%;padding:7px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;margin-top:8px}
+.cnote{font-size:10px;color:#6b7280;line-height:1.6;padding:8px;background:#f9fafb;border-radius:6px;border:1px solid #f3f4f6}
+.cnote code{font-family:monospace;font-size:9px;background:#e5e7eb;padding:1px 3px;border-radius:3px;word-break:break-all}
+.missing{color:#dc2626;font-size:10px;margin-top:2px}
+.found{color:#16a34a;font-size:10px;margin-top:2px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Always-visible toggle bar -->
+  <div id="tbar">
+    <button id="tog" onclick="togglePanel()">▼</button>
+    <span id="plbl">—</span>
+    <button id="cfgbtn" onclick="toggleCfg()">⚙</button>
+  </div>
+
+  <!-- Control panel -->
+  <div id="ctrl">
+    <div class="crow" id="prow"></div>
+    <div class="crow" id="crow2">
+      <div class="seg" id="cseg"></div>
+      <div class="seg" id="gseg"></div>
+      <div class="seg" id="vseg"></div>
+      <div class="sp"></div>
+      <button id="applybtn" onclick="applyPeriod()">—</button>
+    </div>
+    <div class="crow" id="freerow" style="display:none"></div>
+  </div>
+
+  <!-- Viz -->
+  <div id="viz">
+    <div id="karea"></div>
+    <div id="carea"><canvas id="ch"></canvas></div>
+    <div id="status"></div>
+    <div id="ver">v1</div>
+  </div>
+</div>
+
+<!-- Config overlay -->
+<div id="cfgov">
+  <div class="cbox" id="cbox"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// Constants
+// ══════════════════════════════════════════════════════════════════════════════
+const PRESETS=[
+  {id:'last_day',    he:'יום קודם',    en:'Yesterday',    g:'day'},
+  {id:'last_week',   he:'שבוע מלא',    en:'Last week',    g:'week'},
+  {id:'last_month',  he:'חודש מלא',    en:'Last month',   g:'month'},
+  {id:'last_quarter',he:'רבעון מלא',   en:'Last quarter', g:'quarter'},
+  {id:'last_year',   he:'שנה מלאה',    en:'Last year',    g:'year'},
+  {id:'free',        he:'טווח חופשי',  en:'Custom range', g:null}
+];
+const COMP=[
+  {id:'period_before', he:'תקופה קודמת', en:'Period before'},
+  {id:'same_last_year',he:'אשתקד',        en:'Same last year'},
+  {id:'free',          he:'טווח חופשי',  en:'Custom'}
+];
+const GRANS=[
+  {id:'day',    he:'יום',   en:'Day'},
+  {id:'week',   he:'שבוע',  en:'Week'},
+  {id:'month',  he:'חודש',  en:'Month'},
+  {id:'quarter',he:'רבעון', en:'Quarter'},
+  {id:'year',   he:'שנה',   en:'Year'}
+];
+const VIEWS=[
+  {id:'kpi',  he:'KPI',   en:'KPI'},
+  {id:'chart',he:'גרף',   en:'Chart'},
+  {id:'both', he:'שניהם', en:'Both'}
+];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// State
+// ══════════════════════════════════════════════════════════════════════════════
+const S={
+  preset:'last_month', compMode:'period_before', gran:'month', viewMode:'both',
+  from1:null, to1:null, from2:null, to2:null,
+  freeFrom1:'', freeTo1:'', freeFrom2:'', freeTo2:'',
+  data:null, dateColIdx:-1, rangeColIdx:-1, measCols:[],
+  kpiCount:1, kpiFields:[null,null,null,null],
+  panelOpen:true, cfgOpen:false, bgColor:'', lang:'he',
+  ws:null, chart:null
+};
+let missingP={from1:true,to1:true,from2:true,to2:true,gran:true};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Language
+// ══════════════════════════════════════════════════════════════════════════════
+const isHe=s=>/[\u0590-\u05FF]/.test(s||'');
+const TXT={
+  he:{
+    apply:'החל',settings:'הגדרות',p1:'תקופה 1',p2:'תקופה 2',
+    kpiCnt:'מספר מדדים',dateFld:'שדה תאריך',kpiFld:'מדד ',
+    save:'שמור',resetBg:'איפוס רקע',cur:'נוכחי:',vs:'השוואה:',
+    noData:'אין נתונים',loadErr:'שגיאת טעינה',period1:'נוכחי',period2:'השוואה',
+    auto:'אוטומטי',setupHdr:'הגדרת טבלו נדרשת',
+    prmLbl:'פרמטרים נדרשים',calcLbl:'שדה מחושב (range)',
+    missingPrm:'חסר:',foundPrm:'קיים:',bgLbl:'צבע רקע',
+    noRange:'שדה range חסר – ראה הגדרות'
+  },
+  en:{
+    apply:'Apply',settings:'Settings',p1:'Period 1',p2:'Period 2',
+    kpiCnt:'KPI count',dateFld:'Date field',kpiFld:'KPI ',
+    save:'Save',resetBg:'Reset bg',cur:'Current:',vs:'vs:',
+    noData:'No data',loadErr:'Load error',period1:'Current',period2:'Comparison',
+    auto:'Auto',setupHdr:'Tableau setup required',
+    prmLbl:'Required parameters',calcLbl:'Calculated field (range)',
+    missingPrm:'Missing:',foundPrm:'Found:',bgLbl:'Background',
+    noRange:'range field missing – see settings'
+  }
+};
+const L=k=>(TXT[S.lang]||TXT.en)[k]||k;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Date utilities
+// ══════════════════════════════════════════════════════════════════════════════
+const addD=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
+const addY=(d,n)=>{const r=new Date(d);r.setFullYear(r.getFullYear()+n);return r;};
+const daysDiff=(a,b)=>Math.round((b-a)/86400000);
+const td=()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());};
+
+const fmtISO=d=>{
+  if(!d)return null;
+  const D=d instanceof Date?d:new Date(d);
+  if(isNaN(D))return null;
+  return`${D.getFullYear()}-${String(D.getMonth()+1).padStart(2,'0')}-${String(D.getDate()).padStart(2,'0')}`;
+};
+const fmtDMY=d=>{
+  if(!d)return'—';
+  const D=d instanceof Date?d:new Date(d);
+  if(isNaN(D))return'—';
+  return`${String(D.getDate()).padStart(2,'0')}.${String(D.getMonth()+1).padStart(2,'0')}.${D.getFullYear()}`;
+};
+const fmtN=n=>{
+  if(n==null||isNaN(n))return'—';
+  const a=Math.abs(n),sg=n<0?'-':'';
+  if(a>=1e9)return sg+(a/1e9).toFixed(1)+'B';
+  if(a>=1e6)return sg+(a/1e6).toFixed(1)+'M';
+  if(a>=1e3)return sg+(a/1e3).toFixed(1)+'K';
+  return n.toLocaleString('en-US',{maximumFractionDigits:1});
+};
+
+// Parse a raw Tableau date value or formatted string
+const parseRaw=v=>{
+  if(v==null||v==='')return null;
+  // ISO string
+  let d=new Date(v);
+  if(!isNaN(d)&&d.getFullYear()>1900)return d;
+  // DD/MM/YYYY or DD.MM.YYYY
+  let m=String(v).match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+  // Month YYYY
+  const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  m=String(v).match(/([A-Za-z]+)\s+(\d{4})/);
+  if(m&&MONTHS[m[1].toLowerCase()]!=null)return new Date(+m[2],MONTHS[m[1].toLowerCase()],1);
+  // Qn/YYYY
+  m=String(v).match(/Q(\d)[\/\s\-]?(\d{4})/i);
+  if(m)return new Date(+m[2],(+m[1]-1)*3,1);
+  return null;
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Period computation
+// ══════════════════════════════════════════════════════════════════════════════
+function computePeriods(){
+  const t=td();
+  let f1,t1;
+
+  switch(S.preset){
+    case'last_day':
+      f1=t1=addD(t,-1);
+      break;
+    case'last_week':{
+      // ISO week Mon–Sun
+      const dow=t.getDay()||7; // 1=Mon … 7=Sun
+      t1=addD(t,-dow);         // last Sunday
+      f1=addD(t1,-6);          // last Monday
+      break;
+    }
+    case'last_month':
+      t1=new Date(t.getFullYear(),t.getMonth(),0);   // last day of prev month
+      f1=new Date(t1.getFullYear(),t1.getMonth(),1); // first of same
+      break;
+    case'last_quarter':{
+      const q=Math.floor(t.getMonth()/3);       // current quarter 0-indexed
+      const pq=(q+3)%4;                          // previous quarter 0-indexed
+      const py=q===0?t.getFullYear()-1:t.getFullYear();
+      f1=new Date(py,pq*3,1);
+      t1=new Date(py,pq*3+3,0);
+      break;
+    }
+    case'last_year':
+      f1=new Date(t.getFullYear()-1,0,1);
+      t1=new Date(t.getFullYear()-1,11,31);
+      break;
+    case'free':
+      f1=S.freeFrom1?new Date(S.freeFrom1):null;
+      t1=S.freeTo1?new Date(S.freeTo1):null;
+      break;
+    default:
+      f1=t1=null;
+  }
+
+  let f2,t2;
+  if(S.compMode==='same_last_year'){
+    f2=f1?addY(f1,-1):null;
+    t2=t1?addY(t1,-1):null;
+  } else if(S.compMode==='free'){
+    f2=S.freeFrom2?new Date(S.freeFrom2):null;
+    t2=S.freeTo2?new Date(S.freeTo2):null;
+  } else {
+    // period_before — smart: respects preset boundaries for named periods
+    ({f2,t2}=periodBefore(f1,t1));
+  }
+
+  S.from1=f1; S.to1=t1; S.from2=f2; S.to2=t2;
+}
+
+function periodBefore(f1,t1){
+  if(!f1||!t1)return{f2:null,t2:null};
+  switch(S.preset){
+    case'last_day':
+      return{f2:addD(f1,-1),t2:addD(f1,-1)};
+    case'last_week':
+      return{f2:addD(f1,-7),t2:addD(t1,-7)};
+    case'last_month':{
+      const t2=new Date(f1.getFullYear(),f1.getMonth(),0);
+      return{f2:new Date(t2.getFullYear(),t2.getMonth(),1),t2};
+    }
+    case'last_quarter':{
+      let m=f1.getMonth()-3,y=f1.getFullYear();
+      if(m<0){m+=12;y--;}
+      return{f2:new Date(y,m,1),t2:new Date(y,m+3,0)};
+    }
+    case'last_year':
+      return{f2:addY(f1,-1),t2:addY(t1,-1)};
+    default:{
+      // Free/custom: equal-length window immediately before
+      const len=daysDiff(f1,t1);
+      const t2=addD(f1,-1);
+      return{f2:addD(t2,-len),t2};
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Parameter writing
+// ══════════════════════════════════════════════════════════════════════════════
+async function writeParams(){
+  if(!S.ws)return false;
+  try{
+    const params=await S.ws.getParametersAsync();
+    // Find by exact name first, then by contains (case-insensitive)
+    const find=n=>{
+      const nl=n.toLowerCase();
+      return params.find(p=>p.name.toLowerCase()===nl)
+          || params.find(p=>p.name.toLowerCase().includes(nl));
+    };
+    const pf1=find('from1'), pt1=find('to1'),
+          pf2=find('from2'), pt2=find('to2');
+    const pg=find('parameter 1')||find('granularity')||find('gran');
+
+    missingP={from1:!pf1,to1:!pt1,from2:!pf2,to2:!pt2,gran:!pg};
+
+    if(pf1&&S.from1)await pf1.changeValueAsync(fmtISO(S.from1));
+    if(pt1&&S.to1) await pt1.changeValueAsync(fmtISO(S.to1));
+    if(pf2&&S.from2)await pf2.changeValueAsync(fmtISO(S.from2));
+    if(pt2&&S.to2) await pt2.changeValueAsync(fmtISO(S.to2));
+    if(pg)         await pg.changeValueAsync(S.gran);
+
+    return true;
+  }catch(e){
+    console.error('writeParams:',e);
+    return false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Column detection
+// ══════════════════════════════════════════════════════════════════════════════
+function detectCols(dt){
+  const cols=dt.columns, rows=dt.data;
+  let di=-1, ri=-1;
+  const mc=[];
+
+  cols.forEach((c,i)=>{
+    const dn=c.dataType.toLowerCase();
+    const fn=c.fieldName.toLowerCase();
+
+    // Range column: exact match or field named "range"
+    if(fn==='range'||fn.endsWith(' range')){ri=i;return;}
+
+    // Date column: prefer field named "truncated", else first date type
+    if(fn==='truncated'||(di<0&&dn.includes('date'))){di=i;return;}
+
+    // Measure columns: numeric types excluding range
+    if(['float','integer','real','int','number','double'].some(t=>dn.includes(t))){
+      let mx=0;
+      rows.forEach(r=>{mx=Math.max(mx,Math.abs(parseFloat(r[i].value)||0));});
+      mc.push({idx:i,name:c.fieldName,max:mx});
+    }
+  });
+
+  // Fallback date detection
+  if(di<0)di=cols.findIndex(c=>c.dataType.toLowerCase().includes('date'));
+
+  // Use override if set in config
+  if(S.dateColIdx>=0&&S.dateColIdx<cols.length)di=S.dateColIdx;
+
+  S.dateColIdx=di;
+  S.rangeColIdx=ri;
+  S.measCols=mc.sort((a,b)=>b.max-a.max);
+
+  // Auto-detect language from first measure name
+  if(mc.length>0)S.lang=isHe(mc[0].name)?'he':'en';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Data loading
+// ══════════════════════════════════════════════════════════════════════════════
+let loadTimer=null;
+async function loadData(){
+  if(!S.ws)return;
+  setStatus('');
+  try{
+    const dt=await S.ws.getSummaryDataAsync({ignoreSelection:true});
+    S.data=dt;
+    detectCols(dt);
+
+    // Check for missing Tableau setup
+    const hasMissingParams=Object.values(missingP).some(v=>v);
+    if(hasMissingParams){
+      const missing=Object.entries(missingP).filter(([,v])=>v).map(([k])=>k);
+      setStatus(`${L('missingPrm')} ${missing.join(', ')}`);
+    } else if(S.rangeColIdx<0&&S.data.data.length>0){
+      setStatus(L('noRange'));
+    }
+
+    render();
+    saveSettings();
+  }catch(e){
+    setStatus(L('loadErr')+': '+e.message);
+  }
+}
+const debouncedLoad=()=>{clearTimeout(loadTimer);loadTimer=setTimeout(loadData,300);};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Group data by period (range column: 1 or 2)
+// ══════════════════════════════════════════════════════════════════════════════
+function groupData(){
+  const{data,dateColIdx:di,rangeColIdx:ri,measCols:mc}=S;
+  if(!data||di<0||!mc.length)return null;
+
+  const rows=data.data;
+  const map1={},map2={};
+
+  rows.forEach(r=>{
+    if(ri<0)return; // no range col → can't split periods
+    const rv=String(r[ri].value??r[ri].formattedValue??'').trim();
+    const target=rv==='1'?map1:rv==='2'?map2:null;
+    if(!target)return;
+
+    const dk=r[di].formattedValue||String(r[di].value||'');
+    const dv=r[di].value; // raw for sorting
+
+    if(!target[dk]){
+      target[dk]={key:dk,dv,vals:{}};
+      mc.forEach(m=>{target[dk].vals[m.idx]=0;});
+    }
+    mc.forEach(m=>{target[dk].vals[m.idx]+=(parseFloat(r[m.idx].value)||0);});
+  });
+
+  // Sort groups chronologically
+  const sortFn=(a,b)=>{
+    let da=parseRaw(a.dv),db=parseRaw(b.dv);
+    if(!da)da=parseRaw(a.key);
+    if(!db)db=parseRaw(b.key);
+    if(da&&db)return da-db;
+    return String(a.key).localeCompare(String(b.key));
+  };
+
+  const p1=Object.values(map1).sort(sortFn);
+  const p2=Object.values(map2).sort(sortFn);
+  if(!p1.length&&!p2.length)return null;
+  return{p1,p2};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Render dispatcher
+// ══════════════════════════════════════════════════════════════════════════════
+function render(){
+  updatePeriodLabel();
+  const showK=S.viewMode==='kpi'||S.viewMode==='both';
+  const showC=S.viewMode==='chart'||S.viewMode==='both';
+  document.getElementById('karea').style.display=showK?'flex':'none';
+  document.getElementById('carea').style.display=showC?'block':'none';
+  if(showK)renderKPIs();
+  if(showC)renderChart();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// KPI cards
+// ══════════════════════════════════════════════════════════════════════════════
+function renderKPIs(){
+  const g=groupData();
+  const area=document.getElementById('karea');
+  if(!g){
+    area.innerHTML=`<div class="kc" style="color:#9a9a9a;font-size:12px;direction:${S.lang==='he'?'rtl':'ltr'}">${L('noData')}</div>`;
+    return;
+  }
+
+  const isRtl=S.lang==='he';
+  const sum=(pts,mi)=>pts.reduce((s,p)=>s+(p.vals[mi]||0),0);
+  const count=Math.min(S.kpiCount,Math.max(1,S.measCols.length));
+  let html='';
+
+  for(let k=0;k<count;k++){
+    // Resolve which measure to show for this slot
+    const fi=S.kpiFields[k]!=null?S.kpiFields[k]:k;
+    const mInfo=S.measCols[fi]||S.measCols[0];
+    if(!mInfo)continue;
+
+    const cur=sum(g.p1,mInfo.idx);
+    const hasPrev=g.p2.length>0;
+    const prev=hasPrev?sum(g.p2,mInfo.idx):null;
+    const diff=prev!=null?cur-prev:null;
+    const absDiff=diff!=null?Math.abs(diff):null;
+    const pct=prev&&Math.abs(prev)>0.0001?diff/Math.abs(prev)*100:null;
+
+    const up=diff!=null&&diff>0;
+    const neutral=diff==null||Math.abs(diff)<0.0001;
+    const cls=neutral?'nt':up?'up':'dn';
+    const arrow=neutral?'':up?'▲':'▼';
+    const sign=up?'+':'';
+
+    // Clean measure name (strip SUM() etc.)
+    const name=mInfo.name.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
+
+    const r1=fmtDMY(S.from1)+(S.to1&&+S.to1!==+S.from1?' – '+fmtDMY(S.to1):'');
+    const r2=S.from2?fmtDMY(S.from2)+(S.to2&&+S.to2!==+S.from2?' – '+fmtDMY(S.to2):''):'';
+
+    html+=`<div class="kc" style="direction:${isRtl?'rtl':'ltr'}">
+      <div class="kn">${name}</div>
+      <div class="kv">${fmtN(cur)}</div>
+      ${diff!=null?`<div class="kg ${cls}" dir="ltr">${arrow}${sign}${fmtN(absDiff)} (${sign}${pct!=null?Math.abs(pct).toFixed(0):'—'}%)</div>`:''}
+      <div class="kp" dir="ltr">
+        ${L('cur')} ${r1}
+        ${r2?`<br>${L('vs')} ${r2}`:''}
+      </div>
+    </div>`;
+  }
+  area.innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Line chart (Chart.js, indexed X axis, two lines)
+// ══════════════════════════════════════════════════════════════════════════════
+function renderChart(){
+  const g=groupData();
+  const area=document.getElementById('carea');
+
+  if(!g||(!g.p1.length&&!g.p2.length)){
+    if(S.chart){S.chart.destroy();S.chart=null;}
+    area.innerHTML=`<div style="color:#9a9a9a;font-size:12px;padding:8px">${L('noData')}</div>`;
+    return;
+  }
+
+  // Restore canvas if it was replaced by a message div
+  if(!area.querySelector('canvas')){
+    area.innerHTML='<canvas id="ch"></canvas>';
+  }
+  const canvas=document.getElementById('ch');
+  if(S.chart){S.chart.destroy();S.chart=null;}
+
+  // Resolve measure for chart (first KPI slot)
+  const fi=S.kpiFields[0]!=null?S.kpiFields[0]:0;
+  const mInfo=S.measCols[fi]||S.measCols[0];
+  if(!mInfo)return;
+
+  const p1=g.p1.map(p=>p.vals[mInfo.idx]??null);
+  const p2=g.p2.map(p=>p.vals[mInfo.idx]??null);
+  const labels1=g.p1.map(p=>p.key);
+  const labels2=g.p2.map(p=>p.key);
+
+  const color='#6366f1';
+  const ctx=canvas.getContext('2d');
+  const h=area.offsetHeight||180;
+  const grad=ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,'rgba(99,102,241,0.18)');
+  grad.addColorStop(1,'rgba(99,102,241,0)');
+
+  const datasets=[
+    {
+      label:L('period1'),
+      data:p1,
+      borderColor:color,borderWidth:2,
+      backgroundColor:grad,fill:true,
+      tension:0,pointRadius:0,pointHoverRadius:5,
+      pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2
+    }
+  ];
+  if(p2.length){
+    datasets.push({
+      label:L('period2'),
+      data:p2,
+      borderColor:'rgba(156,163,175,0.7)',borderWidth:1.5,
+      borderDash:[4,3],fill:false,
+      tension:0,pointRadius:0,pointHoverRadius:4
+    });
+  }
+
+  S.chart=new Chart(canvas,{
+    type:'line',
+    data:{labels:p1.map((_,i)=>i),datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{
+          display:true,position:'bottom',
+          labels:{font:{size:10},boxWidth:14,padding:6,color:'#6b7280'}
+        },
+        tooltip:{
+          backgroundColor:'#fff',borderColor:'#e5e7eb',borderWidth:1,
+          titleColor:'#374151',bodyColor:'#374151',padding:10,boxPadding:4,
+          callbacks:{
+            title:items=>{
+              const i=items[0]?.dataIndex??0;
+              const d1=labels1[i]||'';
+              const d2=labels2[i]||'';
+              return[d2?`${d1} / ${d2}`:d1];
+            },
+            label:c=>c.raw==null?null:`  ${c.dataset.label}: ${fmtN(c.raw)}`
+          }
+        }
+      },
+      scales:{x:{display:false},y:{display:false}}
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// UI building
+// ══════════════════════════════════════════════════════════════════════════════
+function buildUI(){
+  const isRtl=S.lang==='he';
+  document.getElementById('app').style.direction=isRtl?'rtl':'ltr';
+  document.getElementById('applybtn').textContent=L('apply');
+
+  // Preset pills
+  document.getElementById('prow').innerHTML=PRESETS.map(p=>
+    `<button class="pill${S.preset===p.id?' on':''}" onclick="selPreset('${p.id}')">${p[S.lang]||p.en}</button>`
+  ).join('');
+
+  // Comparison segment
+  document.getElementById('cseg').innerHTML=COMP.map(c=>
+    `<button class="${S.compMode===c.id?'on':''}" onclick="selComp('${c.id}')">${c[S.lang]||c.en}</button>`
+  ).join('');
+
+  // Granularity segment
+  document.getElementById('gseg').innerHTML=GRANS.map(g=>
+    `<button class="${S.gran===g.id?'on':''}" onclick="selGran('${g.id}')">${g[S.lang]||g.en}</button>`
+  ).join('');
+
+  // View segment
+  document.getElementById('vseg').innerHTML=VIEWS.map(v=>
+    `<button class="${S.viewMode===v.id?'on':''}" onclick="selView('${v.id}')">${v[S.lang]||v.en}</button>`
+  ).join('');
+
+  // Free range row (show when preset or comparison is "free")
+  buildFreeRow();
+  updatePeriodLabel();
+}
+
+function buildFreeRow(){
+  const showP1=S.preset==='free';
+  const showP2=S.compMode==='free';
+  const fr=document.getElementById('freerow');
+  fr.style.display=(showP1||showP2)?'flex':'none';
+  if(!showP1&&!showP2)return;
+
+  let html='';
+  if(showP1){
+    html+=`<label>${L('p1')}:</label>
+      <input type="date" value="${S.freeFrom1}" onchange="S.freeFrom1=this.value"/>
+      <span class="rsep">–</span>
+      <input type="date" value="${S.freeTo1}" onchange="S.freeTo1=this.value"/>`;
+  }
+  if(showP1&&showP2)html+=`<span class="rsep" style="margin:0 4px">|</span>`;
+  if(showP2){
+    html+=`<label>${L('p2')}:</label>
+      <input type="date" value="${S.freeFrom2}" onchange="S.freeFrom2=this.value"/>
+      <span class="rsep">–</span>
+      <input type="date" value="${S.freeTo2}" onchange="S.freeTo2=this.value"/>`;
+  }
+  fr.innerHTML=html;
+}
+
+function updatePeriodLabel(){
+  const r1=S.from1&&S.to1
+    ?(fmtDMY(S.from1)===(fmtDMY(S.to1))?fmtDMY(S.from1):fmtDMY(S.from1)+'–'+fmtDMY(S.to1))
+    :'—';
+  const r2=S.from2&&S.to2
+    ?(fmtDMY(S.from2)===(fmtDMY(S.to2))?fmtDMY(S.from2):fmtDMY(S.from2)+'–'+fmtDMY(S.to2))
+    :'—';
+  document.getElementById('plbl').textContent=`${r1}  |  ${r2}`;
+}
+
+function setStatus(msg){document.getElementById('status').textContent=msg||'';}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Control event handlers
+// ══════════════════════════════════════════════════════════════════════════════
+function selPreset(id){
+  S.preset=id;
+  const p=PRESETS.find(x=>x.id===id);
+  // Auto-set granularity to match preset (unless user already chose "free")
+  if(p?.g)S.gran=p.g;
+  buildUI();
+}
+function selComp(id){S.compMode=id;buildUI();}
+function selGran(id){S.gran=id;buildUI();}
+function selView(id){S.viewMode=id;buildUI();if(S.data)render();}
+
+function togglePanel(){
+  S.panelOpen=!S.panelOpen;
+  document.getElementById('ctrl').classList.toggle('hi',!S.panelOpen);
+  document.getElementById('tog').textContent=S.panelOpen?'▲':'▼';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Apply — compute periods, write params, wait for SummaryDataChanged
+// ══════════════════════════════════════════════════════════════════════════════
+async function applyPeriod(){
+  computePeriods();
+  buildUI();
+  const written=await writeParams();
+  // If params were found and written, Tableau will fire SummaryDataChanged
+  // which calls debouncedLoad. If not found, load directly to show error/guide.
+  const hasMissing=Object.values(missingP).some(v=>v);
+  if(!written||hasMissing){
+    await loadData();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Config panel
+// ══════════════════════════════════════════════════════════════════════════════
+function toggleCfg(){
+  S.cfgOpen=!S.cfgOpen;
+  document.getElementById('cfgov').classList.toggle('op',S.cfgOpen);
+  if(S.cfgOpen)buildCfg();
+}
+
+function buildCfg(){
+  const isRtl=S.lang==='he';
+  const mc=S.measCols;
+  const cols=S.data?S.data.columns:[];
+
+  const autoOpt=`<option value="-1">${L('auto')}</option>`;
+  const measOpts=mc.map((m,mi)=>`<option value="${mi}">${m.name}</option>`).join('');
+
+  // KPI field rows
+  let kpiRows='';
+  for(let k=0;k<S.kpiCount;k++){
+    const fi=S.kpiFields[k]!=null?S.kpiFields[k]:k;
+    kpiRows+=`<div class="csec">
+      <div class="clbl">${L('kpiFld')}${k+1}</div>
+      <select class="csel" id="kfi${k}">
+        ${autoOpt}
+        ${mc.map((m,mi)=>`<option value="${mi}"${fi===mi?'selected':''}>${m.name}</option>`).join('')}
+      </select>
+    </div>`;
+  }
+
+  // Param status indicators
+  const paramNames=['from1','to1','from2','to2','gran'];
+  const paramStatus=paramNames.map(k=>{
+    const ok=!missingP[k];
+    return `<span class="${ok?'found':'missing'}">${ok?'✓':'✗'} ${k}</span>`;
+  }).join('  ');
+
+  // Date field select
+  const dateOpts=cols.map((c,i)=>`<option value="${i}"${S.dateColIdx===i?'selected':''}>${c.fieldName}</option>`).join('');
+
+  document.getElementById('cbox').innerHTML=`
+    <div class="chdr" style="direction:${isRtl?'rtl':'ltr'}">
+      <span>${L('settings')}</span>
+      <button class="cxbtn" onclick="toggleCfg()">×</button>
+    </div>
+    <div style="direction:${isRtl?'rtl':'ltr'}">
+
+      <div class="csec">
+        <div class="clbl">${L('kpiCnt')}</div>
+        <div class="seg">${[1,2,3,4].map(n=>`<button id="kc${n}" class="${S.kpiCount===n?'on':''}" onclick="setCnt(${n})">${n}</button>`).join('')}</div>
+      </div>
+
+      <div class="csec">
+        <div class="clbl">${L('dateFld')}</div>
+        <select class="csel" id="datesel">${autoOpt}${dateOpts}</select>
+      </div>
+
+      ${kpiRows}
+
+      <div class="csec">
+        <div class="clbl">${L('bgLbl')}</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="color" id="bginp" value="${S.bgColor||'#ffffff'}" style="width:34px;height:28px;border:1px solid #d1d5db;border-radius:6px;padding:2px;cursor:pointer"/>
+          <button class="pill" onclick="resetBg()">${L('resetBg')}</button>
+        </div>
+      </div>
+
+      <div class="csec">
+        <div class="clbl">${L('prmLbl')}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;margin-top:2px">${paramStatus}</div>
+      </div>
+
+      <div class="csec">
+        <div class="cnote">
+          <strong>${L('setupHdr')}</strong><br>
+          ${isRtl?'פרמטרים (Date):':'Parameters (Date):'} <code>from1</code> <code>to1</code> <code>from2</code> <code>to2</code><br>
+          ${isRtl?'פרמטר (String):':'Parameter (String):'} <code>Parameter 1</code> → day/week/month/quarter/year<br><br>
+          ${L('calcLbl')}:<br>
+          <code>IF [date]&gt;=[from1] AND [date]&lt;=[to1] THEN 1<br>
+          ELSEIF [date]&gt;=[from2] AND [date]&lt;=[to2] THEN 2<br>
+          END</code><br><br>
+          ${isRtl?'פילטר: הוצא NULL מ-range':'Filter: exclude NULL from range'}
+        </div>
+      </div>
+
+      <button class="csave" onclick="saveCfg()">${L('save')}</button>
+    </div>`;
+}
+
+function setCnt(n){
+  S.kpiCount=n;
+  [1,2,3,4].forEach(i=>{
+    const el=document.getElementById(`kc${i}`);
+    if(el)el.classList.toggle('on',i===n);
+  });
+  buildCfg(); // rebuild KPI field rows
+}
+
+function resetBg(){
+  S.bgColor='';
+  document.body.style.background='transparent';
+  document.getElementById('app').style.background='transparent';
+}
+
+function saveCfg(){
+  const ds=document.getElementById('datesel');
+  if(ds)S.dateColIdx=parseInt(ds.value);
+
+  for(let k=0;k<4;k++){
+    const el=document.getElementById(`kfi${k}`);
+    if(el)S.kpiFields[k]=(el.value==='-1'?null:parseInt(el.value));
+  }
+
+  const bg=document.getElementById('bginp');
+  if(bg&&bg.value&&bg.value!=='#000000'){
+    S.bgColor=bg.value;
+    document.body.style.background=S.bgColor;
+    document.getElementById('app').style.background=S.bgColor;
+  }
+
+  saveSettings();
+  if(S.data)render();
+  toggleCfg();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Settings persistence
+// ══════════════════════════════════════════════════════════════════════════════
+function saveSettings(){
+  if(!S.ws)return;
+  try{
+    const t=tableau.extensions.settings;
+    ['preset','compMode','gran','viewMode'].forEach(k=>t.set(k,S[k]));
+    t.set('kpiCount',String(S.kpiCount));
+    t.set('kpiFields',JSON.stringify(S.kpiFields));
+    t.set('bgColor',S.bgColor||'');
+    ['freeFrom1','freeTo1','freeFrom2','freeTo2'].forEach(k=>t.set(k,S[k]||''));
+    tableau.extensions.settings.saveAsync().catch(()=>{});
+  }catch(e){}
+}
+
+function loadSettings(){
+  try{
+    const t=tableau.extensions.settings;
+    const g=k=>{const v=t.get(k);return(v&&v!=='')?v:null;};
+    ['preset','compMode','gran','viewMode'].forEach(k=>{if(g(k))S[k]=g(k);});
+    if(g('kpiCount'))S.kpiCount=Math.max(1,Math.min(4,parseInt(g('kpiCount'))||1));
+    if(g('kpiFields'))try{S.kpiFields=JSON.parse(g('kpiFields'));}catch(e){}
+    ['freeFrom1','freeTo1','freeFrom2','freeTo2'].forEach(k=>{S[k]=g(k)||'';});
+    if(g('bgColor')){
+      S.bgColor=g('bgColor');
+      document.body.style.background=S.bgColor;
+    }
+  }catch(e){}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════════════════════════
+async function init(){
+  if(typeof tableau==='undefined'){setTimeout(init,50);return;}
+
+  await tableau.extensions.initializeAsync({
+    configure:()=>toggleCfg()
+  });
+  S.ws=tableau.extensions.worksheetContent.worksheet;
+
+  // Restore saved state
+  loadSettings();
+  // Compute dates based on restored/default settings
+  computePeriods();
+  // Build control UI
+  buildUI();
+  // Write params to Tableau (silently if not found)
+  await writeParams();
+  // Load data and render
+  await loadData();
+
+  // Listen for data changes (filter changes, param changes, etc.)
+  S.ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, debouncedLoad);
+
+  // Listen for parameter changes
+  try{
+    const params=await S.ws.getParametersAsync();
+    params.forEach(p=>p.addEventListener(tableau.TableauEventType.ParameterChanged,()=>{}));
+  }catch(e){console.warn('Param listeners:',e);}
+}
+
+window.onload=init;
+</script>
+</body>
+</html>
