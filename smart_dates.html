@@ -332,15 +332,18 @@ async function writeParams(){
   if(!S.ws)return false;
   try{
     const params=await S.ws.getParametersAsync();
-    // Find by exact name first, then by contains (case-insensitive)
-    const find=n=>{
+    // Exact match first, then suffix match — avoids catching unrelated params like "comparecity"
+    const findExact=n=>{
       const nl=n.toLowerCase();
       return params.find(p=>p.name.toLowerCase()===nl)
-          || params.find(p=>p.name.toLowerCase().includes(nl));
+          || params.find(p=>p.name.toLowerCase().endsWith(nl));
     };
-    const pf1=find('from1'), pt1=find('to1'),
-          pf2=find('from2'), pt2=find('to2');
-    const pg=find('parameter 1')||find('granularity')||find('gran');
+    // Granularity: only known names, no loose substring match
+    const pg=params.find(p=>{const n=p.name.toLowerCase();
+      return n==='parameter 1'||n==='gran'||n==='granularity'||n==='timeframe'||n.endsWith('parameter 1');
+    });
+    const pf1=findExact('from1'), pt1=findExact('to1'),
+          pf2=findExact('from2'), pt2=findExact('to2');
 
     missingP={from1:!pf1,to1:!pt1,from2:!pf2,to2:!pt2,gran:!pg};
 
@@ -513,21 +516,26 @@ function renderKPIs(){
     const neutral=diff==null||Math.abs(diff)<0.0001;
     const cls=neutral?'nt':up?'up':'dn';
     const arrow=neutral?'':up?'▲':'▼';
-    const sign=up?'+':'';
+    // sign: '+' for positive, '-' for negative, '' for neutral
+    const sign=neutral?'':up?'+':'-';
 
     // Clean measure name (strip SUM() etc.)
     const name=mInfo.name.replace(/^(sum|avg|count|min|max|attr|median)\s*\(/i,'').replace(/\)$/,'').trim();
 
     const r1=fmtDMY(S.from1)+(S.to1&&+S.to1!==+S.from1?' – '+fmtDMY(S.to1):'');
     const r2=S.from2?fmtDMY(S.from2)+(S.to2&&+S.to2!==+S.from2?' – '+fmtDMY(S.to2):''):'';
+    const curLbl=isRtl
+      ?`<span style="color:#6b7280">${L('cur')}</span> <span dir="ltr" style="unicode-bidi:embed;color:#9ca3af">${r1}</span>`
+      :`<span style="color:#6b7280">${L('cur')}</span> <span style="color:#9ca3af">${r1}</span>`;
+    const vsLbl=r2?(isRtl
+      ?`<br><span style="color:#6b7280">${L('vs')}</span> <span dir="ltr" style="unicode-bidi:embed;color:#9ca3af">${r2}</span>`
+      :`<br><span style="color:#6b7280">${L('vs')}</span> <span style="color:#9ca3af">${r2}</span>`):'';
 
     html+=`<div class="kc" style="direction:${isRtl?'rtl':'ltr'}">
       <div class="kn">${name}</div>
       <div class="kv">${fmtN(cur)}</div>
       ${diff!=null?`<div class="kg ${cls}" dir="ltr">${arrow}${sign}${fmtN(absDiff)} (${sign}${pct!=null?Math.abs(pct).toFixed(0):'—'}%)</div>`:''}
-      <div class="kp" dir="ltr">
-        ${L('cur')} ${r1}
-        ${r2?`<br>${L('vs')} ${r2}`:''}
+      <div class="kp">${curLbl}${vsLbl}</div>`:''}
       </div>
     </div>`;
   }
@@ -680,12 +688,14 @@ function buildFreeRow(){
 
 function updatePeriodLabel(){
   const r1=S.from1&&S.to1
-    ?(fmtDMY(S.from1)===(fmtDMY(S.to1))?fmtDMY(S.from1):fmtDMY(S.from1)+'–'+fmtDMY(S.to1))
+    ?(fmtDMY(S.from1)===(fmtDMY(S.to1))?fmtDMY(S.from1):fmtDMY(S.from1)+' – '+fmtDMY(S.to1))
     :'—';
   const r2=S.from2&&S.to2
-    ?(fmtDMY(S.from2)===(fmtDMY(S.to2))?fmtDMY(S.from2):fmtDMY(S.from2)+'–'+fmtDMY(S.to2))
+    ?(fmtDMY(S.from2)===(fmtDMY(S.to2))?fmtDMY(S.from2):fmtDMY(S.from2)+' – '+fmtDMY(S.to2))
     :'—';
-  document.getElementById('plbl').textContent=`${r1}  |  ${r2}`;
+  // dir=ltr prevents RTL from visually flipping the date strings and separator
+  document.getElementById('plbl').innerHTML=
+    `<span dir="ltr" style="unicode-bidi:embed">${r1}&nbsp;&nbsp;|&nbsp;&nbsp;${r2}</span>`;
 }
 
 function setStatus(msg){document.getElementById('status').textContent=msg||'';}
