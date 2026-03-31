@@ -441,7 +441,7 @@ function groupData(){
 
   rows.forEach(r=>{
     if(ri<0)return;
-    const rv=String(r[ri].value??r[ri].formattedValue??'').trim();
+    const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
     const target=rv==='1'?map1:rv==='2'?map2:null;
     if(!target)return;
 
@@ -496,7 +496,7 @@ function groupDataYear(rows,ri,mc,p1raw,p2raw){
   // Bucket raw rows by month within each period (1 or 2)
   const mBuckets={1:{},2:{}};
   rows.forEach(r=>{
-    const rv=String(r[ri].value??r[ri].formattedValue??'').trim();
+    const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
     const pid=rv==='1'?1:rv==='2'?2:0;
     if(!pid)return;
     const d=parseRaw(r[rawDi].value);
@@ -590,13 +590,15 @@ function renderKPIs(){
       ?`<br><span style="color:#6b7280">${L('vs')}</span> <span dir="ltr" style="unicode-bidi:embed;color:#9ca3af">${r2}</span>`
       :`<br><span style="color:#6b7280">${L('vs')}</span> <span style="color:#9ca3af">${r2}</span>`):'';
 
-    html+=`<div class="kc" style="direction:${isRtl?'rtl':'ltr'}">
-      <div class="kn">${name}</div>
-      <div class="kv">${fmtN(cur)}</div>
-      ${diff!=null?`<div class="kg ${cls}" dir="ltr">${arrow}${sign}${fmtN(absDiff)} (${sign}${pct!=null?Math.abs(pct).toFixed(0):'—'}%)</div>`:''}
-      <div class="kp">${curLbl}${vsLbl}</div>`:''}
-      </div>
-    </div>`;
+    const chgHtml=diff!=null
+      ?('<div class="kg '+cls+'" dir="ltr">'+arrow+sign+fmtN(absDiff)+' ('+sign+(pct!=null?Math.abs(pct).toFixed(0):'—')+'%)</div>')
+      :'';
+    html+='<div class="kc" style="direction:'+(isRtl?'rtl':'ltr')+'">'
+      +'<div class="kn">'+name+'</div>'
+      +'<div class="kv">'+fmtN(cur)+'</div>'
+      +chgHtml
+      +'<div class="kp">'+curLbl+vsLbl+'</div>'
+      +'</div>';
   }
   area.innerHTML=html;
 }
@@ -627,8 +629,8 @@ function renderChart(){
   if(!mInfo)return;
 
   const isYearMode=S.gran==='year';
-  const p1=g.p1.map(p=>p.vals[mInfo.idx]??null);
-  const p2=g.p2.map(p=>p.vals[mInfo.idx]??null);
+  const p1=g.p1.map(p=>(p.vals[mInfo.idx]!=null?p.vals[mInfo.idx]:null));
+  const p2=g.p2.map(p=>(p.vals[mInfo.idx]!=null?p.vals[mInfo.idx]:null));
   // For year mode show "Jan YYYY" / "Dec YYYY" labels; otherwise raw key
   const fmtYearKey=pt=>{
     if(!pt||!pt.d)return pt?pt.key:'';
@@ -688,7 +690,7 @@ function renderChart(){
           titleColor:'#374151',bodyColor:'#374151',padding:10,boxPadding:4,
           callbacks:{
             title:items=>{
-              const i=items[0]?.dataIndex??0;
+              const i=(items[0]&&items[0].dataIndex!=null?items[0].dataIndex:0);
               const d1=labels1[i]||'';
               const d2=labels2[i]||'';
               // Year mode: show "Start → End" for the line anchor points
@@ -788,7 +790,7 @@ function selPreset(id){
   S.preset=id;
   const p=PRESETS.find(x=>x.id===id);
   // Auto-set granularity to match preset (unless user already chose "free")
-  if(p?.g)S.gran=p.g;
+  if(p&&p.g)S.gran=p.g;
   buildUI();
 }
 function selComp(id){S.compMode=id;buildUI();}
