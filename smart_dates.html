@@ -440,13 +440,13 @@ function groupData(){
   const map1={},map2={};
 
   rows.forEach(r=>{
-    if(ri<0)return; // no range col → can't split periods
+    if(ri<0)return;
     const rv=String(r[ri].value??r[ri].formattedValue??'').trim();
     const target=rv==='1'?map1:rv==='2'?map2:null;
     if(!target)return;
 
     const dk=r[di].formattedValue||String(r[di].value||'');
-    const dv=r[di].value; // raw for sorting
+    const dv=r[di].value;
 
     if(!target[dk]){
       target[dk]={key:dk,dv,vals:{}};
@@ -455,7 +455,6 @@ function groupData(){
     mc.forEach(m=>{target[dk].vals[m.idx]+=(parseFloat(r[m.idx].value)||0);});
   });
 
-  // Sort groups chronologically
   const sortFn=(a,b)=>{
     let da=parseRaw(a.dv),db=parseRaw(b.dv);
     if(!da)da=parseRaw(a.key);
@@ -467,7 +466,66 @@ function groupData(){
   const p1=Object.values(map1).sort(sortFn);
   const p2=Object.values(map2).sort(sortFn);
   if(!p1.length&&!p2.length)return null;
+
+  // ── Year granularity: Truncated collapses all rows to 01.01.YYYY (1 point).
+  // Instead scan the raw date column, bucket by month, take first+last month
+  // as 2 anchor points so the chart shows a meaningful trend line.
+  if(S.gran==='year'){
+    return groupDataYear(rows,ri,mc,p1,p2);
+  }
+
   return{p1,p2};
+}
+
+// Year-mode: scan raw dates, group by month within each period,
+// return first+last month as 2 anchor points (start/end of year trend).
+function groupDataYear(rows,ri,mc,p1raw,p2raw){
+  // Find raw date column: a date col that is NOT the Truncated col
+  const cols=S.data.columns;
+  const di=S.dateColIdx;
+  let rawDi=-1,rawMax=new Date(0);
+  cols.forEach((c,ci)=>{
+    if(ci===di||ci===S.rangeColIdx)return;
+    if(!c.dataType.toLowerCase().includes('date'))return;
+    let colMax=new Date(0);
+    rows.forEach(r=>{const d=parseRaw(r[ci].value);if(d&&d>colMax)colMax=d;});
+    if(colMax>rawMax){rawMax=colMax;rawDi=ci;}
+  });
+  if(rawDi<0)return{p1:p1raw,p2:p2raw}; // fallback: return truncated points as-is
+
+  // Bucket raw rows by month within each period (1 or 2)
+  const mBuckets={1:{},2:{}};
+  rows.forEach(r=>{
+    const rv=String(r[ri].value??r[ri].formattedValue??'').trim();
+    const pid=rv==='1'?1:rv==='2'?2:0;
+    if(!pid)return;
+    const d=parseRaw(r[rawDi].value);
+    if(!d)return;
+    const mKey=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const bucket=mBuckets[pid];
+    if(!bucket[mKey]){bucket[mKey]={key:mKey,d:new Date(d.getFullYear(),d.getMonth(),1),vals:{}};}
+    mc.forEach(m=>{bucket[mKey].vals[m.idx]=(bucket[mKey].vals[m.idx]||0)+(parseFloat(r[m.idx].value)||0);});
+  });
+
+  const toAnchors=(bucket)=>{
+    const sorted=Object.values(bucket).sort((a,b)=>a.d-b.d);
+    if(!sorted.length)return[];
+    if(sorted.length===1)return[sorted[0],sorted[0]];
+    // Sum all months for total; use first and last as chart anchors
+    const total=mc.reduce((acc,m)=>{acc[m.idx]=sorted.reduce((s,b)=>s+(b.vals[m.idx]||0),0);return acc;},{});
+    const first={...sorted[0],vals:sorted[0].vals,key:sorted[0].key};
+    const last={...sorted[sorted.length-1],vals:sorted[sorted.length-1].vals,key:sorted[sorted.length-1].key,_total:total};
+    return[first,last];
+  };
+
+  return{
+    p1:toAnchors(mBuckets[1]),
+    p2:toAnchors(mBuckets[2]),
+    yearTotals:{
+      p1:mc.reduce((acc,m)=>{acc[m.idx]=Object.values(mBuckets[1]).reduce((s,b)=>s+(b.vals[m.idx]||0),0);return acc;},{}),
+      p2:mc.reduce((acc,m)=>{acc[m.idx]=Object.values(mBuckets[2]).reduce((s,b)=>s+(b.vals[m.idx]||0),0);return acc;},{})
+    }
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -505,9 +563,10 @@ function renderKPIs(){
     const mInfo=S.measCols[fi]||S.measCols[0];
     if(!mInfo)continue;
 
-    const cur=sum(g.p1,mInfo.idx);
+    // Year mode: use full-year totals, not just anchor-point values
+    const cur=g.yearTotals?g.yearTotals.p1[mInfo.idx]:sum(g.p1,mInfo.idx);
     const hasPrev=g.p2.length>0;
-    const prev=hasPrev?sum(g.p2,mInfo.idx):null;
+    const prev=hasPrev?(g.yearTotals?g.yearTotals.p2[mInfo.idx]:sum(g.p2,mInfo.idx)):null;
     const diff=prev!=null?cur-prev:null;
     const absDiff=diff!=null?Math.abs(diff):null;
     const pct=prev&&Math.abs(prev)>0.0001?diff/Math.abs(prev)*100:null;
@@ -567,10 +626,16 @@ function renderChart(){
   const mInfo=S.measCols[fi]||S.measCols[0];
   if(!mInfo)return;
 
+  const isYearMode=S.gran==='year';
   const p1=g.p1.map(p=>p.vals[mInfo.idx]??null);
   const p2=g.p2.map(p=>p.vals[mInfo.idx]??null);
-  const labels1=g.p1.map(p=>p.key);
-  const labels2=g.p2.map(p=>p.key);
+  // For year mode show "Jan YYYY" / "Dec YYYY" labels; otherwise raw key
+  const fmtYearKey=pt=>{
+    if(!pt||!pt.d)return pt?pt.key:'';
+    return pt.d.toLocaleString(S.lang==='he'?'he-IL':'en-US',{month:'short',year:'numeric'});
+  };
+  const labels1=isYearMode?g.p1.map(fmtYearKey):g.p1.map(p=>p.key);
+  const labels2=isYearMode?g.p2.map(fmtYearKey):g.p2.map(p=>p.key);
 
   const color='#6366f1';
   const ctx=canvas.getContext('2d');
@@ -579,13 +644,19 @@ function renderChart(){
   grad.addColorStop(0,'rgba(99,102,241,0.18)');
   grad.addColorStop(1,'rgba(99,102,241,0)');
 
+  // Year mode: show visible dots at start+end anchor points
+  const dotR=isYearMode?5:0;
+  const dotHoverR=isYearMode?7:5;
+
   const datasets=[
     {
       label:L('period1'),
       data:p1,
-      borderColor:color,borderWidth:2,
+      borderColor:color,borderWidth:isYearMode?2.5:2,
       backgroundColor:grad,fill:true,
-      tension:0,pointRadius:0,pointHoverRadius:5,
+      tension:0,
+      pointRadius:dotR,pointBackgroundColor:color,pointBorderColor:'#fff',pointBorderWidth:2,
+      pointHoverRadius:dotHoverR,
       pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2
     }
   ];
@@ -595,7 +666,9 @@ function renderChart(){
       data:p2,
       borderColor:'rgba(156,163,175,0.7)',borderWidth:1.5,
       borderDash:[4,3],fill:false,
-      tension:0,pointRadius:0,pointHoverRadius:4
+      tension:0,
+      pointRadius:dotR,pointBackgroundColor:'rgba(156,163,175,0.8)',pointBorderColor:'#fff',pointBorderWidth:1.5,
+      pointHoverRadius:dotHoverR
     });
   }
 
@@ -618,6 +691,14 @@ function renderChart(){
               const i=items[0]?.dataIndex??0;
               const d1=labels1[i]||'';
               const d2=labels2[i]||'';
+              // Year mode: show "Start → End" for the line anchor points
+              if(isYearMode){
+                const startEnd1=labels1.length===2?`${labels1[0]} → ${labels1[1]}`:'';
+                const startEnd2=labels2.length===2?`${labels2[0]} → ${labels2[1]}`:'';
+                return i===0
+                  ?[d1+(d2?' / '+d2:''),' ↑ '+L('period1')+(startEnd2?' / '+L('period2'):'')]
+                  :[d1+(d2?' / '+d2:''),' ↓ '+L('period1')+(startEnd2?' / '+L('period2'):'')];
+              }
               return[d2?`${d1} / ${d2}`:d1];
             },
             label:c=>c.raw==null?null:`  ${c.dataset.label}: ${fmtN(c.raw)}`
