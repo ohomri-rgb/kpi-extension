@@ -430,13 +430,65 @@ async function loadData(){
 const debouncedLoad=()=>{clearTimeout(loadTimer);loadTimer=setTimeout(loadData,300);};
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Derive a sort-stable bucket key + display label from a date and granularity.
+// Key is zero-padded so lexicographic sort = chronological sort.
+// ══════════════════════════════════════════════════════════════════════════════
+function granKey(d, gran){
+  const y=d.getFullYear();
+  const m=d.getMonth(); // 0-11
+  const day=d.getDate();
+  switch(gran){
+    case 'day':
+      return{key:y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0'),
+             label:fmtDMY(d), d:new Date(y,m,day)};
+    case 'week':{
+      // ISO week: find Monday of this week
+      const dow=(d.getDay()+6)%7; // 0=Mon
+      const mon=new Date(d); mon.setDate(day-dow);
+      const wk=String(isoWeek(d)).padStart(2,'0');
+      return{key:y+'-W'+wk,
+             label:'W'+wk+' '+y, d:mon};
+    }
+    case 'month':
+      return{key:y+'-'+String(m+1).padStart(2,'0'),
+             label:d.toLocaleString(S.lang==='he'?'he-IL':'en-US',{month:'short',year:'numeric'}),
+             d:new Date(y,m,1)};
+    case 'quarter':{
+      const q=Math.floor(m/3)+1;
+      return{key:y+'-Q'+q,
+             label:'Q'+q+' '+y, d:new Date(y,(q-1)*3,1)};
+    }
+    case 'year':
+      return{key:String(y), label:String(y), d:new Date(y,0,1)};
+    default:
+      return{key:y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0'),
+             label:fmtDMY(d), d:new Date(y,m,day)};
+  }
+}
+function isoWeek(d){
+  const tmp=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const dow=tmp.getUTCDay()||7;
+  tmp.setUTCDate(tmp.getUTCDate()+4-dow);
+  const jan1=new Date(Date.UTC(tmp.getUTCFullYear(),0,1));
+  return Math.ceil((((tmp-jan1)/86400000)+1)/7);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Group data by period (range column: 1 or 2)
+// Buckets rows by the current granularity on the extension side — so even if
+// Tableau sends raw daily rows, they are aggregated to day/week/month/quarter/year.
 // ══════════════════════════════════════════════════════════════════════════════
 function groupData(){
   const{data,dateColIdx:di,rangeColIdx:ri,measCols:mc}=S;
   if(!data||di<0||!mc.length)return null;
 
   const rows=data.data;
+
+  // Year mode handled separately (needs raw date scan for trend line)
+  if(S.gran==='year'){
+    return groupDataYear(rows,ri,mc);
+  }
+
   const map1={},map2={};
 
   rows.forEach(r=>{
@@ -445,41 +497,32 @@ function groupData(){
     const target=rv==='1'?map1:rv==='2'?map2:null;
     if(!target)return;
 
-    const dk=r[di].formattedValue||String(r[di].value||'');
-    const dv=r[di].value;
+    // Parse the date from this row
+    const rawD=parseRaw(r[di].value)||parseRaw(r[di].formattedValue);
+    if(!rawD)return;
+
+    // Derive bucket key from granularity (not from Truncated's formatted value)
+    const gk=granKey(rawD, S.gran);
+    const dk=gk.key;
 
     if(!target[dk]){
-      target[dk]={key:dk,dv,vals:{}};
+      target[dk]={key:dk, label:gk.label, dv:gk.d, vals:{}};
       mc.forEach(m=>{target[dk].vals[m.idx]=0;});
     }
     mc.forEach(m=>{target[dk].vals[m.idx]+=(parseFloat(r[m.idx].value)||0);});
   });
 
-  const sortFn=(a,b)=>{
-    let da=parseRaw(a.dv),db=parseRaw(b.dv);
-    if(!da)da=parseRaw(a.key);
-    if(!db)db=parseRaw(b.key);
-    if(da&&db)return da-db;
-    return String(a.key).localeCompare(String(b.key));
-  };
+  const sortFn=(a,b)=>a.dv-b.dv;
 
   const p1=Object.values(map1).sort(sortFn);
   const p2=Object.values(map2).sort(sortFn);
   if(!p1.length&&!p2.length)return null;
-
-  // ── Year granularity: Truncated collapses all rows to 01.01.YYYY (1 point).
-  // Instead scan the raw date column, bucket by month, take first+last month
-  // as 2 anchor points so the chart shows a meaningful trend line.
-  if(S.gran==='year'){
-    return groupDataYear(rows,ri,mc,p1,p2);
-  }
-
   return{p1,p2};
 }
 
 // Year-mode: scan raw dates, group by month within each period,
 // return first+last month as 2 anchor points (start/end of year trend).
-function groupDataYear(rows,ri,mc,p1raw,p2raw){
+function groupDataYear(rows,ri,mc){
   // Find raw date column: a date col that is NOT the Truncated col
   const cols=S.data.columns;
   const di=S.dateColIdx;
@@ -491,7 +534,7 @@ function groupDataYear(rows,ri,mc,p1raw,p2raw){
     rows.forEach(r=>{const d=parseRaw(r[ci].value);if(d&&d>colMax)colMax=d;});
     if(colMax>rawMax){rawMax=colMax;rawDi=ci;}
   });
-  if(rawDi<0)return{p1:p1raw,p2:p2raw}; // fallback: return truncated points as-is
+  if(rawDi<0)return{p1:[],p2:[]}; // fallback: no raw date col found
 
   // Bucket raw rows by month within each period (1 or 2)
   const mBuckets={1:{},2:{}};
@@ -636,8 +679,10 @@ function renderChart(){
     if(!pt||!pt.d)return pt?pt.key:'';
     return pt.d.toLocaleString(S.lang==='he'?'he-IL':'en-US',{month:'short',year:'numeric'});
   };
-  const labels1=isYearMode?g.p1.map(fmtYearKey):g.p1.map(p=>p.key);
-  const labels2=isYearMode?g.p2.map(fmtYearKey):g.p2.map(p=>p.key);
+  // Use .label for display (granularity-aware: "Q1 2026", "Mar 2026", "W12 2026" etc)
+  // Year mode uses fmtYearKey for the 2 anchor points; others use .label from granKey()
+  const labels1=isYearMode?g.p1.map(fmtYearKey):g.p1.map(p=>p.label||p.key);
+  const labels2=isYearMode?g.p2.map(fmtYearKey):g.p2.map(p=>p.label||p.key);
 
   const color='#6366f1';
   const ctx=canvas.getContext('2d');
