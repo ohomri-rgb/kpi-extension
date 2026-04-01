@@ -159,6 +159,7 @@ const S={
   from1:null, to1:null, from2:null, to2:null,
   freeFrom1:'', freeTo1:'', freeFrom2:'', freeTo2:'',
   data:null, dateColIdx:-1, rangeColIdx:-1, measCols:[],
+  rawData:null, rawDateColIdx:-1, rawRangeColIdx:-1, rawMeasCols:[],
   kpiCount:1, kpiFields:[null,null,null,null],
   panelOpen:true, cfgOpen:false, bgColor:'', lang:'he',
   ws:null, chart:null
@@ -440,22 +441,45 @@ function detectCols(dt){
 // ══════════════════════════════════════════════════════════════════════════════
 // Data loading
 // ══════════════════════════════════════════════════════════════════════════════
+// Dual fetch:
+//   S.data     = getSummaryDataAsync  → 1 aggregated row per period → KPI card
+//   S.rawData  = getUnderlyingTableDataAsync → raw rows → chart bucketing
+// ══════════════════════════════════════════════════════════════════════════════
 let loadTimer=null;
 async function loadData(){
   if(!S.ws)return;
   setStatus('');
   try{
+    // ── Fetch 1: summary (aggregated totals) for KPI card
     const dt=await S.ws.getSummaryDataAsync({ignoreSelection:true});
     S.data=dt;
     detectCols(dt);
 
-    // Check for missing Tableau setup
     const hasMissingParams=Object.values(missingP).some(v=>v);
     if(hasMissingParams){
       const missing=Object.entries(missingP).filter(([,v])=>v).map(([k])=>k);
-      setStatus(`${L('missingPrm')} ${missing.join(', ')}`);
+      setStatus(L('missingPrm')+' '+missing.join(', '));
     } else if(S.rangeColIdx<0&&S.data.data.length>0){
       setStatus(L('noRange'));
+    }
+
+    // ── Fetch 2: underlying rows for chart (only when chart is visible)
+    S.rawData=null;
+    if(S.viewMode==='chart'||S.viewMode==='both'){
+      try{
+        // Max 50K rows; ignoreSelection so filters still apply
+        const rd=await S.ws.getUnderlyingTableDataAsync({
+          maxRows:50000,
+          ignoreSelection:true,
+          includeAllColumns:false
+        });
+        S.rawData=rd;
+        detectRawCols(rd);
+      }catch(e){
+        // getUnderlyingTableDataAsync may not be available in all Tableau versions
+        console.warn('Underlying data fetch failed, falling back to summary:',e);
+        S.rawData=null;
+      }
     }
 
     render();
@@ -465,6 +489,36 @@ async function loadData(){
   }
 }
 const debouncedLoad=()=>{clearTimeout(loadTimer);loadTimer=setTimeout(loadData,300);};
+
+// Detect columns in the underlying (raw) data table.
+// Raw data has different column structure than summary data.
+function detectRawCols(rd){
+  const cols=rd.columns;
+  S.rawDateColIdx=-1;
+  S.rawRangeColIdx=-1;
+  S.rawMeasCols=[];
+
+  cols.forEach((c,i)=>{
+    const fn=c.fieldName.toLowerCase();
+    const dn=c.dataType.toLowerCase();
+    if(fn==='range'||fn.endsWith(' range')){S.rawRangeColIdx=i;return;}
+    if(fn==='order date'||fn==='תאריך הזמנה'||dn.includes('date')){
+      if(S.rawDateColIdx<0)S.rawDateColIdx=i;
+      return;
+    }
+    if(['float','integer','real','int','number','double'].some(t=>dn.includes(t))){
+      // Match to summary measCols by name
+      const matched=S.measCols.find(m=>m.name===c.fieldName);
+      if(matched)S.rawMeasCols.push({idx:i,name:c.fieldName,summaryIdx:matched.idx});
+    }
+  });
+
+  // Fallback: if no date col found, take first date col
+  if(S.rawDateColIdx<0){
+    const fi=cols.findIndex(c=>c.dataType.toLowerCase().includes('date'));
+    if(fi>=0)S.rawDateColIdx=fi;
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Derive a sort-stable bucket key + display label from a date and granularity.
@@ -511,101 +565,101 @@ function isoWeek(d){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Group data by period (range column: 1 or 2)
-// Buckets rows by the current granularity on the extension side — so even if
-// Tableau sends raw daily rows, they are aggregated to day/week/month/quarter/year.
+// groupDataKPI — uses summary data (1 aggregated row per period).
+// Used by KPI cards. Returns {p1:[{vals}], p2:[{vals}]}
 // ══════════════════════════════════════════════════════════════════════════════
-function groupData(){
-  const{data,dateColIdx:di,rangeColIdx:ri,measCols:mc}=S;
-  if(!data||di<0||!mc.length)return null;
-
+function groupDataKPI(){
+  const{data,rangeColIdx:ri,measCols:mc}=S;
+  if(!data||!mc.length)return null;
   const rows=data.data;
-
-  // Year mode handled separately (needs raw date scan for trend line)
-  if(S.gran==='year'){
-    return groupDataYear(rows,ri,mc);
-  }
-
-  const map1={},map2={};
-
+  const totals1={},totals2={};
+  mc.forEach(m=>{totals1[m.idx]=0;totals2[m.idx]=0;});
   rows.forEach(r=>{
     if(ri<0)return;
     const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
+    if(rv==='1')mc.forEach(m=>{totals1[m.idx]+=(parseFloat(r[m.idx].value)||0);});
+    else if(rv==='2')mc.forEach(m=>{totals2[m.idx]+=(parseFloat(r[m.idx].value)||0);});
+  });
+  // Wrap as single-element arrays so KPI render loop works unchanged
+  return{p1:[{vals:totals1}],p2:[{vals:totals2}]};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// groupDataChart — uses underlying raw data, buckets by granularity.
+// Used by line chart. Returns {p1:[{key,label,dv,vals}], p2:[...], yearTotals?}
+// Falls back to summary data if raw data not available.
+// ══════════════════════════════════════════════════════════════════════════════
+function groupDataChart(){
+  // Use raw data if available, else fall back to summary
+  const useRaw=S.rawData&&S.rawDateColIdx>=0&&S.rawRangeColIdx>=0&&S.rawMeasCols.length>0;
+  const rows=useRaw?S.rawData.data:S.data.data;
+  const di=useRaw?S.rawDateColIdx:S.dateColIdx;
+  const ri=useRaw?S.rawRangeColIdx:S.rangeColIdx;
+
+  if(!rows||di<0||ri<0)return null;
+
+  // Build a unified measCols-like array for indexing
+  // For raw data: use rawMeasCols mapped to summary measCols indices for consistency
+  const mc=useRaw
+    ?S.rawMeasCols.map(rm=>({idx:rm.idx,name:rm.name,summaryIdx:rm.summaryIdx}))
+    :S.measCols;
+  const valKey=m=>useRaw?m.summaryIdx:m.idx; // key used in vals{} object
+
+  if(S.gran==='year'){
+    return groupDataChartYear(rows,di,ri,mc,valKey);
+  }
+
+  const map1={},map2={};
+  rows.forEach(r=>{
+    const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
     const target=rv==='1'?map1:rv==='2'?map2:null;
     if(!target)return;
-
-    // Parse the date from this row
     const rawD=parseRaw(r[di].value)||parseRaw(r[di].formattedValue);
     if(!rawD)return;
-
-    // Derive bucket key from granularity (not from Truncated's formatted value)
-    const gk=granKey(rawD, S.gran);
-    const dk=gk.key;
-
-    if(!target[dk]){
-      target[dk]={key:dk, label:gk.label, dv:gk.d, vals:{}};
-      mc.forEach(m=>{target[dk].vals[m.idx]=0;});
+    const gk=granKey(rawD,S.gran);
+    if(!target[gk.key]){
+      target[gk.key]={key:gk.key,label:gk.label,dv:gk.d,vals:{}};
+      mc.forEach(m=>{target[gk.key].vals[valKey(m)]=0;});
     }
-    mc.forEach(m=>{target[dk].vals[m.idx]+=(parseFloat(r[m.idx].value)||0);});
+    mc.forEach(m=>{target[gk.key].vals[valKey(m)]+=(parseFloat(r[m.idx].value)||0);});
   });
 
   const sortFn=(a,b)=>a.dv-b.dv;
-
   const p1=Object.values(map1).sort(sortFn);
   const p2=Object.values(map2).sort(sortFn);
   if(!p1.length&&!p2.length)return null;
   return{p1,p2};
 }
 
-// Year-mode: scan raw dates, group by month within each period,
-// return first+last month as 2 anchor points (start/end of year trend).
-function groupDataYear(rows,ri,mc){
-  // Find raw date column: a date col that is NOT the Truncated col
-  const cols=S.data.columns;
-  const di=S.dateColIdx;
-  let rawDi=-1,rawMax=new Date(0);
-  cols.forEach((c,ci)=>{
-    if(ci===di||ci===S.rangeColIdx)return;
-    if(!c.dataType.toLowerCase().includes('date'))return;
-    let colMax=new Date(0);
-    rows.forEach(r=>{const d=parseRaw(r[ci].value);if(d&&d>colMax)colMax=d;});
-    if(colMax>rawMax){rawMax=colMax;rawDi=ci;}
-  });
-  if(rawDi<0)return{p1:[],p2:[]}; // fallback: no raw date col found
-
-  // Bucket raw rows by month within each period (1 or 2)
+// Year chart: bucket by month, return first+last as trend anchors
+function groupDataChartYear(rows,di,ri,mc,valKey){
   const mBuckets={1:{},2:{}};
   rows.forEach(r=>{
     const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
     const pid=rv==='1'?1:rv==='2'?2:0;
     if(!pid)return;
-    const d=parseRaw(r[rawDi].value);
+    const d=parseRaw(r[di].value)||parseRaw(r[di].formattedValue);
     if(!d)return;
-    const mKey=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const mKey=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     const bucket=mBuckets[pid];
-    if(!bucket[mKey]){bucket[mKey]={key:mKey,d:new Date(d.getFullYear(),d.getMonth(),1),vals:{}};}
-    mc.forEach(m=>{bucket[mKey].vals[m.idx]=(bucket[mKey].vals[m.idx]||0)+(parseFloat(r[m.idx].value)||0);});
+    if(!bucket[mKey]){bucket[mKey]={key:mKey,label:'',dv:new Date(d.getFullYear(),d.getMonth(),1),vals:{}};}
+    mc.forEach(m=>{bucket[mKey].vals[valKey(m)]=(bucket[mKey].vals[valKey(m)]||0)+(parseFloat(r[m.idx].value)||0);});
   });
-
-  const toAnchors=(bucket)=>{
-    const sorted=Object.values(bucket).sort((a,b)=>a.d-b.d);
+  const toAnchors=bucket=>{
+    const sorted=Object.values(bucket).sort((a,b)=>a.dv-b.dv);
     if(!sorted.length)return[];
     if(sorted.length===1)return[sorted[0],sorted[0]];
-    // Sum all months for total; use first and last as chart anchors
-    const total=mc.reduce((acc,m)=>{acc[m.idx]=sorted.reduce((s,b)=>s+(b.vals[m.idx]||0),0);return acc;},{});
-    const first={...sorted[0],vals:sorted[0].vals,key:sorted[0].key};
-    const last={...sorted[sorted.length-1],vals:sorted[sorted.length-1].vals,key:sorted[sorted.length-1].key,_total:total};
-    return[first,last];
+    return[sorted[0],sorted[sorted.length-1]];
   };
-
-  return{
-    p1:toAnchors(mBuckets[1]),
-    p2:toAnchors(mBuckets[2]),
-    yearTotals:{
-      p1:mc.reduce((acc,m)=>{acc[m.idx]=Object.values(mBuckets[1]).reduce((s,b)=>s+(b.vals[m.idx]||0),0);return acc;},{}),
-      p2:mc.reduce((acc,m)=>{acc[m.idx]=Object.values(mBuckets[2]).reduce((s,b)=>s+(b.vals[m.idx]||0),0);return acc;},{})
-    }
-  };
+  // Year totals (for KPI) use summary data, not anchors
+  const yt={};
+  mc.forEach(m=>{
+    yt[valKey(m)]={
+      p1:Object.values(mBuckets[1]).reduce((s,b)=>s+(b.vals[valKey(m)]||0),0),
+      p2:Object.values(mBuckets[2]).reduce((s,b)=>s+(b.vals[valKey(m)]||0),0)
+    };
+  });
+  return{p1:toAnchors(mBuckets[1]),p2:toAnchors(mBuckets[2]),yearTotals:yt};
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -625,7 +679,7 @@ function render(){
 // KPI cards
 // ══════════════════════════════════════════════════════════════════════════════
 function renderKPIs(){
-  const g=groupData();
+  const g=groupDataKPI();
   const area=document.getElementById('karea');
   if(!g){
     area.innerHTML=`<div class="kc" style="color:#9a9a9a;font-size:12px;direction:${S.lang==='he'?'rtl':'ltr'}">${L('noData')}</div>`;
@@ -643,10 +697,10 @@ function renderKPIs(){
     const mInfo=S.measCols[fi]||S.measCols[0];
     if(!mInfo)continue;
 
-    // Year mode: use full-year totals, not just anchor-point values
-    const cur=g.yearTotals?g.yearTotals.p1[mInfo.idx]:sum(g.p1,mInfo.idx);
+    // KPI always uses aggregated summary totals from groupDataKPI
+    const cur=sum(g.p1,mInfo.idx);
     const hasPrev=g.p2.length>0;
-    const prev=hasPrev?(g.yearTotals?g.yearTotals.p2[mInfo.idx]:sum(g.p2,mInfo.idx)):null;
+    const prev=hasPrev?sum(g.p2,mInfo.idx):null;
     const diff=prev!=null?cur-prev:null;
     const absDiff=diff!=null?Math.abs(diff):null;
     const pct=prev&&Math.abs(prev)>0.0001?diff/Math.abs(prev)*100:null;
@@ -687,7 +741,7 @@ function renderKPIs(){
 // Line chart (Chart.js, indexed X axis, two lines)
 // ══════════════════════════════════════════════════════════════════════════════
 function renderChart(){
-  const g=groupData();
+  const g=groupDataChart();
   const area=document.getElementById('carea');
 
   if(!g||(!g.p1.length&&!g.p2.length)){
