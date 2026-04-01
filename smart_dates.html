@@ -127,10 +127,10 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 // ══════════════════════════════════════════════════════════════════════════════
 const PRESETS=[
   {id:'last_day',    he:'יום קודם',    en:'Yesterday',    g:'day'},
-  {id:'last_week',   he:'שבוע מלא',    en:'Last week',    g:'week'},
-  {id:'last_month',  he:'חודש מלא',    en:'Last month',   g:'month'},
-  {id:'last_quarter',he:'רבעון מלא',   en:'Last quarter', g:'quarter'},
-  {id:'last_year',   he:'שנה מלאה',    en:'Last year',    g:'year'},
+  {id:'last_week',   he:'שבוע מלא',    en:'Last week',    g:'day'},
+  {id:'last_month',  he:'חודש מלא',    en:'Last month',   g:'day'},
+  {id:'last_quarter',he:'רבעון מלא',   en:'Last quarter', g:'week'},
+  {id:'last_year',   he:'שנה מלאה',    en:'Last year',    g:'month'},
   {id:'free',        he:'טווח חופשי',  en:'Custom range', g:null}
 ];
 const COMP=[
@@ -855,12 +855,15 @@ function setStatus(msg){document.getElementById('status').textContent=msg||'';}
 function selPreset(id){
   S.preset=id;
   const p=PRESETS.find(x=>x.id===id);
-  // Auto-set granularity to match preset (unless user already chose "free")
-  if(p&&p.g)S.gran=p.g;
+  // Auto-suggest granularity only if user hasn't manually changed it
+  // (i.e. gran still matches the previous preset's default)
+  const prevPreset=PRESETS.find(x=>x.id!==id&&x.g===S.gran);
+  const wasAutoGran=prevPreset||S.gran===S._lastAutoGran;
+  if(p&&p.g&&wasAutoGran){S.gran=p.g;S._lastAutoGran=p.g;}
   buildUI();
 }
 function selComp(id){S.compMode=id;buildUI();}
-function selGran(id){S.gran=id;buildUI();}
+function selGran(id){S.gran=id;S._lastAutoGran=null;buildUI();}
 function selView(id){S.viewMode=id;buildUI();if(S.data)render();}
 
 function togglePanel(){
