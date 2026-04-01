@@ -222,22 +222,59 @@ const fmtN=n=>{
   return n.toLocaleString('en-US',{maximumFractionDigits:1});
 };
 
-// Parse a raw Tableau date value or formatted string
+// Parse a raw Tableau date value or formatted string → local Date object
+// Handles: epoch ms number, ISO string, DD/MM/YYYY, DD.MM.YYYY,
+//          "Month YYYY" (English), "Q1/2025", Hebrew month names
+const HE_MONTHS={'ינואר':0,'פברואר':1,'מרץ':2,'אפריל':3,'מאי':4,'יוני':5,'יולי':6,'אוגוסט':7,'ספטמבר':8,'אוקטובר':9,'נובמבר':10,'דצמבר':11};
+const EN_MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 const parseRaw=v=>{
   if(v==null||v==='')return null;
-  // ISO string
-  let d=new Date(v);
-  if(!isNaN(d)&&d.getFullYear()>1900)return d;
+  const s=String(v).trim();
+
+  // Pure integer → epoch ms. Convert via UTC then re-express in local.
+  if(/^-?\d+$/.test(s)){
+    const epoch=parseInt(s,10);
+    if(Math.abs(epoch)>1e10){
+      // milliseconds
+      const u=new Date(epoch);
+      return new Date(u.getUTCFullYear(),u.getUTCMonth(),u.getUTCDate());
+    }
+    // Probably a year or small number — fall through
+  }
+
+  // ISO date-only: YYYY-MM-DD
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+
   // DD/MM/YYYY or DD.MM.YYYY
-  let m=String(v).match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+  m=s.match(/^(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})$/);
   if(m)return new Date(+m[3],+m[2]-1,+m[1]);
-  // Month YYYY
-  const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11,jan:0,feb:1,mar:2,apr:3,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  m=String(v).match(/([A-Za-z]+)\s+(\d{4})/);
-  if(m&&MONTHS[m[1].toLowerCase()]!=null)return new Date(+m[2],MONTHS[m[1].toLowerCase()],1);
-  // Qn/YYYY
-  m=String(v).match(/Q(\d)[\/\s\-]?(\d{4})/i);
+
+  // Tableau #MM/DD/YYYY# format
+  m=s.match(/^#(\d{1,2})\/(\d{1,2})\/(\d{4})#$/);
+  if(m)return new Date(+m[3],+m[1]-1,+m[2]);
+
+  // English "Month YYYY" or "Mon YYYY"
+  m=s.match(/^([A-Za-z]+)[\s,]+(\d{4})$/);
+  if(m&&EN_MONTHS[m[1].toLowerCase()]!=null)return new Date(+m[2],EN_MONTHS[m[1].toLowerCase()],1);
+
+  // Hebrew "חודש שנה" e.g. "ינואר 2025"
+  m=s.match(/^([א-ת]+)[\s]+(\d{4})$/);
+  if(m&&HE_MONTHS[m[1]]!=null)return new Date(+m[2],HE_MONTHS[m[1]],1);
+
+  // Q1/2025 or Q1 2025
+  m=s.match(/Q(\d)[\s\/\-]?(\d{4})/i);
   if(m)return new Date(+m[2],(+m[1]-1)*3,1);
+
+  // ISO datetime string with T — parse UTC, return local
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+
+  // Last resort: browser Date parse (may be UTC-shifted)
+  const d=new Date(s);
+  if(!isNaN(d)&&d.getFullYear()>1900){
+    return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+  }
   return null;
 };
 
