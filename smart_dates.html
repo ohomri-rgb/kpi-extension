@@ -159,7 +159,7 @@ const S={
   from1:null, to1:null, from2:null, to2:null,
   freeFrom1:'', freeTo1:'', freeFrom2:'', freeTo2:'',
   data:null, dateColIdx:-1, rangeColIdx:-1, measCols:[],
-  rawData:null, rawDateColIdx:-1, rawRangeColIdx:-1, rawMeasCols:[],
+
   kpiCount:1, kpiFields:[null,null,null,null],
   panelOpen:true, cfgOpen:false, bgColor:'', lang:'he',
   ws:null, chart:null
@@ -441,16 +441,16 @@ function detectCols(dt){
 // ══════════════════════════════════════════════════════════════════════════════
 // Data loading
 // ══════════════════════════════════════════════════════════════════════════════
-// Dual fetch:
-//   S.data     = getSummaryDataAsync  → 1 aggregated row per period → KPI card
-//   S.rawData  = getUnderlyingTableDataAsync → raw rows → chart bucketing
+// Single fetch: getSummaryDataAsync
+// Tableau buckets rows by whatever dimensions are on the Detail shelf.
+// The user must have a date dimension on Detail (e.g. Truncated calc field
+// or Order Date) so rows come back per time bucket rather than aggregated.
 // ══════════════════════════════════════════════════════════════════════════════
 let loadTimer=null;
 async function loadData(){
   if(!S.ws)return;
   setStatus('');
   try{
-    // ── Fetch 1: summary (aggregated totals) for KPI card
     const dt=await S.ws.getSummaryDataAsync({ignoreSelection:true});
     S.data=dt;
     detectCols(dt);
@@ -463,25 +463,6 @@ async function loadData(){
       setStatus(L('noRange'));
     }
 
-    // ── Fetch 2: underlying rows for chart (only when chart is visible)
-    S.rawData=null;
-    if(S.viewMode==='chart'||S.viewMode==='both'){
-      try{
-        // Max 50K rows; ignoreSelection so filters still apply
-        const rd=await S.ws.getUnderlyingTableDataAsync({
-          maxRows:50000,
-          ignoreSelection:true,
-          includeAllColumns:false
-        });
-        S.rawData=rd;
-        detectRawCols(rd);
-      }catch(e){
-        // getUnderlyingTableDataAsync may not be available in all Tableau versions
-        console.warn('Underlying data fetch failed, falling back to summary:',e);
-        S.rawData=null;
-      }
-    }
-
     render();
     saveSettings();
   }catch(e){
@@ -489,36 +470,6 @@ async function loadData(){
   }
 }
 const debouncedLoad=()=>{clearTimeout(loadTimer);loadTimer=setTimeout(loadData,300);};
-
-// Detect columns in the underlying (raw) data table.
-// Raw data has different column structure than summary data.
-function detectRawCols(rd){
-  const cols=rd.columns;
-  S.rawDateColIdx=-1;
-  S.rawRangeColIdx=-1;
-  S.rawMeasCols=[];
-
-  cols.forEach((c,i)=>{
-    const fn=c.fieldName.toLowerCase();
-    const dn=c.dataType.toLowerCase();
-    if(fn==='range'||fn.endsWith(' range')){S.rawRangeColIdx=i;return;}
-    if(fn==='order date'||fn==='תאריך הזמנה'||dn.includes('date')){
-      if(S.rawDateColIdx<0)S.rawDateColIdx=i;
-      return;
-    }
-    if(['float','integer','real','int','number','double'].some(t=>dn.includes(t))){
-      // Match to summary measCols by name
-      const matched=S.measCols.find(m=>m.name===c.fieldName);
-      if(matched)S.rawMeasCols.push({idx:i,name:c.fieldName,summaryIdx:matched.idx});
-    }
-  });
-
-  // Fallback: if no date col found, take first date col
-  if(S.rawDateColIdx<0){
-    const fi=cols.findIndex(c=>c.dataType.toLowerCase().includes('date'));
-    if(fi>=0)S.rawDateColIdx=fi;
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Derive a sort-stable bucket key + display label from a date and granularity.
@@ -565,8 +516,8 @@ function isoWeek(d){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// groupDataKPI — uses summary data (1 aggregated row per period).
-// Used by KPI cards. Returns {p1:[{vals}], p2:[{vals}]}
+// groupDataKPI — sums all rows per period from summary data.
+// KPI cards need the total, not individual time buckets.
 // ══════════════════════════════════════════════════════════════════════════════
 function groupDataKPI(){
   const{data,rangeColIdx:ri,measCols:mc}=S;
@@ -580,34 +531,20 @@ function groupDataKPI(){
     if(rv==='1')mc.forEach(m=>{totals1[m.idx]+=(parseFloat(r[m.idx].value)||0);});
     else if(rv==='2')mc.forEach(m=>{totals2[m.idx]+=(parseFloat(r[m.idx].value)||0);});
   });
-  // Wrap as single-element arrays so KPI render loop works unchanged
   return{p1:[{vals:totals1}],p2:[{vals:totals2}]};
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// groupDataChart — uses underlying raw data, buckets by granularity.
-// Used by line chart. Returns {p1:[{key,label,dv,vals}], p2:[...], yearTotals?}
-// Falls back to summary data if raw data not available.
+// groupDataChart — buckets summary rows by granularity for the line chart.
+// Tableau sends one row per unique combination of dimensions on the Detail shelf.
+// The extension re-buckets by gran to handle any date granularity correctly.
 // ══════════════════════════════════════════════════════════════════════════════
 function groupDataChart(){
-  // Use raw data if available, else fall back to summary
-  const useRaw=S.rawData&&S.rawDateColIdx>=0&&S.rawRangeColIdx>=0&&S.rawMeasCols.length>0;
-  const rows=useRaw?S.rawData.data:S.data.data;
-  const di=useRaw?S.rawDateColIdx:S.dateColIdx;
-  const ri=useRaw?S.rawRangeColIdx:S.rangeColIdx;
+  const{data,dateColIdx:di,rangeColIdx:ri,measCols:mc}=S;
+  if(!data||di<0||ri<0||!mc.length)return null;
+  const rows=data.data;
 
-  if(!rows||di<0||ri<0)return null;
-
-  // Build a unified measCols-like array for indexing
-  // For raw data: use rawMeasCols mapped to summary measCols indices for consistency
-  const mc=useRaw
-    ?S.rawMeasCols.map(rm=>({idx:rm.idx,name:rm.name,summaryIdx:rm.summaryIdx}))
-    :S.measCols;
-  const valKey=m=>useRaw?m.summaryIdx:m.idx; // key used in vals{} object
-
-  if(S.gran==='year'){
-    return groupDataChartYear(rows,di,ri,mc,valKey);
-  }
+  if(S.gran==='year') return groupDataChartYear(rows,di,ri,mc);
 
   const map1={},map2={};
   rows.forEach(r=>{
@@ -619,20 +556,19 @@ function groupDataChart(){
     const gk=granKey(rawD,S.gran);
     if(!target[gk.key]){
       target[gk.key]={key:gk.key,label:gk.label,dv:gk.d,vals:{}};
-      mc.forEach(m=>{target[gk.key].vals[valKey(m)]=0;});
+      mc.forEach(m=>{target[gk.key].vals[m.idx]=0;});
     }
-    mc.forEach(m=>{target[gk.key].vals[valKey(m)]+=(parseFloat(r[m.idx].value)||0);});
+    mc.forEach(m=>{target[gk.key].vals[m.idx]+=(parseFloat(r[m.idx].value)||0);});
   });
 
-  const sortFn=(a,b)=>a.dv-b.dv;
-  const p1=Object.values(map1).sort(sortFn);
-  const p2=Object.values(map2).sort(sortFn);
+  const p1=Object.values(map1).sort((a,b)=>a.dv-b.dv);
+  const p2=Object.values(map2).sort((a,b)=>a.dv-b.dv);
   if(!p1.length&&!p2.length)return null;
   return{p1,p2};
 }
 
-// Year chart: bucket by month, return first+last as trend anchors
-function groupDataChartYear(rows,di,ri,mc,valKey){
+// Year chart: bucket by month, return first+last month as trend anchors
+function groupDataChartYear(rows,di,ri,mc){
   const mBuckets={1:{},2:{}};
   rows.forEach(r=>{
     const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
@@ -642,24 +578,18 @@ function groupDataChartYear(rows,di,ri,mc,valKey){
     if(!d)return;
     const mKey=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     const bucket=mBuckets[pid];
-    if(!bucket[mKey]){bucket[mKey]={key:mKey,label:'',dv:new Date(d.getFullYear(),d.getMonth(),1),vals:{}};}
-    mc.forEach(m=>{bucket[mKey].vals[valKey(m)]=(bucket[mKey].vals[valKey(m)]||0)+(parseFloat(r[m.idx].value)||0);});
+    if(!bucket[mKey]){
+      bucket[mKey]={key:mKey,label:'',dv:new Date(d.getFullYear(),d.getMonth(),1),vals:{}};
+    }
+    mc.forEach(m=>{bucket[mKey].vals[m.idx]=(bucket[mKey].vals[m.idx]||0)+(parseFloat(r[m.idx].value)||0);});
   });
   const toAnchors=bucket=>{
     const sorted=Object.values(bucket).sort((a,b)=>a.dv-b.dv);
     if(!sorted.length)return[];
-    if(sorted.length===1)return[sorted[0],sorted[0]];
+    if(sorted.length===1)return[sorted[0],{...sorted[0]}];
     return[sorted[0],sorted[sorted.length-1]];
   };
-  // Year totals (for KPI) use summary data, not anchors
-  const yt={};
-  mc.forEach(m=>{
-    yt[valKey(m)]={
-      p1:Object.values(mBuckets[1]).reduce((s,b)=>s+(b.vals[valKey(m)]||0),0),
-      p2:Object.values(mBuckets[2]).reduce((s,b)=>s+(b.vals[valKey(m)]||0),0)
-    };
-  });
-  return{p1:toAnchors(mBuckets[1]),p2:toAnchors(mBuckets[2]),yearTotals:yt};
+  return{p1:toAnchors(mBuckets[1]),p2:toAnchors(mBuckets[2])};
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1029,13 +959,18 @@ function buildCfg(){
       <div class="csec">
         <div class="cnote">
           <strong>${L('setupHdr')}</strong><br>
-          ${isRtl?'פרמטרים (Date):':'Parameters (Date):'} <code>from1</code> <code>to1</code> <code>from2</code> <code>to2</code><br>
-          ${isRtl?'פרמטר (String):':'Parameter (String):'} <code>Parameter 1</code> → day/week/month/quarter/year<br><br>
-          ${L('calcLbl')}:<br>
+          <strong>${isRtl?'Detail shelf:':'Detail shelf:'}</strong><br>
+          <code>${isRtl?'תאריך (כל שדה תאריך)':'Date field (any date)'}</code>
+          <code>${isRtl?'מדד':'Measure'}</code>
+          <code>range</code><br><br>
+          <strong>${isRtl?'פרמטרים (Date):':'Parameters (Date):'}</strong><br>
+          <code>from1</code> <code>to1</code> <code>from2</code> <code>to2</code><br>
+          <code>Parameter 1</code> → day/week/month/quarter/year<br><br>
+          <strong>${isRtl?'שדה range:':'range field:'}</strong><br>
           <code>IF [date]&gt;=[from1] AND [date]&lt;=[to1] THEN 1<br>
           ELSEIF [date]&gt;=[from2] AND [date]&lt;=[to2] THEN 2<br>
-          END</code><br><br>
-          ${isRtl?'פילטר: הוצא NULL מ-range':'Filter: exclude NULL from range'}
+          END</code><br>
+          ${isRtl?'פילטר: הוצא NULL':'Filter: exclude NULL'}
         </div>
       </div>
 
