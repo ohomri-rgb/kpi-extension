@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Diagnostic Hub</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<script src="tableau.extensions.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--s1:#161b22;--s2:#1c2129;--bd:#30363d;
+  --t1:#e6edf3;--t2:#8b949e;--t3:#484f58;
+  --grn:#3fb950;--grn-bg:rgba(63,185,80,.12);
+  --ylw:#d29922;--ylw-bg:rgba(210,153,34,.12);
+  --red:#f85149;--red-bg:rgba(248,81,73,.12);
+  --blu:#58a6ff;--blu-bg:rgba(88,166,255,.12);
+  --pur:#bc8cff;--pur-bg:rgba(188,140,255,.12);
+  --cyn:#39d2c0;--cyn-bg:rgba(57,210,192,.12);
+  --mono:'SFMono-Regular','Consolas','Liberation Mono','Menlo',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--t1);font-size:12px;overflow:hidden}
+.hub{display:flex;height:100vh}
+
+/* SIDEBAR */
+.sidebar{width:200px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
+.sb-hdr{padding:10px 12px;border-bottom:1px solid var(--bd)}
+.sb-hdr h1{font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+.sb-hdr h1 .dot{width:7px;height:7px;border-radius:50%;background:var(--t3)}
+.sb-hdr h1 .dot.ok{background:var(--grn);box-shadow:0 0 6px rgba(63,185,80,.4)}
+.sb-hdr .db-name{font-size:10px;color:var(--t2);margin-top:3px}
+.sb-nav{flex:1;overflow-y:auto;padding:6px 0}
+.sb-nav::-webkit-scrollbar{width:3px}
+.sb-nav::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+.sb-section{padding:8px 12px 4px;font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
+.sb-item{padding:5px 12px 5px 16px;font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .1s;border-left:2px solid transparent}
+.sb-item:hover{color:var(--t1);background:var(--s2)}
+.sb-item.active{color:var(--blu);border-left-color:var(--blu);background:var(--blu-bg)}
+.sb-item .ico{font-size:13px;width:18px;text-align:center;flex-shrink:0}
+.sb-item .badge{margin-left:auto;font-size:9px;font-weight:600;padding:1px 5px;border-radius:7px;background:var(--s2);color:var(--t3)}
+.sb-item.active .badge{background:var(--blu-bg);color:var(--blu)}
+.sb-item.has-err .badge{background:var(--red-bg);color:var(--red)}
+.sb-ws{padding:4px 12px 4px 24px;font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .1s}
+.sb-ws:hover{color:var(--t1);background:var(--s2)}
+.sb-ws.active{color:var(--cyn);background:var(--cyn-bg)}
+.sb-ws .ws-dot{width:5px;height:5px;border-radius:50%;background:var(--t3);flex-shrink:0}
+.sb-ws.active .ws-dot{background:var(--cyn)}
+.sb-footer{padding:8px 12px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:4px}
+.sb-btn{background:var(--blu-bg);border:1px solid rgba(88,166,255,.3);border-radius:4px;padding:4px 0;font-size:10px;font-family:var(--sans);color:var(--blu);cursor:pointer;font-weight:500;text-align:center;transition:all .12s;width:100%}
+.sb-btn:hover{background:rgba(88,166,255,.2)}
+.sb-btn.green{background:var(--grn-bg);border-color:rgba(63,185,80,.3);color:var(--grn)}
+.sb-btn.green:hover{background:rgba(63,185,80,.2)}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.main-hdr{flex-shrink:0;background:var(--s1);border-bottom:1px solid var(--bd);padding:8px 14px;display:flex;align-items:center;gap:10px}
+.main-hdr h2{font-size:13px;font-weight:600}
+.main-hdr .sub{font-size:10px;color:var(--t2)}
+.main-body{flex:1;overflow-y:auto;padding:12px 14px}
+.main-body::-webkit-scrollbar{width:4px}
+.main-body::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+
+/* SHARED COMPONENTS */
+.section{margin-bottom:16px}
+.sec-title{font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.sec-title .cnt{color:var(--t3);font-weight:400;text-transform:none}
+.dtbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.dtbl th{background:var(--s2);padding:4px 8px;text-align:left;font-weight:600;color:var(--t2);border-bottom:1px solid var(--bd);position:sticky;top:0;white-space:nowrap}
+.dtbl td{padding:3px 8px;border-bottom:1px solid #21262d;color:var(--t1);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dtbl tr:hover td{background:var(--s2)}
+.badge-d{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;font-family:var(--mono)}
+.badge-d.dim{background:var(--blu-bg);color:var(--blu)}
+.badge-d.measure{background:var(--grn-bg);color:var(--grn)}
+.badge-d.date{background:var(--ylw-bg);color:var(--ylw)}
+.json-b{background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:8px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow-y:auto;line-height:1.5;color:var(--t1)}
+.evt-row{display:flex;gap:6px;padding:3px 6px;border-radius:3px;margin-bottom:1px;line-height:1.4;font-family:var(--mono);font-size:11px}
+.evt-row:hover{background:var(--s2)}
+.evt-ts{color:var(--t3);flex-shrink:0;min-width:68px}
+.evt-src{color:var(--pur);flex-shrink:0;min-width:100px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.evt-type{font-weight:600;flex-shrink:0;min-width:76px}
+.evt-type.filter{color:var(--ylw)}.evt-type.data{color:var(--grn)}.evt-type.init{color:var(--blu)}
+.evt-type.error{color:var(--red)}.evt-type.param{color:var(--pur)}.evt-type.mark{color:var(--cyn)}
+.evt-d{color:var(--t2);word-break:break-all;flex:1}
+.flt-row{padding:4px 8px;border-radius:3px;margin-bottom:2px;background:var(--s2);font-size:11px;display:flex;gap:8px;align-items:center}
+.flt-name{font-weight:600;color:var(--ylw);min-width:120px}
+.flt-type{color:var(--t3);min-width:70px;font-size:10px}
+.flt-val{color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.warn-box{padding:4px 8px;margin-bottom:2px;border-radius:3px;font-size:10px;font-family:var(--mono)}
+.warn-box.warn{background:var(--ylw-bg);color:var(--ylw)}
+.warn-box.err{background:var(--red-bg);color:var(--red)}
+.warn-box.info{background:var(--blu-bg);color:var(--blu)}
+/* Prototype sandbox */
+#proto-container{width:100%;min-height:300px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;margin-top:8px}
+.proto-controls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.proto-select{background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--t1);outline:none}
+.proto-select:focus{border-color:var(--blu)}
+</style>
+</head>
+<body>
+<div class="hub">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-hdr">
+      <h1><span class="dot" id="sb-dot"></span> Diagnostic Hub</h1>
+      <div class="db-name" id="sb-db-name">Connecting...</div>
+    </div>
+    <div class="sb-nav" id="sb-nav">
+      <div class="sb-section">Dashboard</div>
+      <div class="sb-item active" data-view="events" onclick="navTo(this)">
+        <span class="ico">⚡</span> Events <span class="badge" id="nav-evt-count">0</span>
+      </div>
+      <div class="sb-item" data-view="params" onclick="navTo(this)">
+        <span class="ico">⚙</span> Parameters
+      </div>
+      <div class="sb-item" data-view="errors" onclick="navTo(this)">
+        <span class="ico">🔴</span> Errors <span class="badge" id="nav-err-count">0</span>
+      </div>
+      <div class="sb-section">Worksheets</div>
+      <div id="ws-list"></div>
+      <div class="sb-section">Tools</div>
+      <div class="sb-item" data-view="prototype" onclick="navTo(this)">
+        <span class="ico">🧪</span> Chart Sandbox
+      </div>
+    </div>
+    <div class="sb-footer">
+      <button class="sb-btn" onclick="refreshAll()">↻ Refresh All</button>
+      <button class="sb-btn green" onclick="copyReport()">📋 Copy Report</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="main-hdr">
+      <h2 id="main-title">Events</h2>
+      <span class="sub" id="main-sub"></span>
+    </div>
+    <div class="main-body" id="main-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let dashboard = null;
+const worksheets = [];        // {ws, name, fields:[], data:null, filters:[], settings:{}}
+const eventLog = [];
+const errorLog = [];
+let currentView = 'events';
+let currentWsIndex = -1;      // -1 = dashboard-level view
+const initTime = Date.now();
+
+function ts() {
+  const d = new Date();
+  return d.toLocaleTimeString('en-GB',{hour12:false})+'.'+String(d.getMilliseconds()).padStart(3,'0');
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function log(source, type, detail) {
+  eventLog.push({ time:ts(), source, type, detail:typeof detail==='object'?JSON.stringify(detail):String(detail) });
+  document.getElementById('nav-evt-count').textContent = eventLog.length;
+  if (currentView==='events') renderView();
+}
+function logErr(msg, source) {
+  errorLog.push({ time:ts(), message:String(msg), source:source||'?' });
+  const el = document.getElementById('nav-err-count');
+  el.textContent = errorLog.length;
+  el.closest('.sb-item')?.classList.add('has-err');
+}
+
+// ═══════════════════════════════════════════════
+// CLASSIFY FIELDS
+// ═══════════════════════════════════════════════
+const DATE_RE = /^(YEAR|MONTH|QUARTER|DAY|WEEK|HOUR|MINUTE|SECOND|DATETRUNC|DATEPART)\s*\(/i;
+function classify(dt, fn) {
+  dt = (dt||'').toLowerCase();
+  if (['float','real','double','number'].includes(dt)) return 'measure';
+  if (['int','integer'].includes(dt)) return DATE_RE.test(String(fn).trim()) ? 'date' : 'measure';
+  if (dt.includes('date')) return 'date';
+  return 'dim';
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  log('hub','init','DOMContentLoaded');
+  try {
+    const t0 = performance.now();
+    await tableau.extensions.initializeAsync();
+    const ms = (performance.now()-t0).toFixed(0);
+    log('hub','init',`initializeAsync resolved in ${ms}ms`);
+
+    dashboard = tableau.extensions.dashboardContent.dashboard;
+    document.getElementById('sb-dot').classList.add('ok');
+    document.getElementById('sb-db-name').textContent = dashboard.name;
+    log('hub','init',`Dashboard: "${dashboard.name}" — ${dashboard.worksheets.length} worksheet(s)`);
+
+    // Discover all worksheets
+    for (const ws of dashboard.worksheets) {
+      const entry = { ws, name:ws.name, fields:[], data:null, filters:[], settings:{} };
+      worksheets.push(entry);
+
+      // Wire FilterChanged on every worksheet
+      ws.addEventListener(tableau.TableauEventType.FilterChanged, (e) => {
+        log(ws.name,'filter',`FilterChanged`);
+        // Refresh that worksheet's data
+        fetchWsData(worksheets.indexOf(entry));
+      });
+
+      // Wire MarkSelectionChanged (monitor only)
+      try {
+        ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => {
+          log(ws.name,'mark','MarkSelectionChanged');
+        });
+      } catch(e) {}
+    }
+
+    // Wire ParameterChanged on all parameters
+    try {
+      const params = await dashboard.getParametersAsync();
+      log('hub','init',`Found ${params.length} parameter(s)`);
+      params.forEach(p => {
+        try {
+          p.addEventListener(tableau.TableauEventType.ParameterChanged, () => {
+            log('hub','param',`ParameterChanged: "${p.name}" → ${p.currentValue?.value}`);
+          });
+        } catch(e) {}
+      });
+    } catch(e) { log('hub','init','getParametersAsync not available'); }
+
+    // Build sidebar worksheet list
+    buildWsList();
+
+    // Initial fetch for all worksheets
+    await refreshAll();
+
+    log('hub','init','Ready');
+  } catch(e) {
+    logErr(e, 'initializeAsync');
+    document.getElementById('sb-db-name').textContent = 'Error: ' + e.message;
+    log('hub','error','Init failed: ' + e.message);
+  }
+});
+
+// ═══════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════
+function buildWsList() {
+  const container = document.getElementById('ws-list');
+  container.innerHTML = worksheets.map((w,i) =>
+    `<div class="sb-ws" data-wsi="${i}" onclick="navToWs(${i})"><span class="ws-dot"></span>${esc(w.name)}</div>`
+  ).join('');
+}
+
+function navTo(el) {
+  document.querySelectorAll('.sb-item,.sb-ws').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');
+  currentView = el.dataset.view;
+  currentWsIndex = -1;
+  renderView();
+}
+function navToWs(i) {
+  document.querySelectorAll('.sb-item,.sb-ws').forEach(e=>e.classList.remove('active'));
+  document.querySelector(`.sb-ws[data-wsi="${i}"]`)?.classList.add('active');
+  currentView = 'worksheet';
+  currentWsIndex = i;
+  renderView();
+}
+
+// ═══════════════════════════════════════════════
+// DATA FETCH
+// ═══════════════════════════════════════════════
+async function fetchWsData(i) {
+  const entry = worksheets[i];
+  if (!entry) return;
+  try {
+    const t0 = performance.now();
+    const dt = await entry.ws.getSummaryDataAsync({maxRows:0, ignoreAliases:false, ignoreSelection:true});
+    const ms = (performance.now()-t0).toFixed(0);
+    entry.data = dt;
+    entry.fields = dt.columns.map((c,j) => ({
+      index: j,
+      fieldName: c._fieldName||c.fieldName||'?',
+      dataType: (c._dataType||c.dataType||'unknown').toLowerCase(),
+      fieldId: c._fieldId||c.fieldId||'',
+    }));
+    log(entry.name,'data',`${dt.columns.length} cols, ${dt.data.length} rows, ${ms}ms`);
+  } catch(e) {
+    logErr(`${entry.name}: ${e}`, 'getSummaryDataAsync');
+    log(entry.name,'error','getSummaryDataAsync failed: '+e.message);
+  }
+  // Fetch filters
+  try {
+    entry.filters = await entry.ws.getFiltersAsync();
+  } catch(e) { entry.filters = []; }
+
+  if (currentView==='worksheet' && currentWsIndex===i) renderView();
+}
+
+async function fetchSettings() {
+  // Read settings from THIS extension's namespace
+  const keys = ['chartId','assignments','customColors','banColors','borderRadius','bgColor','banFontSizes','kpiNames','mlColorMap','mlBgColorMap'];
+  const result = {};
+  keys.forEach(k => {
+    try { const v = tableau.extensions.settings.get(k); if (v) result[k] = v; } catch(e) {}
+  });
+  return result;
+}
+
+async function refreshAll() {
+  log('hub','init','Refreshing all worksheets...');
+  for (let i=0; i<worksheets.length; i++) await fetchWsData(i);
+  renderView();
+}
+
+// ═══════════════════════════════════════════════
+// RENDER ROUTER
+// ═══════════════════════════════════════════════
+function renderView() {
+  const body = document.getElementById('main-body');
+  const title = document.getElementById('main-title');
+  const sub = document.getElementById('main-sub');
+
+  switch(currentView) {
+    case 'events':   title.textContent='Events'; sub.textContent=`${eventLog.length} logged`; renderEvents(body); break;
+    case 'params':   title.textContent='Parameters'; sub.textContent=''; renderParams(body); break;
+    case 'errors':   title.textContent='Errors'; sub.textContent=`${errorLog.length} captured`; renderErrors(body); break;
+    case 'worksheet':
+      const w = worksheets[currentWsIndex];
+      title.textContent = w?.name||'?';
+      sub.textContent = w?.data ? `${w.fields.length} fields, ${w.data.data.length} rows` : 'No data';
+      renderWorksheet(body, currentWsIndex);
+      break;
+    case 'prototype': title.textContent='Chart Sandbox'; sub.textContent='Prototype charts against live data'; renderPrototype(body); break;
+    default: body.innerHTML = '';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// EVENTS VIEW
+// ═══════════════════════════════════════════════
+function renderEvents(body) {
+  if (!eventLog.length) { body.innerHTML='<div style="color:var(--t3);padding:20px;text-align:center">No events yet — interact with the dashboard</div>'; return; }
+  body.innerHTML = eventLog.slice().reverse().map(e =>
+    `<div class="evt-row"><span class="evt-ts">${e.time}</span><span class="evt-src">${esc(e.source)}</span><span class="evt-type ${e.type}">${e.type}</span><span class="evt-d">${esc(e.detail)}</span></div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════
+// PARAMETERS VIEW
+// ═══════════════════════════════════════════════
+async function renderParams(body) {
+  body.innerHTML = '<div style="color:var(--t3)">Loading parameters...</div>';
+  try {
+    const params = await dashboard.getParametersAsync();
+    if (!params.length) { body.innerHTML='<div style="color:var(--t3);padding:20px;text-align:center">No parameters in this workbook</div>'; return; }
+    let html = '<div class="section"><div class="sec-title">Workbook parameters <span class="cnt">('+params.length+')</span></div>';
+    html += '<table class="dtbl"><thead><tr><th>Name</th><th>Data type</th><th>Current value</th><th>Allowable</th></tr></thead><tbody>';
+    params.forEach(p => {
+      const cv = p.currentValue;
+      const val = cv?.formattedValue || cv?.value || '—';
+      const allow = p.allowableValues?.type || '—';
+      html += `<tr><td style="font-weight:600;color:var(--pur)">${esc(p.name)}</td><td>${p.dataType||'?'}</td><td>${esc(val)}</td><td>${esc(allow)}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = `<div class="warn-box err">Failed to load parameters: ${esc(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ERRORS VIEW
+// ═══════════════════════════════════════════════
+function renderErrors(body) {
+  if (!errorLog.length) { body.innerHTML='<div style="color:var(--t3);padding:20px;text-align:center">No errors — looking good</div>'; return; }
+  body.innerHTML = errorLog.map(e =>
+    `<div class="warn-box err"><strong>${e.time} [${esc(e.source)}]</strong> ${esc(e.message)}</div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════
+// WORKSHEET VIEW
+// ═══════════════════════════════════════════════
+function renderWorksheet(body, i) {
+  const w = worksheets[i];
+  if (!w) { body.innerHTML=''; return; }
+
+  let html = '';
+
+  // FILTERS
+  if (w.filters && w.filters.length) {
+    html += '<div class="section"><div class="sec-title">Active filters <span class="cnt">('+w.filters.length+')</span></div>';
+    w.filters.forEach(f => {
+      let val = '—';
+      try {
+        if (f.filterType === 'categorical') val = (f.appliedValues||[]).map(v=>v.formattedValue||v.value).join(', ');
+        else if (f.filterType === 'range') val = `${f.minValue?.formattedValue||f.minValue?.value||'?'} — ${f.maxValue?.formattedValue||f.maxValue?.value||'?'}`;
+        else if (f.filterType === 'relative-date') val = `${f.periodType} ${f.rangeType} ${f.rangeN||''}`;
+        else val = f.filterType || '?';
+      } catch(e) { val = '(error reading)'; }
+      html += `<div class="flt-row"><span class="flt-name">${esc(f.fieldName||'?')}</span><span class="flt-type">${f.filterType||'?'}</span><span class="flt-val">${esc(val)}</span></div>`;
+    });
+    html += '</div>';
+  }
+
+  // FIELDS
+  if (w.fields.length) {
+    html += '<div class="section"><div class="sec-title">Fields <span class="cnt">('+w.fields.length+')</span></div>';
+    html += '<table class="dtbl"><thead><tr><th>#</th><th>Field name</th><th>Data type</th><th>Role</th></tr></thead><tbody>';
+    w.fields.forEach((f,j) => {
+      const role = classify(f.dataType, f.fieldName);
+      html += `<tr><td>${j}</td><td title="${esc(f.fieldName)}">${esc(f.fieldName)}</td><td>${f.dataType}</td><td><span class="badge-d ${role}">${role}</span></td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // DATA SAMPLE
+  if (w.data && w.data.data.length) {
+    const dt = w.data;
+    const rows = dt.data;
+    const cols = dt.columns;
+    const n = Math.min(rows.length, 20);
+
+    // Detect issues
+    const issues = [];
+    for (let ri=0; ri<Math.min(5,rows.length); ri++) {
+      for (let ci=0; ci<cols.length; ci++) {
+        const v = rows[ri][ci]?.value ?? rows[ri][ci];
+        if (String(v).includes('%many%')) issues.push(`Row ${ri}, "${cols[ci]._fieldName||cols[ci].fieldName}": %many%`);
+      }
+    }
+    if (issues.length) html += issues.map(x=>`<div class="warn-box warn">${esc(x)}</div>`).join('');
+
+    html += '<div class="section"><div class="sec-title">Data sample <span class="cnt">(first '+n+' of '+rows.length+')</span></div>';
+    html += '<div style="overflow-x:auto"><table class="dtbl"><thead><tr>';
+    cols.forEach(c => html += `<th>${esc(c._fieldName||c.fieldName)}</th>`);
+    html += '</tr></thead><tbody>';
+    for (let r=0; r<n; r++) {
+      html += '<tr>';
+      for (let c=0; c<cols.length; c++) {
+        const cell = rows[r][c];
+        const raw = cell?.value ?? cell;
+        const fmt = cell?.formattedValue || '';
+        const display = fmt || String(raw??'');
+        const isNull = raw===null||raw===undefined||raw==='%null%';
+        const isMany = String(raw).includes('%many%');
+        html += `<td style="${isNull?'color:var(--t3)':''}${isMany?'color:var(--red);font-weight:600':''}">${esc(isNull?'∅':display)}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+
+    // First row raw
+    const obj = {};
+    cols.forEach((c,j) => {
+      const cell = rows[0][j];
+      obj[c._fieldName||c.fieldName] = { value: cell?.value??cell, formatted: cell?.formattedValue, type: c._dataType||c.dataType };
+    });
+    html += `<div class="section"><div class="sec-title">First row (raw object)</div><div class="json-b">${esc(JSON.stringify(obj,null,2))}</div></div>`;
+  } else {
+    html += '<div class="warn-box info">No data — check if fields are on Detail shelf for this worksheet</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// CHART SANDBOX
+// ═══════════════════════════════════════════════
+let _protoEc = null;
+function renderPrototype(body) {
+  // Pick a worksheet to pull data from, pick a chart type, render
+  let html = '<div class="section"><div class="sec-title">Prototype a chart with live Tableau data</div>';
+  html += '<div class="proto-controls">';
+  html += '<select class="proto-select" id="proto-ws">';
+  worksheets.forEach((w,i) => html += `<option value="${i}">${esc(w.name)} (${w.data?w.data.data.length:0} rows)</option>`);
+  html += '</select>';
+  html += '<select class="proto-select" id="proto-type"><option value="bar">Bar</option><option value="line">Line</option><option value="pie">Pie</option><option value="scatter">Scatter</option><option value="radar">Radar</option><option value="funnel">Funnel</option><option value="heatmap">Heatmap</option><option value="sankey">Sankey</option></select>';
+  html += '<select class="proto-select" id="proto-x"><option value="">— X / Category —</option></select>';
+  html += '<select class="proto-select" id="proto-y"><option value="">— Y / Value —</option></select>';
+  html += '<select class="proto-select" id="proto-g"><option value="">— Group (optional) —</option></select>';
+  html += `<button class="sb-btn" style="width:auto;padding:4px 14px" onclick="runPrototype()">▶ Render</button>`;
+  html += '</div></div>';
+  html += '<div id="proto-container" style="height:360px"></div>';
+  body.innerHTML = html;
+
+  // Populate field dropdowns when worksheet changes
+  document.getElementById('proto-ws').addEventListener('change', populateProtoFields);
+  populateProtoFields();
+}
+
+function populateProtoFields() {
+  const i = parseInt(document.getElementById('proto-ws').value);
+  const w = worksheets[i];
+  if (!w || !w.fields.length) return;
+
+  ['proto-x','proto-y','proto-g'].forEach(id => {
+    const sel = document.getElementById(id);
+    const isOptional = id === 'proto-g';
+    sel.innerHTML = `<option value="">${isOptional?'— none —':'— select —'}</option>`;
+    w.fields.forEach(f => {
+      sel.innerHTML += `<option value="${esc(f.fieldName)}">${esc(f.fieldName)} (${f.dataType})</option>`;
+    });
+  });
+}
+
+async function runPrototype() {
+  const container = document.getElementById('proto-container');
+  const wsIdx = parseInt(document.getElementById('proto-ws').value);
+  const chartType = document.getElementById('proto-type').value;
+  const xField = document.getElementById('proto-x').value;
+  const yField = document.getElementById('proto-y').value;
+  const gField = document.getElementById('proto-g').value;
+
+  if (!xField || !yField) { container.innerHTML='<div style="padding:20px;color:var(--ylw);text-align:center">Select X and Y fields</div>'; return; }
+
+  // Ensure fresh data
+  await fetchWsData(wsIdx);
+  const w = worksheets[wsIdx];
+  if (!w?.data) { container.innerHTML='<div style="padding:20px;color:var(--red)">No data</div>'; return; }
+
+  // Lazy load ECharts
+  if (typeof echarts === 'undefined') {
+    try {
+      await new Promise((res,rej) => { const s=document.createElement('script');s.src='echarts.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s); });
+    } catch(e) {
+      container.innerHTML='<div style="padding:20px;color:var(--red)">Could not load echarts.min.js — place it alongside diag-hub.html</div>';
+      return;
+    }
+  }
+
+  // Parse data
+  const cols = w.data.columns;
+  const rows = w.data.data;
+  const colIdx = (fn) => cols.findIndex(c=>(c._fieldName||c.fieldName)===fn);
+  const xi = colIdx(xField), yi = colIdx(yField), gi = gField ? colIdx(gField) : -1;
+
+  const normalize = (val, dt) => {
+    if (val===null||val===undefined||val==='%null%') return null;
+    dt = (dt||'').toLowerCase();
+    if (['float','real','double','number'].includes(dt)) { const n=parseFloat(String(val).replace(/[$,%\s]/g,'')); return isNaN(n)?null:n; }
+    if (['int','integer'].includes(dt)) { const n=parseFloat(String(val).replace(/[$,%\s]/g,'')); return isNaN(n)?null:n; }
+    return String(val);
+  };
+
+  const parsed = rows.map(r => ({
+    x: normalize(r[xi]?.value??r[xi], cols[xi]?._dataType||cols[xi]?.dataType),
+    y: normalize(r[yi]?.value??r[yi], cols[yi]?._dataType||cols[yi]?.dataType),
+    g: gi>=0 ? String(r[gi]?.value??r[gi]??'') : null,
+  }));
+
+  const COLORS = ['#58a6ff','#f85149','#3fb950','#d29922','#bc8cff','#39d2c0','#f0883e','#8b949e'];
+  const categories = [...new Set(parsed.map(r=>r.x))];
+  const groups = gi>=0 ? [...new Set(parsed.map(r=>r.g))] : null;
+
+  // Build option
+  let option = {};
+  const findVal = (cat, grp) => {
+    const row = parsed.find(r => r.x===cat && (grp===undefined || r.g===grp));
+    return row ? row.y : null;
+  };
+
+  if (['bar','line'].includes(chartType)) {
+    option = {
+      tooltip:{trigger:'axis'}, legend:groups?{bottom:0,type:'scroll'}:{show:false},
+      grid:{top:20,right:16,bottom:groups?40:30,left:50},
+      xAxis:{type:'category',data:categories,axisLabel:{rotate:categories.length>8?30:0}},
+      yAxis:{type:'value'},
+      series: groups
+        ? groups.map((g,i) => ({name:String(g),type:chartType,data:categories.map(c=>findVal(c,g)),itemStyle:{color:COLORS[i%COLORS.length]},smooth:chartType==='line'}))
+        : [{type:chartType,data:categories.map(c=>findVal(c)),itemStyle:{color:COLORS[0]},smooth:chartType==='line'}]
+    };
+  } else if (chartType==='pie') {
+    option = {
+      tooltip:{trigger:'item'},
+      series:[{type:'pie',radius:'65%',data:categories.map((c,i)=>({name:String(c),value:findVal(c),itemStyle:{color:COLORS[i%COLORS.length]}})),label:{formatter:'{b}: {d}%'}}]
+    };
+  } else if (chartType==='scatter') {
+    option = {
+      tooltip:{trigger:'item'},grid:{top:20,right:16,bottom:30,left:50},
+      xAxis:{type:'value',name:xField},yAxis:{type:'value',name:yField},
+      series: groups
+        ? groups.map((g,i) => ({name:String(g),type:'scatter',data:parsed.filter(r=>r.g===g).map(r=>[r.x,r.y]),itemStyle:{color:COLORS[i%COLORS.length]}}))
+        : [{type:'scatter',data:parsed.map(r=>[r.x,r.y]),itemStyle:{color:COLORS[0]}}]
+    };
+  } else if (chartType==='radar') {
+    const maxVal = Math.max(...parsed.map(r=>r.y||0));
+    option = {
+      tooltip:{},radar:{indicator:categories.map(c=>({name:String(c),max:maxVal}))},
+      series:[{type:'radar',data:[{value:categories.map(c=>findVal(c)),itemStyle:{color:COLORS[0]},areaStyle:{opacity:.2}}]}]
+    };
+  } else if (chartType==='funnel') {
+    option = {
+      tooltip:{trigger:'item'},
+      series:[{type:'funnel',left:'10%',width:'80%',data:parsed.filter(r=>r.x!=null).sort((a,b)=>(b.y||0)-(a.y||0)).map((r,i)=>({name:String(r.x),value:r.y,itemStyle:{color:COLORS[i%COLORS.length]}})),label:{position:'inside'}}]
+    };
+  } else if (chartType==='heatmap') {
+    const ys = groups ? [...new Set(parsed.map(r=>r.g))] : ['value'];
+    const vals = parsed.map(r=>[categories.indexOf(r.x), gi>=0?ys.indexOf(r.g):0, r.y]);
+    option = {
+      tooltip:{},grid:{top:20,right:16,bottom:50,left:60},
+      xAxis:{type:'category',data:categories},yAxis:{type:'category',data:ys},
+      visualMap:{min:0,max:Math.max(...vals.map(v=>v[2]||0)),calculable:true,orient:'horizontal',bottom:0},
+      series:[{type:'heatmap',data:vals}]
+    };
+  } else if (chartType==='sankey') {
+    const nodes = [...new Set([...parsed.map(r=>String(r.x)),...parsed.map(r=>String(r.g||''))])].filter(Boolean).map(n=>({name:n}));
+    option = {
+      tooltip:{trigger:'item'},
+      series:[{type:'sankey',data:nodes,links:parsed.filter(r=>r.x&&r.g&&r.y).map(r=>({source:String(r.x),target:String(r.g),value:r.y})),lineStyle:{color:'gradient',opacity:.4}}]
+    };
+  }
+
+  // Render
+  if (_protoEc) { try{_protoEc.dispose();}catch(e){} }
+  _protoEc = echarts.init(container, 'dark', {backgroundColor:'transparent'});
+  _protoEc.setOption(option, true);
+  log('hub','render',`Prototype: ${chartType} with ${xField} × ${yField}${gField?' grouped by '+gField:''}`);
+}
+
+// ═══════════════════════════════════════════════
+// COPY REPORT
+// ═══════════════════════════════════════════════
+function copyReport() {
+  const lines = [];
+  lines.push('=== DIAGNOSTIC HUB REPORT ===');
+  lines.push(`Time: ${new Date().toISOString()}`);
+  lines.push(`Dashboard: ${dashboard?.name||'?'}`);
+  lines.push(`Worksheets: ${worksheets.length}`);
+  lines.push('');
+
+  worksheets.forEach((w,i) => {
+    lines.push(`--- WORKSHEET: ${w.name} ---`);
+    lines.push(`  Fields (${w.fields.length}):`);
+    w.fields.forEach(f => lines.push(`    [${f.index}] ${f.fieldName} (${f.dataType}) → ${classify(f.dataType,f.fieldName)}`));
+    if (w.data) {
+      lines.push(`  Rows: ${w.data.data.length}`);
+      for (let r=0; r<Math.min(3,w.data.data.length); r++) {
+        const obj = {};
+        w.data.columns.forEach((c,j) => { const cell=w.data.data[r][j]; obj[c._fieldName||c.fieldName]=cell?.value??cell; });
+        lines.push('    '+JSON.stringify(obj));
+      }
+    }
+    if (w.filters.length) {
+      lines.push(`  Filters (${w.filters.length}):`);
+      w.filters.forEach(f => {
+        let val = '?';
+        try { if(f.filterType==='categorical') val=(f.appliedValues||[]).map(v=>v.formattedValue||v.value).join(', '); } catch(e){}
+        lines.push(`    ${f.fieldName}: ${f.filterType} = ${val}`);
+      });
+    }
+    lines.push('');
+  });
+
+  lines.push('--- EVENTS (last 40) ---');
+  eventLog.slice(-40).forEach(e => lines.push(`  ${e.time} [${e.source}] ${e.type}: ${e.detail}`));
+  lines.push('');
+
+  if (errorLog.length) {
+    lines.push('--- ERRORS ---');
+    errorLog.forEach(e => lines.push(`  ${e.time} [${e.source}] ${e.message}`));
+  }
+
+  // Settings
+  lines.push('--- SETTINGS ---');
+  ['chartId','assignments','customColors','banColors','borderRadius','bgColor','banFontSizes','kpiNames'].forEach(k => {
+    try { const v=tableau.extensions.settings.get(k); if(v) lines.push(`  ${k}: ${v}`); } catch(e){} });
+
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.sb-btn.green');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy Report', 2000);
+  }).catch(() => prompt('Copy:', text));
+}
+
+// Catch errors
+window.onerror = (msg,url,line) => logErr(`${msg} (${url}:${line})`, 'window');
+window.addEventListener('unhandledrejection', e => logErr(e.reason, 'promise'));
+</script>
+</body>
+</html>
