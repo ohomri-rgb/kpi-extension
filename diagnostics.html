@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ECharts Diagnostics</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<script src="tableau.extensions.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2129;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+  --green:#3fb950;--green-bg:rgba(63,185,80,.12);
+  --yellow:#d29922;--yellow-bg:rgba(210,153,34,.12);
+  --red:#f85149;--red-bg:rgba(248,81,73,.12);
+  --blue:#58a6ff;--blue-bg:rgba(88,166,255,.12);
+  --purple:#bc8cff;--purple-bg:rgba(188,140,255,.12);
+  --mono:'SFMono-Regular','Consolas','Liberation Mono','Menlo',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:12px;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* HEADER */
+.header{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:10px}
+.header h1{font-size:13px;font-weight:600;color:var(--text);letter-spacing:.03em}
+.status{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.status-dot.connected{background:var(--green);box-shadow:0 0 6px rgba(63,185,80,.4)}
+.status-dot.error{background:var(--red);box-shadow:0 0 6px rgba(248,81,73,.4)}
+.hdr-actions{margin-left:auto;display:flex;gap:6px}
+.hdr-btn{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:11px;font-family:var(--sans);color:var(--text2);cursor:pointer;transition:all .15s}
+.hdr-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* TABS */
+.tabs{flex-shrink:0;display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 8px}
+.tab{padding:7px 14px;font-size:11px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;user-select:none}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab .badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--surface2);font-size:10px;font-weight:600;margin-left:5px;color:var(--text3)}
+.tab.active .badge{background:var(--blue-bg);color:var(--blue)}
+.tab.has-errors .badge{background:var(--red-bg);color:var(--red)}
+
+/* PANELS */
+.panels{flex:1;overflow:hidden;position:relative}
+.panel{position:absolute;inset:0;overflow-y:auto;padding:10px 12px;display:none}
+.panel.active{display:block}
+.panel::-webkit-scrollbar{width:5px}
+.panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* EVENT LOG */
+.event{display:flex;gap:8px;padding:5px 8px;border-radius:4px;font-family:var(--mono);font-size:11px;margin-bottom:2px;align-items:flex-start}
+.event:hover{background:var(--surface2)}
+.event-time{color:var(--text3);flex-shrink:0;min-width:72px}
+.event-type{font-weight:600;flex-shrink:0;min-width:140px}
+.event-type.filter{color:var(--yellow)}
+.event-type.data{color:var(--green)}
+.event-type.init{color:var(--blue)}
+.event-type.error{color:var(--red)}
+.event-type.settings{color:var(--purple)}
+.event-type.render{color:#79c0ff}
+.event-detail{color:var(--text2);word-break:break-all;flex:1}
+
+/* DATA TABLE */
+.section{margin-bottom:16px}
+.section-title{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.section-title .count{color:var(--text3);font-weight:400;text-transform:none}
+.data-grid{display:grid;gap:1px;background:var(--border);border-radius:6px;overflow:hidden;font-family:var(--mono);font-size:11px}
+.dg-header{display:contents}
+.dg-header>div{background:var(--surface2);padding:5px 10px;font-weight:600;color:var(--text2);white-space:nowrap}
+.dg-row{display:contents}
+.dg-row>div{background:var(--surface);padding:4px 10px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dg-row:hover>div{background:var(--surface2)}
+
+/* TYPE BADGES */
+.type-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;font-family:var(--mono)}
+.type-badge.dim{background:var(--blue-bg);color:var(--blue)}
+.type-badge.measure{background:var(--green-bg);color:var(--green)}
+.type-badge.date{background:var(--yellow-bg);color:var(--yellow)}
+.type-badge.unknown{background:var(--surface2);color:var(--text3)}
+
+/* SETTINGS VIEWER */
+.setting-row{display:flex;gap:8px;padding:5px 8px;border-radius:4px;font-family:var(--mono);font-size:11px;margin-bottom:2px}
+.setting-row:hover{background:var(--surface2)}
+.setting-key{color:var(--purple);min-width:140px;flex-shrink:0;font-weight:600}
+.setting-val{color:var(--text);word-break:break-all;flex:1;max-height:80px;overflow-y:auto}
+
+/* SAMPLE DATA */
+.sample-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.sample-table th{background:var(--surface2);padding:5px 8px;text-align:left;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);position:sticky;top:0;white-space:nowrap}
+.sample-table td{padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sample-table tr:hover td{background:var(--surface2)}
+
+/* JSON VIEWER */
+.json-block{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:var(--mono);font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.5}
+
+/* EXPORT BUTTON */
+.export-bar{flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;gap:8px}
+.export-btn{background:var(--blue-bg);border:1px solid rgba(88,166,255,.3);border-radius:4px;padding:4px 12px;font-size:11px;font-family:var(--sans);color:var(--blue);cursor:pointer;font-weight:500;transition:all .15s}
+.export-btn:hover{background:rgba(88,166,255,.2);border-color:var(--blue)}
+.export-info{font-size:11px;color:var(--text3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>⚡ ECharts Diagnostics</h1>
+    <div class="status" id="status"><span class="status-dot" id="status-dot"></span><span id="status-text">Connecting...</span></div>
+    <div class="hdr-actions">
+      <button class="hdr-btn" onclick="refreshAll()">↻ Refresh</button>
+      <button class="hdr-btn" onclick="clearLog()">Clear Log</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-panel="events" onclick="switchTab(this)">Events <span class="badge" id="event-count">0</span></div>
+    <div class="tab" data-panel="fields" onclick="switchTab(this)">Fields <span class="badge" id="field-count">0</span></div>
+    <div class="tab" data-panel="data" onclick="switchTab(this)">Data</div>
+    <div class="tab" data-panel="settings" onclick="switchTab(this)">Settings</div>
+    <div class="tab" data-panel="errors" onclick="switchTab(this)">Errors <span class="badge" id="error-count">0</span></div>
+  </div>
+  <div class="panels">
+    <!-- EVENTS PANEL -->
+    <div class="panel active" id="panel-events"></div>
+    <!-- FIELDS PANEL -->
+    <div class="panel" id="panel-fields"></div>
+    <!-- DATA PANEL -->
+    <div class="panel" id="panel-data"></div>
+    <!-- SETTINGS PANEL -->
+    <div class="panel" id="panel-settings"></div>
+    <!-- ERRORS PANEL -->
+    <div class="panel" id="panel-errors"></div>
+  </div>
+  <div class="export-bar">
+    <button class="export-btn" onclick="exportDiagnostics()">📋 Copy Full Report</button>
+    <span class="export-info" id="export-info">Copy all diagnostics as text — paste into Claude chat</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let ws = null;
+let eventLog = [];
+let errorLog = [];
+let lastDataTable = null;
+let lastFields = [];
+let initTime = Date.now();
+
+// ═══════════════════════════════════════════════
+// TIME HELPERS
+// ═══════════════════════════════════════════════
+function ts() {
+  const d = new Date();
+  return d.toLocaleTimeString('en-GB', {hour12:false}) + '.' + String(d.getMilliseconds()).padStart(3,'0');
+}
+function elapsed() {
+  return ((Date.now() - initTime) / 1000).toFixed(1) + 's';
+}
+
+// ═══════════════════════════════════════════════
+// EVENT LOGGING
+// ═══════════════════════════════════════════════
+function log(type, detail) {
+  const entry = { time: ts(), elapsed: elapsed(), type, detail: typeof detail === 'object' ? JSON.stringify(detail) : String(detail) };
+  eventLog.push(entry);
+  document.getElementById('event-count').textContent = eventLog.length;
+  if (document.querySelector('[data-panel="events"]').classList.contains('active')) renderEvents();
+  // Auto-scroll
+  const panel = document.getElementById('panel-events');
+  requestAnimationFrame(() => panel.scrollTop = panel.scrollHeight);
+}
+
+function logError(msg, source) {
+  const entry = { time: ts(), elapsed: elapsed(), message: String(msg), source: source || 'unknown' };
+  errorLog.push(entry);
+  const countEl = document.getElementById('error-count');
+  countEl.textContent = errorLog.length;
+  const tab = document.querySelector('[data-panel="errors"]');
+  tab.classList.toggle('has-errors', errorLog.length > 0);
+  if (tab.classList.contains('active')) renderErrors();
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  log('init', 'DOMContentLoaded fired');
+
+  try {
+    log('init', 'Calling initializeAsync...');
+    const t0 = performance.now();
+    await tableau.extensions.initializeAsync({
+      configure: () => {
+        log('settings', 'configure() callback fired — user opened Format Extension');
+      }
+    });
+    const initMs = (performance.now() - t0).toFixed(0);
+    log('init', `initializeAsync resolved in ${initMs}ms`);
+
+    ws = tableau.extensions.worksheetContent.worksheet;
+    log('init', `Worksheet: "${ws.name}"`);
+
+    // Status
+    document.getElementById('status-dot').classList.add('connected');
+    document.getElementById('status-text').textContent = `Connected — ${ws.name}`;
+
+    // Initial data fetch
+    await fetchAndDisplay();
+
+    // Load settings
+    renderSettings();
+
+    // Wire up events
+    ws.addEventListener(tableau.TableauEventType.FilterChanged, (e) => {
+      log('filter', `FilterChanged — field: ${e.fieldName || '(unknown)'}`);
+      // Re-fetch data after filter change
+      setTimeout(async () => {
+        try {
+          await fetchAndDisplay();
+          log('data', 'Data refreshed after FilterChanged');
+        } catch(err) {
+          logError(err, 'FilterChanged re-fetch');
+        }
+      }, 200);
+    });
+    log('init', 'FilterChanged listener registered');
+
+    try {
+      ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, (e) => {
+        log('filter', `MarkSelectionChanged fired`);
+      });
+      log('init', 'MarkSelectionChanged listener registered (monitor only)');
+    } catch(e) {
+      log('init', 'MarkSelectionChanged not available');
+    }
+
+  } catch(e) {
+    logError(e, 'initializeAsync');
+    document.getElementById('status-dot').classList.add('error');
+    document.getElementById('status-text').textContent = 'Error: ' + e.message;
+    log('error', 'initializeAsync failed: ' + e.message);
+  }
+});
+
+// ═══════════════════════════════════════════════
+// DATA FETCH
+// ═══════════════════════════════════════════════
+async function fetchAndDisplay() {
+  if (!ws) return;
+
+  const t0 = performance.now();
+  try {
+    const dt = await ws.getSummaryDataAsync({maxRows: 0, ignoreAliases: false, ignoreSelection: true});
+    const fetchMs = (performance.now() - t0).toFixed(0);
+    lastDataTable = dt;
+
+    // Parse fields
+    lastFields = dt.columns.map((col, i) => ({
+      index: i,
+      fieldName: col._fieldName || col.fieldName,
+      dataType: (col._dataType || col.dataType || 'unknown').toLowerCase(),
+      fieldId: col._fieldId || col.fieldId || '',
+      isReferenced: col._isReferenced !== undefined ? col._isReferenced : null,
+    }));
+
+    const rowCount = dt.data ? dt.data.length : 0;
+
+    log('data', `getSummaryDataAsync: ${lastFields.length} columns, ${rowCount} rows, ${fetchMs}ms`);
+
+    document.getElementById('field-count').textContent = lastFields.length;
+
+    // Render panels
+    renderFields();
+    renderData();
+
+  } catch(e) {
+    logError(e, 'getSummaryDataAsync');
+    log('error', 'getSummaryDataAsync failed: ' + e.message);
+
+    // Try underlying tables as fallback
+    try {
+      log('data', 'Trying getUnderlyingTablesAsync as fallback...');
+      const tables = await ws.getUnderlyingTablesAsync();
+      log('data', `Found ${tables.length} underlying table(s): ${tables.map(t => t.id).join(', ')}`);
+      if (tables.length > 0) {
+        const td = await ws.getUnderlyingTableDataAsync(tables[0].id, {maxRows: 5, ignoreAliases: false, ignoreSelection: true, includeAllColumns: true});
+        log('data', `Underlying table: ${td.columns.length} columns, ${td.data.length} rows (capped at 5)`);
+        lastFields = td.columns.map((col, i) => ({
+          index: i,
+          fieldName: col._fieldName || col.fieldName,
+          dataType: (col._dataType || col.dataType || 'unknown').toLowerCase(),
+          fieldId: col._fieldId || col.fieldId || '',
+          isReferenced: null,
+        }));
+        lastDataTable = td;
+        document.getElementById('field-count').textContent = lastFields.length;
+        renderFields();
+        renderData();
+      }
+    } catch(e2) {
+      logError(e2, 'getUnderlyingTablesAsync fallback');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: EVENTS
+// ═══════════════════════════════════════════════
+function renderEvents() {
+  const panel = document.getElementById('panel-events');
+  if (eventLog.length === 0) {
+    panel.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">No events yet</div>';
+    return;
+  }
+  panel.innerHTML = eventLog.map(e => `
+    <div class="event">
+      <span class="event-time">${e.time}</span>
+      <span class="event-type ${e.type}">${e.type}</span>
+      <span class="event-detail">${escHtml(e.detail)}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: FIELDS
+// ═══════════════════════════════════════════════
+function renderFields() {
+  const panel = document.getElementById('panel-fields');
+  if (lastFields.length === 0) {
+    panel.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">No fields loaded — try adding fields to Detail shelf</div>';
+    return;
+  }
+
+  const classify = (dt, fn) => {
+    if (dt === 'float' || dt === 'real' || dt === 'double' || dt === 'number') return 'measure';
+    if (dt === 'int' || dt === 'integer') {
+      const dateFunc = /^(YEAR|MONTH|QUARTER|DAY|WEEK|HOUR|MINUTE|SECOND|DATETRUNC|DATEPART)\s*\(/i;
+      return dateFunc.test(String(fn).trim()) ? 'dim' : 'measure';
+    }
+    if (dt === 'date' || dt === 'date-time' || dt === 'datetime') return 'date';
+    return 'dim';
+  };
+
+  panel.innerHTML = `
+    <div class="section">
+      <div class="section-title">Worksheet fields <span class="count">(${lastFields.length})</span></div>
+      <div class="data-grid" style="grid-template-columns:40px 1fr 90px 80px auto">
+        <div class="dg-header"><div>#</div><div>Field name</div><div>Data type</div><div>Role</div><div>Field ID</div></div>
+        ${lastFields.map((f, i) => {
+          const role = classify(f.dataType, f.fieldName);
+          return `<div class="dg-row">
+            <div>${i}</div>
+            <div title="${escHtml(f.fieldName)}">${escHtml(f.fieldName)}</div>
+            <div>${f.dataType}</div>
+            <div><span class="type-badge ${role}">${role}</span></div>
+            <div style="color:var(--text3)">${f.fieldId || '—'}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Field name → role mapping cheat sheet</div>
+      <div class="json-block">${lastFields.map(f => {
+        const role = classify(f.dataType, f.fieldName);
+        const clean = f.fieldName.replace(/^[A-Z_]+\((.+)\)$/, '$1');
+        return `${escHtml(f.fieldName)} → display: "${escHtml(clean)}" → ${role}`;
+      }).join('\n')}</div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: DATA
+// ═══════════════════════════════════════════════
+function renderData() {
+  const panel = document.getElementById('panel-data');
+  if (!lastDataTable || !lastDataTable.data) {
+    panel.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">No data loaded</div>';
+    return;
+  }
+
+  const rows = lastDataTable.data;
+  const cols = lastDataTable.columns;
+  const sampleCount = Math.min(rows.length, 20);
+  const totalRows = rows.length;
+
+  // Detect potential issues
+  const issues = [];
+  if (totalRows === 0) issues.push('⚠ No rows returned — check if fields are on Detail shelf');
+  rows.slice(0, 5).forEach((row, ri) => {
+    row.forEach && row.forEach((cell, ci) => {
+      const v = cell?.value ?? cell;
+      if (v === '%many%' || String(v).includes('%many%')) {
+        issues.push(`⚠ Row ${ri}, Col ${ci} ("${cols[ci]?._fieldName || ci}"): contains %many% — aggregation level mismatch`);
+      }
+      if (v === '%null%') {
+        issues.push(`ℹ Row ${ri}, Col ${ci} ("${cols[ci]?._fieldName || ci}"): Tableau null marker`);
+      }
+    });
+  });
+
+  let html = `
+    <div class="section">
+      <div class="section-title">Data shape <span class="count">${totalRows} rows × ${cols.length} columns</span></div>
+      ${issues.length ? `<div style="margin-bottom:10px">${issues.map(i => `<div style="padding:3px 8px;margin-bottom:2px;border-radius:4px;background:${i.startsWith('⚠') ? 'var(--yellow-bg)' : 'var(--blue-bg)'};color:${i.startsWith('⚠') ? 'var(--yellow)' : 'var(--blue)'};font-size:11px;font-family:var(--mono)">${escHtml(i)}</div>`).join('')}</div>` : ''}
+    </div>
+    <div class="section">
+      <div class="section-title">Sample rows <span class="count">(first ${sampleCount} of ${totalRows})</span></div>
+      <div style="overflow-x:auto">
+        <table class="sample-table">
+          <thead><tr>${cols.map(c => `<th>${escHtml(c._fieldName || c.fieldName || '?')}</th>`).join('')}</tr></thead>
+          <tbody>
+  `;
+
+  for (let i = 0; i < sampleCount; i++) {
+    html += '<tr>';
+    const row = rows[i];
+    for (let j = 0; j < cols.length; j++) {
+      const cell = row[j];
+      const raw = cell?.value ?? cell;
+      const formatted = cell?.formattedValue ?? '';
+      const display = formatted || String(raw ?? '');
+      const isNull = raw === null || raw === undefined || raw === '%null%';
+      const isMany = String(raw).includes('%many%');
+      html += `<td style="${isNull ? 'color:var(--text3)' : ''}${isMany ? 'color:var(--red);font-weight:600' : ''}" title="raw: ${escHtml(String(raw))}">${escHtml(isNull ? '∅' : display)}</td>`;
+    }
+    html += '</tr>';
+  }
+
+  html += `</tbody></table></div></div>`;
+
+  // Raw JSON of first row
+  if (rows.length > 0) {
+    const firstRow = {};
+    cols.forEach((c, i) => {
+      const cell = rows[0][i];
+      firstRow[c._fieldName || c.fieldName] = {
+        value: cell?.value ?? cell,
+        formattedValue: cell?.formattedValue,
+        dataType: c._dataType || c.dataType,
+      };
+    });
+    html += `<div class="section">
+      <div class="section-title">First row (raw object)</div>
+      <div class="json-block">${escHtml(JSON.stringify(firstRow, null, 2))}</div>
+    </div>`;
+  }
+
+  panel.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: SETTINGS
+// ═══════════════════════════════════════════════
+function renderSettings() {
+  const panel = document.getElementById('panel-settings');
+  try {
+    const knownKeys = ['chartId', 'assignments', 'customColors', 'banColors', 'borderRadius', 'bgColor', 'banFontSizes', 'kpiNames', 'mlColorMap', 'mlBgColorMap'];
+    let html = '<div class="section"><div class="section-title">Extension settings (from this worksheet)</div>';
+
+    const allSettings = {};
+    knownKeys.forEach(key => {
+      const val = tableau.extensions.settings.get(key);
+      if (val !== undefined && val !== null && val !== '') {
+        allSettings[key] = val;
+      }
+    });
+
+    if (Object.keys(allSettings).length === 0) {
+      html += '<div style="color:var(--text3);padding:10px;font-size:11px">No settings saved for this extension instance.</div>';
+    } else {
+      html += Object.entries(allSettings).map(([key, val]) => {
+        let displayVal = val;
+        // Try to pretty-print JSON values
+        try {
+          const parsed = JSON.parse(val);
+          displayVal = JSON.stringify(parsed, null, 2);
+        } catch(e) {
+          // Not JSON, show as-is
+        }
+        return `<div class="setting-row">
+          <span class="setting-key">${escHtml(key)}</span>
+          <span class="setting-val">${escHtml(displayVal)}</span>
+        </div>`;
+      }).join('');
+    }
+
+    html += '</div>';
+
+    // Also show raw settings dump
+    html += `<div class="section">
+      <div class="section-title">Raw settings JSON</div>
+      <div class="json-block">${escHtml(JSON.stringify(allSettings, null, 2))}</div>
+    </div>`;
+
+    panel.innerHTML = html;
+    log('settings', `Loaded ${Object.keys(allSettings).length} setting(s)`);
+  } catch(e) {
+    logError(e, 'renderSettings');
+    panel.innerHTML = `<div style="color:var(--red);padding:20px">Error reading settings: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: ERRORS
+// ═══════════════════════════════════════════════
+function renderErrors() {
+  const panel = document.getElementById('panel-errors');
+  if (errorLog.length === 0) {
+    panel.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">No errors captured</div>';
+    return;
+  }
+  panel.innerHTML = errorLog.map(e => `
+    <div class="event">
+      <span class="event-time">${e.time}</span>
+      <span class="event-type error">ERROR</span>
+      <span class="event-detail"><strong>[${escHtml(e.source)}]</strong> ${escHtml(e.message)}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════
+function switchTab(el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  const panelId = 'panel-' + el.dataset.panel;
+  document.getElementById(panelId).classList.add('active');
+
+  // Lazy render on switch
+  if (el.dataset.panel === 'events') renderEvents();
+  if (el.dataset.panel === 'settings') renderSettings();
+  if (el.dataset.panel === 'errors') renderErrors();
+}
+
+function clearLog() {
+  eventLog = [];
+  document.getElementById('event-count').textContent = '0';
+  renderEvents();
+}
+
+async function refreshAll() {
+  log('init', 'Manual refresh triggered');
+  await fetchAndDisplay();
+  renderSettings();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════
+// EXPORT — Copy diagnostics report for Claude
+// ═══════════════════════════════════════════════
+function exportDiagnostics() {
+  const lines = [];
+  lines.push('=== ECHARTS EXTENSION DIAGNOSTIC REPORT ===');
+  lines.push(`Timestamp: ${new Date().toISOString()}`);
+  lines.push(`Worksheet: ${ws?.name || 'not connected'}`);
+  lines.push('');
+
+  lines.push('--- FIELDS ---');
+  lastFields.forEach(f => {
+    lines.push(`  [${f.index}] ${f.fieldName} (${f.dataType})`);
+  });
+  lines.push('');
+
+  lines.push('--- DATA SHAPE ---');
+  if (lastDataTable) {
+    lines.push(`  Columns: ${lastDataTable.columns.length}`);
+    lines.push(`  Rows: ${lastDataTable.data.length}`);
+    // First 3 rows as JSON
+    lines.push('  Sample (first 3 rows):');
+    for (let i = 0; i < Math.min(3, lastDataTable.data.length); i++) {
+      const row = {};
+      lastDataTable.columns.forEach((c, j) => {
+        const cell = lastDataTable.data[i][j];
+        row[c._fieldName || c.fieldName] = cell?.value ?? cell;
+      });
+      lines.push('    ' + JSON.stringify(row));
+    }
+  } else {
+    lines.push('  No data loaded');
+  }
+  lines.push('');
+
+  lines.push('--- SETTINGS ---');
+  const knownKeys = ['chartId', 'assignments', 'customColors', 'banColors', 'borderRadius', 'bgColor', 'banFontSizes', 'kpiNames'];
+  knownKeys.forEach(key => {
+    const val = tableau.extensions.settings.get(key);
+    if (val) lines.push(`  ${key}: ${val}`);
+  });
+  lines.push('');
+
+  lines.push('--- EVENT LOG (last 50) ---');
+  eventLog.slice(-50).forEach(e => {
+    lines.push(`  ${e.time} [${e.type}] ${e.detail}`);
+  });
+  lines.push('');
+
+  if (errorLog.length > 0) {
+    lines.push('--- ERRORS ---');
+    errorLog.forEach(e => {
+      lines.push(`  ${e.time} [${e.source}] ${e.message}`);
+    });
+  }
+
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('export-info').textContent = '✓ Copied! Paste into Claude chat.';
+    setTimeout(() => {
+      document.getElementById('export-info').textContent = 'Copy all diagnostics as text — paste into Claude chat';
+    }, 3000);
+  }).catch(() => {
+    // Fallback — create a textarea for manual copy
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;font-size:11px;font-family:monospace;background:#0d1117;color:#e6edf3;padding:12px';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.addEventListener('keydown', e => { if (e.key === 'Escape') ta.remove(); });
+  });
+}
+
+// Catch uncaught errors
+window.onerror = (msg, url, line, col, err) => {
+  logError(`${msg} (${url}:${line}:${col})`, 'window.onerror');
+};
+window.addEventListener('unhandledrejection', e => {
+  logError(e.reason, 'unhandledrejection');
+});
+
+// Initial render
+renderEvents();
+</script>
+</body>
+</html>
