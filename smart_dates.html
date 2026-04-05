@@ -693,8 +693,8 @@ function renderChart(){
   if(!mInfo)return;
 
   const isYearMode=S.gran==='year';
-  const p1=g.p1.map(p=>(p.vals[mInfo.idx]!=null?p.vals[mInfo.idx]:null));
-  const p2=g.p2.map(p=>(p.vals[mInfo.idx]!=null?p.vals[mInfo.idx]:null));
+  const p1raw=g.p1.map(p=>(p.vals[mInfo.idx]!=null?p.vals[mInfo.idx]:null));
+  const p2raw=g.p2.map(p=>(p.vals[mInfo.idx]!=null?p.vals[mInfo.idx]:null));
   // For year mode show "Jan YYYY" / "Dec YYYY" labels; otherwise raw key
   const fmtYearKey=pt=>{
     if(!pt||!pt.d)return pt?pt.key:'';
@@ -704,6 +704,12 @@ function renderChart(){
   // Year mode uses fmtYearKey for the 2 anchor points; others use .label from granKey()
   const labels1=isYearMode?g.p1.map(fmtYearKey):g.p1.map(p=>p.label||p.key);
   const labels2=isYearMode?g.p2.map(fmtYearKey):g.p2.map(p=>p.label||p.key);
+
+  // X axis length = max of both periods so neither line gets clipped.
+  // Pad the shorter dataset with null so Chart.js renders the full range.
+  const totalLen=Math.max(p1raw.length,p2raw.length);
+  const p1=p1raw.concat(Array(Math.max(0,totalLen-p1raw.length)).fill(null));
+  const p2=p2raw.concat(Array(Math.max(0,totalLen-p2raw.length)).fill(null));
 
   const color='#6366f1';
   const ctx=canvas.getContext('2d');
@@ -742,7 +748,7 @@ function renderChart(){
 
   S.chart=new Chart(canvas,{
     type:'line',
-    data:{labels:p1.map((_,i)=>i),datasets},
+    data:{labels:Array.from({length:totalLen},(_,i)=>i),datasets},
     options:{
       responsive:true,maintainAspectRatio:false,animation:false,
       interaction:{mode:'index',intersect:false},
@@ -767,7 +773,9 @@ function renderChart(){
                   ?[d1+(d2?' / '+d2:''),' ↑ '+L('period1')+(startEnd2?' / '+L('period2'):'')]
                   :[d1+(d2?' / '+d2:''),' ↓ '+L('period1')+(startEnd2?' / '+L('period2'):'')];
               }
-              return[d2?`${d1} / ${d2}`:d1];
+              // Show whichever label(s) exist at this index
+              if(d1&&d2)return[`${d1} / ${d2}`];
+              return[d1||d2];
             },
             label:c=>c.raw==null?null:`  ${c.dataset.label}: ${fmtN(c.raw)}`
           }
