@@ -551,7 +551,13 @@ function groupDataChart(){
     const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
     const target=rv==='1'?map1:rv==='2'?map2:null;
     if(!target)return;
-    const rawD=parseRaw(r[di].value)||parseRaw(r[di].formattedValue);
+    // When Tableau sends a date truncated to Month/Quarter/Year, .value is a
+    // small integer (month 1-12, quarter 1-4, or year number like 2025).
+    // parseRaw would misinterpret small integers, so prefer formattedValue
+    // (e.g. "January 2025", "ינואר 2025") when .value looks like a part number.
+    const dv=r[di].value;
+    const dvSmall=dv!=null&&/^-?\d{1,4}$/.test(String(dv).trim())&&Math.abs(Number(dv))<10000;
+    const rawD=(!dvSmall&&parseRaw(dv))||parseRaw(r[di].formattedValue)||parseRaw(dv);
     if(!rawD)return;
     const gk=granKey(rawD,S.gran);
     if(!target[gk.key]){
@@ -574,7 +580,9 @@ function groupDataChartYear(rows,di,ri,mc){
     const rv=String((r[ri].value!=null?r[ri].value:(r[ri].formattedValue!=null?r[ri].formattedValue:''))).trim();
     const pid=rv==='1'?1:rv==='2'?2:0;
     if(!pid)return;
-    const d=parseRaw(r[di].value)||parseRaw(r[di].formattedValue);
+    const dv2=r[di].value;
+    const dv2Small=dv2!=null&&/^-?\d{1,4}$/.test(String(dv2).trim())&&Math.abs(Number(dv2))<10000;
+    const d=(!dv2Small&&parseRaw(dv2))||parseRaw(r[di].formattedValue)||parseRaw(dv2);
     if(!d)return;
     const mKey=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     const bucket=mBuckets[pid];
