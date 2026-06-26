@@ -9,10 +9,11 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error("Error initializing extension:", err);
     });
 
-    // פונקציה להקפאה אוטומטית עם הנתיב המתוקן
+    // פונקציה להקפאה אוטומטית בהפעלה
     async function autoPauseData() {
         try {
-            await tableau.extensions.dashboardContent.dashboard.automaticUpdates.pauseAsync();
+            // בגרסה זו, הפונקציה יושבת ישירות תחת dashboardContent
+            await tableau.extensions.dashboardContent.pauseAutomaticUpdatesAsync();
             console.log("Data updates successfully paused on start.");
         } catch (e) {
             console.error("Failed to pause on startup:", e);
@@ -26,11 +27,11 @@ document.addEventListener("DOMContentLoaded", () => {
             btnText.innerText = "מחיל עדכונים...";
             applyBtn.disabled = true;
 
-            // 1. מפעילים את העדכונים (מריץ את השאילתות שנעצרו)
-            await tableau.extensions.dashboardContent.dashboard.automaticUpdates.resumeAsync();
+            // 1. מפעילים את העדכונים כדי להריץ את השינויים
+            await tableau.extensions.dashboardContent.resumeAutomaticUpdatesAsync();
             
             // 2. מיד מחזירים למצב השהייה (Pause)
-            await tableau.extensions.dashboardContent.dashboard.automaticUpdates.pauseAsync();
+            await tableau.extensions.dashboardContent.pauseAutomaticUpdatesAsync();
 
         } catch (error) {
             console.error("שגיאה בזמן העדכון:", error);
