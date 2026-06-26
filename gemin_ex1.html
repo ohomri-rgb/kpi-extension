@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Tableau Filter Extension</title>
+    <script src="https://cdn.jsdelivr.net/gh/tableau/extensions-api@main/lib/tableau.extensions.1.latest.js"></script>
+    
+    <style>
+        :root {
+            --primary-blue: #3b82f6;
+            --active-indigo: #4f46e5;
+            --bg-main: #f8fafc;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-dark);
+            padding: 15px;
+        }
+
+        .extension-header {
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .extension-header h1 { font-size: 18px; font-weight: 700; color: #1e293b; }
+        .extension-header p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+        /* קונטיינר דו-עמודי בטוח עבור תוספי טאבלו (ללא פלקס/גריד בקצה העליון) */
+        .comparison-container {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+            border-spacing: 15px 0;
+        }
+        
+        .filter-column {
+            display: table-cell;
+            background: white;
+            border-radius: 10px;
+            padding: 18px;
+            border: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        .column-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+        .column-title.group-1 { color: var(--primary-blue); }
+        .column-title.group-2 { color: var(--active-indigo); }
+
+        .filter-row {
+            margin-bottom: 15px;
+        }
+        
+        .filter-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .pill-group {
+            display: block;
+            min-height: 45px;
+        }
+
+        /* עיצוב כפתורי ה-Pills העגולים */
+        .pill {
+            display: inline-block;
+            min-width: 40px;
+            height: 40px;
+            line-height: 36px;
+            text-align: center;
+            padding: 0 14px;
+            margin: 4px;
+            background-color: white;
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.12s ease-in-out;
+            color: var(--text-dark);
+        }
+
+        .pill:hover {
+            border-color: #cbd5e1;
+            background-color: #f8fafc;
+        }
+
+        /* צבע אקטיבי לקבוצה א' (כחול) */
+        .group-1-zone .pill.active {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+            color: white;
+        }
+
+        /* צבע אקטיבי לקבוצה ב' (אינדיגו) */
+        .group-2-zone .pill.active {
+            background-color: var(--active-indigo);
+            border-color: var(--active-indigo);
+            color: white;
+        }
+
+        .actions-area {
+            margin-top: 20px;
+            text-align: left;
+            padding: 0 15px;
+        }
+
+        .apply-btn {
+            background-color: var(--active-indigo);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .apply-btn:hover {
+            background-color: #4338ca;
+        }
+
+        .loading {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="extension-header">
+        <h1>סינון השוואתי דינמי (POC)</h1>
+        <p>טעינת מימדים דינמית מטאבלו ועדכון סטים בפעימה אחת (Hyper Native Sets)</p>
+    </div>
+
+    <div class="comparison-container">
+        <div class="filter-column group-1-zone">
+            <div class="column-title group-1">קבוצת השוואה א'</div>
+            <div class="filter-row">
+                <div class="filter-label">Color</div>
+                <div class="pill-group" id="color-g1">
+                    <span class="loading">טוען ערכים מטאבלו...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-column group-2-zone">
+            <div class="column-title group-2">קבוצת השוואה ב'</div>
+            <div class="filter-row">
+                <div class="filter-label">Color</div>
+                <div class="pill-group" id="color-g2">
+                    <span class="loading">טוען ערכים מטאבלו...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="actions-area">
+        <button class="apply-btn" id="global-apply-btn">Apply Comparison</button>
+    </div>
+
+    <script>
+        // ניהול ה-State המקומי ב-JS (בחירות זמניות של המשתמש)
+        const selectionState = {
+            group1: [],
+            group2: []
+        };
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // אתחול ה-Extension מול טאבלו
+            if (window.tableau && tableau.extensions) {
+                tableau.extensions.initializeAsync().then(() => {
+                    fetchDimensionsFromTableau();
+                }).catch(err => console.error("Initialization failed:", err));
+            } else {
+                console.warn("Running outside of Tableau context.");
+            }
+
+            // האזנה לכפתור ה-Apply
+            document.getElementById('global-apply-btn').addEventListener('click', sendSetsToTableau);
+        });
+
+        // 1. שליפה דינמית של ערכים מטאבלו לבניית הכפתורים
+        function fetchDimensionsFromTableau() {
+            const dashboard = tableau.extensions.dashboardContent.dashboard;
+            
+            // תנאי הכרחי: צור בדשבורד גיליון קטן בשם Filter_Data_Source שמכיל את המימד [Color] בשורות
+            const dataSourceWorksheet = dashboard.worksheets.find(w => w.name === "Filter_Data_Source");
+
+            if (!dataSourceWorksheet) {
+                console.error("Worksheet 'Filter_Data_Source' not found. Please add it to your dashboard.");
+                return;
+            }
+
+            // שליפת הנתונים הקיימים בגיליון העזר
+            dataSourceWorksheet.getSummaryDataAsync().then(dataTable => {
+                // איתור העמודה ששמה שווה בדיוק למימד בטאבלו
+                const colorColumn = dataTable.columns.find(c => c.fieldName === "Color");
+                
+                if (!colorColumn) {
+                    console.error("Field 'Color' not found in Filter_Data_Source rows.");
+                    return;
+                }
+
+                // חילוץ ערכים יוניקיים
+                const uniqueColors = [];
+                dataTable.data.forEach(row => {
+                    const value = row[colorColumn.index].formattedValue;
+                    if (value && !uniqueColors.includes(value)) {
+                        uniqueColors.push(value);
+                    }
+                });
+
+                // מיון בסיסי לטובת סדר ויזואלי של הכפתורים (D, E, F...)
+                uniqueColors.sort();
+
+                // רינדור הכפתורים לתוך ה-DOM באופן דינמי
+                renderPillButtons('color-g1', uniqueColors, selectionState.group1);
+                renderPillButtons('color-g2', uniqueColors, selectionState.group2);
+            }).catch(err => console.error("Error fetching summary data:", err));
+        }
+
+        // 2. פונקציית יצירת אלמנטים דינמית ב-DOM ללא Hardcoding
+        function renderPillButtons(containerId, values, stateArray) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ''; // ניקוי הודעת הטעינה
+
+            values.forEach(val => {
+                const span = document.createElement('span');
+                span.className = 'pill';
+                span.setAttribute('data-value', val);
+                span.innerText = val;
+
+                // לוגיקת Toggle: לחיצה מוסיפה, לחיצה חוזרת מורידה מהמערך המקומי
+                span.addEventListener('click', function() {
+                    if (this.classList.contains('active')) {
+                        this.classList.remove('active');
+                        const index = stateArray.indexOf(val);
+                        if (index > -1) stateArray.splice(index, 1);
+                    } else {
+                        this.classList.add('active');
+                        stateArray.push(val);
+                    }
+                });
+
+                container.appendChild(span);
+            });
+        }
+
+        // 3. עדכון ה-Sets הנייטיביים בטאבלו בפעימה אחת אטומית
+        function sendSetsToTableau() {
+            if (!window.tableau || !tableau.extensions) {
+                alert("מחוץ לטאבלו - ערכים שהיו נשלחים ל-Sets:\n" + JSON.stringify(selectionState, null, 2));
+                return;
+            }
+
+            const dashboard = tableau.extensions.dashboardContent.dashboard;
+            // הגיליון המרכזי שמציג את הגרפים/ההשוואה ומשתמש ב-Sets בחישובים שלו
+            const targetWorksheet = dashboard.worksheets.find(w => w.name === "Comparison_View");
+
+            if (!targetWorksheet) {
+                console.error("Worksheet 'Comparison_View' not found.");
+                return;
+            }
+
+            // עדכון מקבילי (Promise.all) של שני הסטים הנייטיביים לטובת ביצועי קצה על 2M שורות
+            Promise.all([
+                targetWorksheet.updateSetValuesAsync("Color Set 1", selectionState.group1, tableau.SetUpdateOperation.Replace),
+                targetWorksheet.updateSetValuesAsync("Color Set 2", selectionState.group2, tableau.SetUpdateOperation.Replace)
+            ]).then(() => {
+                console.log("Color Set 1 & Color Set 2 updated successfully via API.");
+            }).catch(err => {
+                console.error("Error updating native sets in Tableau:", err);
+            });
+        }
+    </script>
+</body>
+</html>
