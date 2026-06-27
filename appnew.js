@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const applyBtn = document.getElementById("apply-btn");
     const btnText = document.getElementById("btn-text");
 
-    // הערכים שאתה רוצה להחיל בלחיצה
+    // הערכים שאתה רוצה להחיל (תחבר אותם בהמשך ל-HTML שלך)
     let selectedCategories = ["Furniture", "Technology"]; 
     let selectedSubCategories = ["Accessories", "Appliances"];
 
@@ -18,64 +18,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const dashboard = tableau.extensions.dashboardContent.dashboard;
             
-            const categorySetName = "Category Set";
-            const subCategorySetName = "Sub-Category Set";
+            // כאן אתה חייב לרשום את השם המדויק של הגיליון (Worksheet) שבו ה-Sets נמצאים!
+            // לפי צילום המסך שלך, הגיליון שרואים נקרא "Order Details" או "Product Detail Sheet"
+            const targetWorksheet = dashboard.worksheets.find(ws => ws.name === "שם_הגיליון_המדויק_שלך");
 
-            let categoryWorksheet = null;
-            let subCategoryWorksheet = null;
-
-            console.log("מתחיל סריקה אוטומטית של הגיליונות עבור שני ה-Sets...");
-
-            // מעבר על כל הגיליונות בדשבורד
-            for (const ws of dashboard.worksheets) {
-                try {
-                    // שליפת הקבוצות (Sets) הפעילות בגיליון הנוכחי
-                    const dashboardSets = await ws.getSetValuesAsync();
-                    
-                    // בדיקה האם ה-Category Set נמצא בגיליון הזה
-                    const hasCategorySet = dashboardSets.some(s => s.setName === categorySetName);
-                    if (hasCategorySet && !categoryWorksheet) {
-                        categoryWorksheet = ws;
-                        console.log(`Category Set נמצא בגיליון: ${ws.name}`);
-                    }
-                    
-                    // בדיקה האם ה-Sub-Category Set נמצא בגיליון הזה
-                    const hasSubCategorySet = dashboardSets.some(s => s.setName === subCategorySetName);
-                    if (hasSubCategorySet && !subCategoryWorksheet) {
-                        subCategoryWorksheet = ws;
-                        console.log(`Sub-Category Set נמצא בגיליון: ${ws.name}`);
-                    }
-
-                    if (categoryWorksheet && subCategoryWorksheet) break;
-
-                } catch (err) {
-                    // דילוג על אובייקטים ריקים/עיצוביים
-                    console.warn(`דילוג על גיליון ${ws.name}:`, err);
-                }
-            }
-
-            // עדכון Category Set
-            if (categoryWorksheet) {
-                await categoryWorksheet.updateSetValuesAsync(
-                    categorySetName, 
+            if (targetWorksheet) {
+                // 1. עדכון ה-Category Set
+                await targetWorksheet.updateSetValuesAsync(
+                    "Category Set", 
                     selectedCategories, 
                     tableau.SetUpdateType.Replace
                 );
-                console.log("Category Set עודכן בהצלחה בטאבלו!");
-            } else {
-                console.error(`שגיאה: לא נמצא גיליון המשתמש ב-${categorySetName}`);
-            }
+                console.log("Category Set עודכן!");
 
-            // עדכון Sub-Category Set
-            if (subCategoryWorksheet) {
-                await subCategoryWorksheet.updateSetValuesAsync(
-                    subCategorySetName, 
+                // 2. עדכון ה-Sub-Category Set
+                await targetWorksheet.updateSetValuesAsync(
+                    "Sub-Category Set", 
                     selectedSubCategories, 
                     tableau.SetUpdateType.Replace
                 );
-                console.log("Sub-Category Set עודכן בהצלחה בטאבלו!");
+                console.log("Sub-Category Set עודכן!");
             } else {
-                console.error(`שגיאה: לא נמצא גיליון המשתמש ב-${subCategorySetName}`);
+                console.error("הגיליון שהגדרת לא נמצא בדשבורד. ודא שהשם תואם ב-100%.");
             }
 
         } catch (error) {
