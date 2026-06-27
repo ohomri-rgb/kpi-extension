@@ -2,44 +2,60 @@ document.addEventListener("DOMContentLoaded", () => {
     const applyBtn = document.getElementById("apply-btn");
     const btnText = document.getElementById("btn-text");
 
-    // משתנה מקומי שיחזיק את הערכים שהמשתמש בחר בתוך התוסף (לדוגמה)
-    // אתה תמלא אותו דינמית לפי מה שהמשתמש מסמן ב-HTML שלך
+    // מערך הערכים שאתה מנהל בתוסף (דוגמה)
     let selectedValues = ["Israel", "United States", "Canada"]; 
 
     tableau.extensions.initializeAsync().then(() => {
-        console.log("Tableau Extension initialized!");
+        console.log("Tableau Extension initialized successfully!");
     });
 
     applyBtn.addEventListener("click", async () => {
         try {
-            // 1. שינוי מצב ויזואלי של הכפתור
             applyBtn.classList.add("playing");
             btnText.innerText = "מחיל שינויים...";
             applyBtn.disabled = true;
 
-            // 2. שליפת ה-Dashboard וה-Worksheets
             const dashboard = tableau.extensions.dashboardContent.dashboard;
-            
-            // תוספים חייבים לעדכן Set דרך Worksheet ספציפי שמכיל את ה-Set הזה או משתמש בו
-            const targetWorksheet = dashboard.worksheets.find(ws => ws.name === "שם_הרקשיט_שלך");
+            const setNameToFind = "שם_הסד_שלך"; // <-- שנה לשם ה-Set האמיתי שלך בטאבלו
+            let targetWorksheet = null;
 
+            console.log("מתחיל סריקה אוטומטית של גיליונות בדשבורד...");
+
+            // 1. לולאה שעוברת על כל הגיליונות בדשבורד כדי למצוא מי משתמש ב-Set
+            for (const ws of dashboard.worksheets) {
+                try {
+                    // שליפת המסננים/קבוצות הפעילים בגיליון הנוכחי
+                    const filters = await ws.getFiltersAsync();
+                    
+                    // בדיקה האם אחד מהם תואם לשם ה-Set שלך
+                    const hasSet = filters.some(f => f.fieldName === setNameToFind);
+                    
+                    if (hasSet) {
+                        targetWorksheet = ws;
+                        console.log(`ה-Set נמצא! הגיליון האחראי עליו הוא: ${ws.name}`);
+                        break; // מצאנו, אפשר לעצור את הלולאה
+                    }
+                } catch (err) {
+                    // גיליונות מסוימים (כמו אובייקטים ריקים או טקסט) עלולים לזרוק שגיאה ב-getFilters, נדלג עליהם בבטחה
+                    console.warn(`לא ניתן היה לסרוק את הגיליון ${ws.name}, ממשיך לגיליון הבא.`);
+                }
+            }
+
+            // 2. אם מצאנו את הגיליון הנכון - מעדכנים אותו
             if (targetWorksheet) {
-                // 3. העדכון האמיתי של ה-Set בטאבלו
-                // Replace אומר שכל מה שבמערך ייכנס ל-Set, ומה שלא - יצא
                 await targetWorksheet.updateSetValuesAsync(
-                    "שם_הסד_שלך", 
+                    setNameToFind, 
                     selectedValues, 
                     tableau.SetUpdateType.Replace
                 );
-                console.log("ה-Set עודכן בהצלחה בטאבלו!");
+                console.log(`ה-Set [${setNameToFind}] עודכן בהצלחה דרך הגיליון ${targetWorksheet.name}!`);
             } else {
-                console.error("ה-Worksheet המבוקש לא נמצא בדשבורד");
+                console.error(`שגיאה: ה-Set בשם "${setNameToFind}" לא נמצא בשימוש באף אחד מהגיליונות בדשבורד הזה. ודא שהוא גרוע בתוך Filters או באחד הטאבים בתוך הדשבורד.`);
             }
 
         } catch (error) {
-            console.error("שגיאה בזמן עדכון ה-Set:", error);
+            console.error("שגיאה כללית בזמן החלת העדכון:", error);
         } finally {
-            // 4. החזרת הכפתור למצב הרגיל
             applyBtn.classList.remove("playing");
             btnText.innerText = "החל שינויים";
             applyBtn.disabled = false;
