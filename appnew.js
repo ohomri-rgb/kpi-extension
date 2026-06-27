@@ -2,8 +2,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const applyBtn = document.getElementById("apply-btn");
     const btnText = document.getElementById("btn-text");
 
-    // מערך הערכים שאתה מנהל בתוסף (דוגמה)
-    let selectedValues = ["Israel", "United States", "Canada"]; 
+    // 1. הערכים שאתה מנהל בתוסף עבור כל קבוצה (דוגמה)
+    // אתה תמלא את המערכים האלו דינמית מתוך ממשק ה-HTML שלך
+    let selectedCategories = ["Technology", "Office Supplies"]; 
+    let selectedSubCategories = ["Phones", "Chairs", "Paper"];
 
     tableau.extensions.initializeAsync().then(() => {
         console.log("Tableau Extension initialized successfully!");
@@ -16,45 +18,68 @@ document.addEventListener("DOMContentLoaded", () => {
             applyBtn.disabled = true;
 
             const dashboard = tableau.extensions.dashboardContent.dashboard;
-            const setNameToFind = "שם_הסד_שלך"; // <-- שנה לשם ה-Set האמיתי שלך בטאבלו
-            let targetWorksheet = null;
+            
+            // הגדרת השמות המדויקים של ה-Sets כפי שהם מופיעים בטאבלו
+            const categorySetName = "Category Set";
+            const subCategorySetName = "Sub-Category Set";
 
-            console.log("מתחיל סריקה אוטומטית של גיליונות בדשבורד...");
+            // אובייקטים שיחזיקו את הגיליונות שמצאנו עבור כל סט
+            let categoryWorksheet = null;
+            let subCategoryWorksheet = null;
 
-            // 1. לולאה שעוברת על כל הגיליונות בדשבורד כדי למצוא מי משתמש ב-Set
+            console.log("מתחיל סריקה אוטומטית של הגיליונות עבור שני ה-Sets...");
+
+            // 2. סריקת הגיליונות למציאת המיקום של ה-Sets
             for (const ws of dashboard.worksheets) {
                 try {
-                    // שליפת המסננים/קבוצות הפעילים בגיליון הנוכחי
                     const filters = await ws.getFiltersAsync();
                     
-                    // בדיקה האם אחד מהם תואם לשם ה-Set שלך
-                    const hasSet = filters.some(f => f.fieldName === setNameToFind);
-                    
-                    if (hasSet) {
-                        targetWorksheet = ws;
-                        console.log(`ה-Set נמצא! הגיליון האחראי עליו הוא: ${ws.name}`);
-                        break; // מצאנו, אפשר לעצור את הלולאה
+                    // בדיקה עבור Category Set
+                    if (!categoryWorksheet && filters.some(f => f.fieldName === categorySetName)) {
+                        categoryWorksheet = ws;
+                        console.log(`Category Set נמצא בגיליון: ${ws.name}`);
                     }
+                    
+                    // בדיקה עבור Sub-Category Set
+                    if (!subCategoryWorksheet && filters.some(f => f.fieldName === subCategorySetName)) {
+                        subCategoryWorksheet = ws;
+                        console.log(`Sub-Category Set נמצא בגיליון: ${ws.name}`);
+                    }
+
+                    // אם מצאנו את שניהם, אין צורך להמשיך לסרוק את שאר הדשבורד
+                    if (categoryWorksheet && subCategoryWorksheet) break;
+
                 } catch (err) {
-                    // גיליונות מסוימים (כמו אובייקטים ריקים או טקסט) עלולים לזרוק שגיאה ב-getFilters, נדלג עליהם בבטחה
-                    console.warn(`לא ניתן היה לסרוק את הגיליון ${ws.name}, ממשיך לגיליון הבא.`);
+                    console.warn(`דילוג על גיליון ${ws.name} בשל מגבלת גישה.`);
                 }
             }
 
-            // 2. אם מצאנו את הגיליון הנכון - מעדכנים אותו
-            if (targetWorksheet) {
-                await targetWorksheet.updateSetValuesAsync(
-                    setNameToFind, 
-                    selectedValues, 
+            // 3. עדכון Category Set (אם נמצא)
+            if (categoryWorksheet) {
+                await categoryWorksheet.updateSetValuesAsync(
+                    categorySetName, 
+                    selectedCategories, 
                     tableau.SetUpdateType.Replace
                 );
-                console.log(`ה-Set [${setNameToFind}] עודכן בהצלחה דרך הגיליון ${targetWorksheet.name}!`);
+                console.log("Category Set עודכן בהצלחה!");
             } else {
-                console.error(`שגיאה: ה-Set בשם "${setNameToFind}" לא נמצא בשימוש באף אחד מהגיליונות בדשבורד הזה. ודא שהוא גרוע בתוך Filters או באחד הטאבים בתוך הדשבורד.`);
+                console.error(`לא נמצא גיליון המשתמש ב-${categorySetName}`);
+            }
+
+            // 4. עדכון Sub-Category Set (אם נמצא)
+            if (subCategoryWorksheet) {
+                await subCategoryWorksheet.updateSetValuesAsync(
+                    subCategorySetName, 
+                    selectedSubCategories, 
+                    tableau.SetUpdateType.Replace
+                );
+                console.log("Sub-Category Set עודכן בהצלחה!");
+            } else {
+                console.error(`לא נמצא גיליון המשתמש ב-${subCategorySetName}`);
             }
 
         } catch (error) {
-            console.error("שגיאה כללית בזמן החלת העדכון:", error);
+            console.error("שגיאה בזמן עדכון ה-Sets:", error);
         } finally {
             applyBtn.classList.remove("playing");
             btnText.innerText = "החל שינויים";
