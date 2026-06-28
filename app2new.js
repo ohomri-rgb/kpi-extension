@@ -31,8 +31,13 @@ async function onApplyAllClick() {
         const parameters = await dashboard.getParametersAsync();
         
         // 4. איתור הפרמטרים לפי השמות המדויקים שלהם בטאבלו
-        const segmentParam = parameters.find(p => p.name === 'P_Segment_List');
-        const categoryParam = parameters.find(p => p.name === 'P_Category_List');
+        // שונה לערכים שרואים אצלך במסך:
+        const segmentParam = parameters.find(p => p.name === 'Segment Parameter');
+        const categoryParam = parameters.find(p => p.name === 'Category Parameter');
+        
+        // בדיקת ניתוח קלה בקונסול כדי שתראה אם הוא מצא אותם
+        console.log("Segment parameter found:", segmentParam ? "YES" : "NO");
+        console.log("Category parameter found:", categoryParam ? "YES" : "NO");
         
         // 5. המרת מערך הבחירות למחרוזת פסיקים (עבור אופרטור IN)
         const segmentString = selectedSegments.join(',');
