@@ -1,4 +1,6 @@
 (function() {
+    // הגדרת מספר הגרסה למעקב פשוט
+    const VERSION = "v1.0.4";
     let currentUsername = "Unknown User";
 
     const checkTableauLoaded = setInterval(() => {
@@ -13,10 +15,13 @@
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
             const dashName = dashboard.name;
 
-            // הדפסת בדיקה כדי לראות מה השרת חושף
+            // 1. הזרקה דינמית של מספר הגרסה לממשק (ליד כותרת הסטטוס)
+            displayVersionInUI();
+
+            console.log(`Tracker active [${VERSION}]`);
             console.log("Tableau Environment Context:", window.tableau.extensions.environment);
 
-            // 1. האזנה לשינויים בפרמטרים
+            // 2. האזנה לשינויים בפרמטרים
             dashboard.getParametersAsync().then(parameters => {
                 if (parameters && parameters.length > 0) {
                     parameters.forEach(param => {
@@ -29,7 +34,7 @@
                 }
             }).catch(err => console.error("Error fetching parameters:", err));
 
-            // 2. האזנה לשינויים בפילטרים ברמת הגיליון (Worksheet)
+            // 3. האזנה לשינויים בפילטרים ברמת הגיליון (Worksheet)
             dashboard.worksheets.forEach(worksheet => {
                 worksheet.addEventListener(window.tableau.TableauEventType.FilterChanged, (event) => {
                     event.getFilterAsync().then(updatedFilter => {
@@ -47,7 +52,21 @@
         });
     }
 
-    // פונקציה שמציגה את מקור השינוי כולל ניסיון שליפה דינמי של שם המשתמש
+    // פונקציה להזרקת הגרסה ישירות לאזור שסימנת בוורוד
+    function displayVersionInUI() {
+        const statusDiv = document.querySelector(".status");
+        if (statusDiv) {
+            // יצירת אלמנט קטן לגרסה ומראה נקי
+            const versionSpan = document.createElement("span");
+            versionSpan.style.fontSize = "12px";
+            versionSpan.style.color = "#777";
+            versionSpan.style.marginRight = "10px";
+            versionSpan.style.fontWeight = "normal";
+            versionSpan.innerText = `(${VERSION})`;
+            statusDiv.appendChild(versionSpan);
+        }
+    }
+
     function addLogToScreen(type, name, values, dashboardName, worksheetName) {
         const logBox = document.getElementById("liveLog");
         if (!logBox) return;
@@ -56,7 +75,7 @@
             logBox.innerHTML = "";
         }
 
-        // ניסיון שליפה דינמי בכל אירוע למקרה שהמשתנה התעדכן מאוחר יותר
+        // שליפה דינמית של ה-Username בכל אירוע
         if (window.tableau.extensions.environment && window.tableau.extensions.environment.username) {
             currentUsername = window.tableau.extensions.environment.username;
         }
