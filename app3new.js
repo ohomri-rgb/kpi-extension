@@ -1,51 +1,54 @@
 (function() {
-    // בדיקה שהספרייה של טאבלו אכן נטענה בהצלחה
-    if (typeof tableau === 'undefined') {
-        console.error("Tableau Extensions API library is not loaded yet.");
-        const logBox = document.getElementById("liveLog");
-        if (logBox) logBox.innerHTML = "<div class='log-item' style='color:red;'>שגיאה: ספריית טאבלו לא נטענה כראוי.</div>";
-        return;
-    }
+    // לולאה שמחכה מספר מילישניות עד שהספרייה משורה 7 תהיה זמינה בזיכרון
+    const checkTableauLoaded = setInterval(() => {
+        if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
+            clearInterval(checkTableauLoaded); // הספרייה מוכנה, עוצרים את הלולאה
+            initializeTracker();              // מתחילים להאזין לפקדים
+        }
+    }, 50);
 
-    // אתחול ה-Extension
-    tableau.extensions.initializeAsync().then(() => {
-        const dashboard = tableau.extensions.dashboardContent.dashboard;
-        const logBox = document.getElementById("liveLog");
+    // פונקציית האתחול והאזנה לפילטרים ופרמטרים
+    function initializeTracker() {
+        window.tableau.extensions.initializeAsync().then(() => {
+            const dashboard = window.tableau.extensions.dashboardContent.dashboard;
 
-        // 1. האזנה לשינויים בפרמטרים
-        dashboard.getParametersAsync().then(parameters => {
-            parameters.forEach(param => {
-                param.addEventListener(tableau.TableauEventType.ParameterChanged, (event) => {
-                    event.getParameterAsync().then(updatedParam => {
-                        addLogToScreen("param", updatedParam.name, updatedParam.currentValue.formattedValue);
+            // 1. האזנה לשינויים בפרמטרים של הדשבורד
+            dashboard.getParametersAsync().then(parameters => {
+                parameters.forEach(param => {
+                    param.addEventListener(window.tableau.TableauEventType.ParameterChanged, (event) => {
+                        event.getParameterAsync().then(updatedParam => {
+                            addLogToScreen("param", updatedParam.name, updatedParam.currentValue.formattedValue);
+                        });
                     });
                 });
             });
-        });
 
-        // 2. האזנה לשינויים בפילטרים
-        dashboard.worksheets.forEach(worksheet => {
-            worksheet.addEventListener(tableau.TableauEventType.FilterChanged, (event) => {
-                event.getFilterAsync().then(updatedFilter => {
-                    let selectedValues = "All";
-                    if (updatedFilter.appliedValues && updatedFilter.appliedValues.length > 0) {
-                        selectedValues = updatedFilter.appliedValues.map(val => val.formattedValue).join(", ");
-                    }
-                    addLogToScreen("filter", updatedFilter.fieldName, selectedValues);
+            // 2. האזנה לשינויים בפילטרים בכל ה-Worksheets
+            dashboard.worksheets.forEach(worksheet => {
+                worksheet.addEventListener(window.tableau.TableauEventType.FilterChanged, (event) => {
+                    event.getFilterAsync().then(updatedFilter => {
+                        let selectedValues = "All";
+                        if (updatedFilter.appliedValues && updatedFilter.appliedValues.length > 0) {
+                            selectedValues = updatedFilter.appliedValues.map(val => val.formattedValue).join(", ");
+                        }
+                        addLogToScreen("filter", updatedFilter.fieldName, selectedValues);
+                    });
                 });
             });
+
+            console.log("Tracker active and listening using local library execution.");
+        }).catch(error => {
+            console.error("Error during Tableau init:", error);
         });
+    }
 
-    }).catch(error => {
-        console.error("Error during initialization:", error);
-    });
-
-    // פונקציה להצגת השינוי ישירות על המסך בתוך ה-HTML
+    // פונקציה שמציגה באופן חי את השינויים על גבי ה-HTML
     function addLogToScreen(type, name, values) {
         const logBox = document.getElementById("liveLog");
-        
-        // ניקוי הודעת ברירת המחדל בשינוי הראשון
-        if (logBox.innerText.includes("ממתין לשינוי ראשון")) {
+        if (!logBox) return;
+
+        // ניקוי הודעת המתנה ראשונית במידה וקיימת
+        if (logBox.innerText.includes("ממתין לשינוי ראשון") || logBox.innerText.includes("שגיאה")) {
             logBox.innerHTML = "";
         }
 
@@ -59,7 +62,7 @@
             logItem.innerHTML = `[${timestamp}] <span class="param-tag">פרמטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
         }
 
-        // הוספת השינוי החדש לראש הרשימה
+        // הוספת האירוע החדש ביותר לראש הרשימה
         logBox.insertBefore(logItem, logBox.firstChild);
     }
 })();
