@@ -1,3 +1,4 @@
+// קוד שמטפל בלוג לשינוי ערכים בפרמרטרים ופילטרים
 (function() {
     const VERSION = "v1.0.6";
     let currentUsername = "Unknown User";
