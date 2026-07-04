@@ -13,14 +13,10 @@
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
             const dashName = dashboard.name;
 
-            // שליפת שם המשתמש המחובר מתוך סביבת השרת של טאבלו
-            if (window.tableau.extensions.environment && window.tableau.extensions.environment.username) {
-                currentUsername = window.tableau.extensions.environment.username;
-            }
+            // הדפסת בדיקה כדי לראות מה השרת חושף
+            console.log("Tableau Environment Context:", window.tableau.extensions.environment);
 
-            console.log(`Tracker active for user: ${currentUsername}`);
-
-            // 1. האזנה לשינויים בפרמטרים (גלובלי)
+            // 1. האזנה לשינויים בפרמטרים
             dashboard.getParametersAsync().then(parameters => {
                 if (parameters && parameters.length > 0) {
                     parameters.forEach(param => {
@@ -51,7 +47,7 @@
         });
     }
 
-    // פונקציה שמציגה את מקור השינוי כולל שם המשתמש
+    // פונקציה שמציגה את מקור השינוי כולל ניסיון שליפה דינמי של שם המשתמש
     function addLogToScreen(type, name, values, dashboardName, worksheetName) {
         const logBox = document.getElementById("liveLog");
         if (!logBox) return;
@@ -60,11 +56,15 @@
             logBox.innerHTML = "";
         }
 
+        // ניסיון שליפה דינמי בכל אירוע למקרה שהמשתנה התעדכן מאוחר יותר
+        if (window.tableau.extensions.environment && window.tableau.extensions.environment.username) {
+            currentUsername = window.tableau.extensions.environment.username;
+        }
+
         const timestamp = new Date().toLocaleTimeString();
         const logItem = document.createElement("div");
         logItem.className = "log-item";
 
-        // הזרקת שם המשתמש לתחילת השורה
         if (type === "filter") {
             logItem.innerHTML = `[${timestamp}] <strong>(${currentUsername})</strong> <span class="dash-tag">[דשבורד: ${dashboardName}]</span> בקוביית <span class="sheet-tag">${worksheetName}</span> - <span class="filter-tag">פילטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
         } else {
