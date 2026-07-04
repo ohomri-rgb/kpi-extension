@@ -1,105 +1,65 @@
-document.addEventListener("DOMContentLoaded", () => {
-    // אובייקט מרכזי שיאגור את המידע על השימוש בסשן הנוכחי
-    const usageLog = {
-        sessionStart: new Date().toISOString(),
-        dashboardName: "",
-        usedFilters: {},
-        usedParameters: {}
-    };
+(function() {
+    // בדיקה שהספרייה של טאבלו אכן נטענה בהצלחה
+    if (typeof tableau === 'undefined') {
+        console.error("Tableau Extensions API library is not loaded yet.");
+        const logBox = document.getElementById("liveLog");
+        if (logBox) logBox.innerHTML = "<div class='log-item' style='color:red;'>שגיאה: ספריית טאבלו לא נטענה כראוי.</div>";
+        return;
+    }
 
-    // אתחול ה-Extension API של טאבלו
+    // אתחול ה-Extension
     tableau.extensions.initializeAsync().then(() => {
         const dashboard = tableau.extensions.dashboardContent.dashboard;
-        usageLog.dashboardName = dashboard.name;
+        const logBox = document.getElementById("liveLog");
 
-        // 1. האזנה לשינויים בפרמטרים (Parameters הם גלובליים לדשבורד)
+        // 1. האזנה לשינויים בפרמטרים
         dashboard.getParametersAsync().then(parameters => {
             parameters.forEach(param => {
                 param.addEventListener(tableau.TableauEventType.ParameterChanged, (event) => {
                     event.getParameterAsync().then(updatedParam => {
-                        logParameterChange(updatedParam);
+                        addLogToScreen("param", updatedParam.name, updatedParam.currentValue.formattedValue);
                     });
                 });
             });
         });
 
-        // 2. האזנה לשינויים בפילטרים (Filters משויכים ל-Worksheets ספציפיים)
+        // 2. האזנה לשינויים בפילטרים
         dashboard.worksheets.forEach(worksheet => {
             worksheet.addEventListener(tableau.TableauEventType.FilterChanged, (event) => {
                 event.getFilterAsync().then(updatedFilter => {
-                    logFilterChange(updatedFilter, worksheet.name);
+                    let selectedValues = "All";
+                    if (updatedFilter.appliedValues && updatedFilter.appliedValues.length > 0) {
+                        selectedValues = updatedFilter.appliedValues.map(val => val.formattedValue).join(", ");
+                    }
+                    addLogToScreen("filter", updatedFilter.fieldName, selectedValues);
                 });
             });
         });
 
-        console.log("Tracking initialized successfully.");
     }).catch(error => {
-        console.error("Error initializing Tableau Extension:", error);
+        console.error("Error during initialization:", error);
     });
 
-    // פונקציה לתיעוד שינוי בפילטר
-    function logFilterChange(filter, worksheetName) {
-        const filterName = filter.fieldName;
+    // פונקציה להצגת השינוי ישירות על המסך בתוך ה-HTML
+    function addLogToScreen(type, name, values) {
+        const logBox = document.getElementById("liveLog");
         
-        // במידה והפילטר הוא מסוג All/נקו פילטר, הערכים יכולים להיות ריקים
-        let selectedValues = [];
-        if (filter.appliedValues) {
-            selectedValues = filter.appliedValues.map(val => val.formattedValue);
+        // ניקוי הודעת ברירת המחדל בשינוי הראשון
+        if (logBox.innerText.includes("ממתין לשינוי ראשון")) {
+            logBox.innerHTML = "";
         }
 
-        // אם הפילטר עדיין לא תועד, ניצור לו רשומה
-        if (!usageLog.usedFilters[filterName]) {
-            usageLog.usedFilters[filterName] = {
-                firstUsed: new Date().toISOString(),
-                worksheets: new Set(),
-                history: []
-            };
+        const timestamp = new Date().toLocaleTimeString();
+        const logItem = document.createElement("div");
+        logItem.className = "log-item";
+
+        if (type === "filter") {
+            logItem.innerHTML = `[${timestamp}] <span class="filter-tag">פילטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
+        } else {
+            logItem.innerHTML = `[${timestamp}] <span class="param-tag">פרמטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
         }
 
-        usageLog.usedFilters[filterName].worksheets.add(worksheetName);
-        usageLog.usedFilters[filterName].history.push({
-            timestamp: new Date().toISOString(),
-            values: selectedValues
-        });
-
-        console.log(`Filter changed: ${filterName}`, selectedValues);
+        // הוספת השינוי החדש לראש הרשימה
+        logBox.insertBefore(logItem, logBox.firstChild);
     }
-
-    // פונקציה לתיעוד שינוי בפרמטר
-    function logParameterChange(parameter) {
-        const paramName = parameter.name;
-        const currentValue = parameter.currentValue.formattedValue;
-
-        if (!usageLog.usedParameters[paramName]) {
-            usageLog.usedParameters[paramName] = {
-                firstUsed: new Date().toISOString(),
-                history: []
-            };
-        }
-
-        usageLog.usedParameters[paramName].history.push({
-            timestamp: new Date().toISOString(),
-            value: currentValue
-        });
-
-        console.log(`Parameter changed: ${paramName}`, currentValue);
-    }
-
-    // כפתור זמני לצפייה והורדה של ה-JSON ב-POC
-    document.getElementById("downloadJsonBtn").addEventListener("click", () => {
-        // המרת ה-Sets למערכים רגילים לצורך ה-JSON
-        const outputLog = { ...usageLog };
-        for (let filter in outputLog.usedFilters) {
-            outputLog.usedFilters[filter].worksheets = Array.from(outputLog.usedFilters[filter].worksheets);
-        }
-
-        // יצירת קובץ להורדה בדפדפן
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(outputLog, null, 2));
-        const downloadAnchor = document.createElement('a');
-        downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `dashboard_usage_${Date.now()}.json`);
-        document.body.appendChild(downloadAnchor);
-        downloadAnchor.click();
-        downloadAnchor.remove();
-    });
-});
+})();
