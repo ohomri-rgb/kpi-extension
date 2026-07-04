@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Tracker POC</title>
+    <!-- שימוש בספריית טאבלו הרשמית מהקוד שלך -->
+    <script src="https://cdn.jsdelivr.net/npm/@tableau/extensions-api-lib@1/dist/tableau.extensions.1.latest.js"></script>
+    <script src="app3new.js" defer></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 10px; background-color: #f4f4f4; }
+        .status { color: green; font-weight: bold; margin-bottom: 10px; }
+        button { padding: 8px 15px; background-color: #2ca02c; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #1e6b1e; }
+    </style>
+</head>
+<body>
+    <div class="status">התוסף מנטר את הדשבורד ברקע...</div>
+    <button id="downloadJsonBtn">הורד נתוני שימוש (JSON)</button>
+</body>
+</html>
