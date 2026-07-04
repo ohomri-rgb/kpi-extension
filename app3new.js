@@ -1,29 +1,39 @@
 (function() {
-    // לולאה שמחכה מספר מילישניות עד שהספרייה משורה 7 תהיה זמינה בזיכרון
+    let currentUsername = "Unknown User";
+
     const checkTableauLoaded = setInterval(() => {
         if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
-            clearInterval(checkTableauLoaded); // הספרייה מוכנה, עוצרים את הלולאה
-            initializeTracker();              // מתחילים להאזין לפקדים
+            clearInterval(checkTableauLoaded);
+            initializeTracker();
         }
     }, 50);
 
-    // פונקציית האתחול והאזנה לפילטרים ופרמטרים
     function initializeTracker() {
         window.tableau.extensions.initializeAsync().then(() => {
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
+            const dashName = dashboard.name;
 
-            // 1. האזנה לשינויים בפרמטרים של הדשבורד
+            // שליפת שם המשתמש המחובר מתוך סביבת השרת של טאבלו
+            if (window.tableau.extensions.environment && window.tableau.extensions.environment.username) {
+                currentUsername = window.tableau.extensions.environment.username;
+            }
+
+            console.log(`Tracker active for user: ${currentUsername}`);
+
+            // 1. האזנה לשינויים בפרמטרים (גלובלי)
             dashboard.getParametersAsync().then(parameters => {
-                parameters.forEach(param => {
-                    param.addEventListener(window.tableau.TableauEventType.ParameterChanged, (event) => {
-                        event.getParameterAsync().then(updatedParam => {
-                            addLogToScreen("param", updatedParam.name, updatedParam.currentValue.formattedValue);
+                if (parameters && parameters.length > 0) {
+                    parameters.forEach(param => {
+                        param.addEventListener(window.tableau.TableauEventType.ParameterChanged, (event) => {
+                            event.getParameterAsync().then(updatedParam => {
+                                addLogToScreen("param", updatedParam.name, updatedParam.currentValue.formattedValue, dashName, "Global (Dashboard)");
+                            });
                         });
                     });
-                });
-            });
+                }
+            }).catch(err => console.error("Error fetching parameters:", err));
 
-            // 2. האזנה לשינויים בפילטרים בכל ה-Worksheets
+            // 2. האזנה לשינויים בפילטרים ברמת הגיליון (Worksheet)
             dashboard.worksheets.forEach(worksheet => {
                 worksheet.addEventListener(window.tableau.TableauEventType.FilterChanged, (event) => {
                     event.getFilterAsync().then(updatedFilter => {
@@ -31,23 +41,21 @@
                         if (updatedFilter.appliedValues && updatedFilter.appliedValues.length > 0) {
                             selectedValues = updatedFilter.appliedValues.map(val => val.formattedValue).join(", ");
                         }
-                        addLogToScreen("filter", updatedFilter.fieldName, selectedValues);
+                        addLogToScreen("filter", updatedFilter.fieldName, selectedValues, dashName, worksheet.name);
                     });
                 });
             });
 
-            console.log("Tracker active and listening using local library execution.");
         }).catch(error => {
             console.error("Error during Tableau init:", error);
         });
     }
 
-    // פונקציה שמציגה באופן חי את השינויים על גבי ה-HTML
-    function addLogToScreen(type, name, values) {
+    // פונקציה שמציגה את מקור השינוי כולל שם המשתמש
+    function addLogToScreen(type, name, values, dashboardName, worksheetName) {
         const logBox = document.getElementById("liveLog");
         if (!logBox) return;
 
-        // ניקוי הודעת המתנה ראשונית במידה וקיימת
         if (logBox.innerText.includes("ממתין לשינוי ראשון") || logBox.innerText.includes("שגיאה")) {
             logBox.innerHTML = "";
         }
@@ -56,13 +64,13 @@
         const logItem = document.createElement("div");
         logItem.className = "log-item";
 
+        // הזרקת שם המשתמש לתחילת השורה
         if (type === "filter") {
-            logItem.innerHTML = `[${timestamp}] <span class="filter-tag">פילטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
+            logItem.innerHTML = `[${timestamp}] <strong>(${currentUsername})</strong> <span class="dash-tag">[דשבורד: ${dashboardName}]</span> בקוביית <span class="sheet-tag">${worksheetName}</span> - <span class="filter-tag">פילטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
         } else {
-            logItem.innerHTML = `[${timestamp}] <span class="param-tag">פרמטר</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
+            logItem.innerHTML = `[${timestamp}] <strong>(${currentUsername})</strong> <span class="dash-tag">[דשבורד: ${dashboardName}]</span> <span class="param-tag">פרמטר גלובלי</span> <strong>${name}</strong> שונה ל: <span>${values}</span>`;
         }
 
-        // הוספת האירוע החדש ביותר לראש הרשימה
         logBox.insertBefore(logItem, logBox.firstChild);
     }
 })();
