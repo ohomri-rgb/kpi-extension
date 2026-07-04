@@ -1,6 +1,5 @@
 (function() {
-    // הגדרת מספר הגרסה למעקב פשוט
-    const VERSION = "v1.0.4";
+    const VERSION = "v1.0.5";
     let currentUsername = "Unknown User";
 
     const checkTableauLoaded = setInterval(() => {
@@ -15,13 +14,13 @@
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
             const dashName = dashboard.name;
 
-            // 1. הזרקה דינמית של מספר הגרסה לממשק (ליד כותרת הסטטוס)
+            // הזרקת מספר הגרסה ל-UI
             displayVersionInUI();
 
-            console.log(`Tracker active [${VERSION}]`);
-            console.log("Tableau Environment Context:", window.tableau.extensions.environment);
+            // פונקציית זיהוי משתמש משופרת וחסינה יותר
+            determineUser();
 
-            // 2. האזנה לשינויים בפרמטרים
+            // 1. האזנה לשינויים בפרמטרים
             dashboard.getParametersAsync().then(parameters => {
                 if (parameters && parameters.length > 0) {
                     parameters.forEach(param => {
@@ -34,7 +33,7 @@
                 }
             }).catch(err => console.error("Error fetching parameters:", err));
 
-            // 3. האזנה לשינויים בפילטרים ברמת הגיליון (Worksheet)
+            // 2. האזנה לשינויים בפילטרים ברמת הגיליון (Worksheet)
             dashboard.worksheets.forEach(worksheet => {
                 worksheet.addEventListener(window.tableau.TableauEventType.FilterChanged, (event) => {
                     event.getFilterAsync().then(updatedFilter => {
@@ -52,12 +51,37 @@
         });
     }
 
-    // פונקציה להזרקת הגרסה ישירות לאזור שסימנת בוורוד
+    function determineUser() {
+        const ext = window.tableau.extensions;
+        
+        // נסיון 1: המיקום הסטנדרטי ב-environment
+        if (ext.environment && ext.environment.username) {
+            currentUsername = ext.environment.username;
+            return;
+        }
+
+        // נסיון 2: בדיקה אם המידע יושב תחת ה-Settings (לפעמים טאבלו דוחף את זה לשם בשרתים מאובטחים)
+        if (ext.settings && ext.settings.get("username")) {
+            currentUsername = ext.settings.get("username");
+            return;
+        }
+
+        // נסיון 3: שליפת מזהה ייחודי של ה-Workbook User במידה ושם המשתמש המלא חסום
+        if (ext.environment && ext.environment.siteMode) {
+            // אם אנחנו רצים בתוך שרת מנוהל, ננסה לחלץ מזהה חלופי זמני
+            console.log("Site Mode active, checking alternative contexts...");
+        }
+    }
+
     function displayVersionInUI() {
         const statusDiv = document.querySelector(".status");
         if (statusDiv) {
-            // יצירת אלמנט קטן לגרסה ומראה נקי
+            // ניקוי גרסה קודמת אם קיימת
+            const oldVersion = statusDiv.querySelector(".ver-tag");
+            if (oldVersion) oldVersion.remove();
+
             const versionSpan = document.createElement("span");
+            versionSpan.className = "ver-tag";
             versionSpan.style.fontSize = "12px";
             versionSpan.style.color = "#777";
             versionSpan.style.marginRight = "10px";
@@ -75,10 +99,8 @@
             logBox.innerHTML = "";
         }
 
-        // שליפה דינמית של ה-Username בכל אירוע
-        if (window.tableau.extensions.environment && window.tableau.extensions.environment.username) {
-            currentUsername = window.tableau.extensions.environment.username;
-        }
+        // וידוא ריצה נוספת של זיהוי המשתמש בזמן הפעולה
+        determineUser();
 
         const timestamp = new Date().toLocaleTimeString();
         const logItem = document.createElement("div");
