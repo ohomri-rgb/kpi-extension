@@ -3,18 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <title>Dashboard Tracker POC</title>
-    <!-- שימוש בספריית טאבלו הרשמית מהקוד שלך -->
+    <!-- טעינת הספרייה הרשמית תחילה -->
     <script src="https://cdn.jsdelivr.net/npm/@tableau/extensions-api-lib@1/dist/tableau.extensions.1.latest.js"></script>
-    <script src="app3new.js" defer></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 10px; background-color: #f4f4f4; }
-        .status { color: green; font-weight: bold; margin-bottom: 10px; }
-        button { padding: 8px 15px; background-color: #2ca02c; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #1e6b1e; }
+        body { font-family: Arial, sans-serif; padding: 15px; background-color: #f9f9f9; color: #333; }
+        .status { font-weight: bold; color: #0066cc; margin-bottom: 15px; }
+        .log-container { background: white; border: 1px solid #ddd; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto; }
+        .log-item { padding: 6px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .log-item:last-child { border-bottom: none; }
+        .filter-tag { color: #e65100; font-weight: bold; }
+        .param-tag { color: #1b5e20; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="status">התוסף מנטר את הדשבורד ברקע...</div>
-    <button id="downloadJsonBtn">הורד נתוני שימוש (JSON)</button>
+
+    <div class="status">מנטר שינויים בדשבורד...</div>
+    
+    <h3>שינויים שבוצעו בסשן הנוכחי:</h3>
+    <div id="liveLog" class="log-container">
+        <div class="log-item" style="color: #999;">ממתין לשינוי ראשון של פילטר או פרמטר...</div>
+    </div>
+
+    <!-- טעינת הלוגיקה רק לאחר שה-DOM והספרייה מוכנים -->
+    <script src="app2new.js"></script>
 </body>
 </html>
