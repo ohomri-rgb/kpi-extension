@@ -17,7 +17,7 @@
             // הזרקת מספר הגרסה ל-UI
             displayVersionInUI();
 
-            // 1. שליפת הפרמטרים והאזנה לשינויים
+            // 1.  שליפת הפרמטרים והאזנה לשינויים
             dashboard.getParametersAsync().then(parameters => {
                 if (parameters && parameters.length > 0) {
                     
