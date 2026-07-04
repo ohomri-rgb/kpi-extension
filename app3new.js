@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v1.0.5";
+    const VERSION = "v1.0.6";
     let currentUsername = "Unknown User";
 
     const checkTableauLoaded = setInterval(() => {
@@ -17,15 +17,24 @@
             // הזרקת מספר הגרסה ל-UI
             displayVersionInUI();
 
-            // פונקציית זיהוי משתמש משופרת וחסינה יותר
-            determineUser();
-
-            // 1. האזנה לשינויים בפרמטרים
+            // 1. שליפת הפרמטרים והאזנה לשינויים
             dashboard.getParametersAsync().then(parameters => {
                 if (parameters && parameters.length > 0) {
+                    
+                    // חיפוש ראשוני של הפרמטר שייצרת כדי לאכלס את היוזר באתחול
+                    const userParam = parameters.find(p => p.name === "Current_User_Param");
+                    if (userParam && userParam.currentValue) {
+                        currentUsername = userParam.currentValue.formattedValue;
+                        console.log(`Successfully fetched user from parameter: ${currentUsername}`);
+                    }
+
                     parameters.forEach(param => {
                         param.addEventListener(window.tableau.TableauEventType.ParameterChanged, (event) => {
                             event.getParameterAsync().then(updatedParam => {
+                                // אם הפרמטר הספציפי של היוזר השתנה, נעדכן את המשתנה הגלובלי
+                                if (updatedParam.name === "Current_User_Param") {
+                                    currentUsername = updatedParam.currentValue.formattedValue;
+                                }
                                 addLogToScreen("param", updatedParam.name, updatedParam.currentValue.formattedValue, dashName, "Global (Dashboard)");
                             });
                         });
@@ -51,32 +60,9 @@
         });
     }
 
-    function determineUser() {
-        const ext = window.tableau.extensions;
-        
-        // נסיון 1: המיקום הסטנדרטי ב-environment
-        if (ext.environment && ext.environment.username) {
-            currentUsername = ext.environment.username;
-            return;
-        }
-
-        // נסיון 2: בדיקה אם המידע יושב תחת ה-Settings (לפעמים טאבלו דוחף את זה לשם בשרתים מאובטחים)
-        if (ext.settings && ext.settings.get("username")) {
-            currentUsername = ext.settings.get("username");
-            return;
-        }
-
-        // נסיון 3: שליפת מזהה ייחודי של ה-Workbook User במידה ושם המשתמש המלא חסום
-        if (ext.environment && ext.environment.siteMode) {
-            // אם אנחנו רצים בתוך שרת מנוהל, ננסה לחלץ מזהה חלופי זמני
-            console.log("Site Mode active, checking alternative contexts...");
-        }
-    }
-
     function displayVersionInUI() {
         const statusDiv = document.querySelector(".status");
         if (statusDiv) {
-            // ניקוי גרסה קודמת אם קיימת
             const oldVersion = statusDiv.querySelector(".ver-tag");
             if (oldVersion) oldVersion.remove();
 
@@ -98,9 +84,6 @@
         if (logBox.innerText.includes("ממתין לשינוי ראשון") || logBox.innerText.includes("שגיאה")) {
             logBox.innerHTML = "";
         }
-
-        // וידוא ריצה נוספת של זיהוי המשתמש בזמן הפעולה
-        determineUser();
 
         const timestamp = new Date().toLocaleTimeString();
         const logItem = document.createElement("div");
