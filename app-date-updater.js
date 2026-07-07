@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v1.2.1";
+    const VERSION = "v1.2.2";
     let hasUpdatedDate = false;
 
     const checkTableauLoaded = setInterval(() => {
@@ -17,6 +17,7 @@
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
             const worksheets = dashboard.worksheets;
             
+            // יצירת תאריך של היום (מקומי)
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
@@ -24,53 +25,58 @@
             debugLog += `📊 דשבורד: "${dashboard.name}"<br><hr>`;
             addStatusToUI(debugLog);
 
-            // סריקת גיליונות
+            // סריקת גיליונות בדשבורד
             for (const worksheet of worksheets) {
                 try {
                     const filters = await worksheet.getFiltersAsync();
                     
-                    // סינון מדויק: מחפשים פילטר שהוא Range, קשור לתאריך, ולא פילטר מסוג Action
+                    // סינון אגרסיבי: מחפשים שדה תאריך, ומתעלמים לחלוטין מכל מה שמתחיל ב-Action או מכיל אקשן
                     const dateFilter = filters.find(f => 
-                        f.filterType === window.tableau.TableauEventType.FilterChanged || // בדיקת סוג הטווח
                         (f.dataType === window.tableau.DataType.Date || f.dataType === window.tableau.DataType.DateTime) &&
-                        !f.fieldName.startsWith("Action (") // התעלמות מפילטרים אוטומטיים של דשבורד אקשן
+                        !f.fieldName.toLowerCase().includes("action") && 
+                        !f.fieldName.startsWith("Action")
                     );
 
                     if (dateFilter) {
-                        debugLog += `⚡ נמצא פילטר תאריכים מתאים: "${dateFilter.fieldName}"<br>`;
+                        debugLog += `⚡ נמצא פילטר תאריכים אמיתי: "${dateFilter.fieldName}" בגיליון "${worksheet.name}"<br>`;
                         
-                        // שליפת ערך המינימום הנוכחי של הסליידר כדי לא לדרוס אותו
+                        // קריאת ערך המינימום הקיים כפי שטאבלו מחזיק אותו
                         let currentMin = null;
                         if (dateFilter.minValue && dateFilter.minValue.value) {
                             currentMin = new Date(dateFilter.minValue.value);
+                        } else if (dateFilter.domainMin && dateFilter.domainMin.value) {
+                            currentMin = new Date(dateFilter.domainMin.value);
                         }
 
                         if (!currentMin) {
-                            debugLog += `⚠️ לא הצלחתי לקרוא את תאריך המינימום הקיים, משתמש בברירת מחדל.<br>`;
-                            currentMin = new Date(dateFilter.domainMin.value); // גיבוי לערך המינימלי של הדאטה
+                            debugLog += `❌ לא ניתן היה לחלץ את תאריך המינימום מהפילטר.<br>`;
+                            addStatusToUI(debugLog);
+                            continue;
                         }
 
-                        debugLog += `📅 טווח חדש מתוכנן: מ-${currentMin.toLocaleDateString()} עד ${today.toLocaleDateString()}<br>`;
+                        debugLog += `📅 טווח נוכחי מזהה: מ-${currentMin.toLocaleDateString()} עד היום (${today.toLocaleDateString()})<br>`;
                         addStatusToUI(debugLog);
 
-                        // עדכון הטווח - שולחים את המינימום המקורי ואת המקסימום של היום
+                        // תיקון פורמט קריטי: מעבירים לטאבלו את ערכי ה-Date בדיוק בפורמט שהוא דורש (אובייקטי תאריך נקיים)
                         await worksheet.applyRangeFilterAsync(dateFilter.fieldName, {
                             min: currentMin, 
                             max: today
                         });
 
                         hasUpdatedDate = true;
-                        debugLog += `<span style="color:green; font-weight:bold;">✅ הפילטר "${dateFilter.fieldName}" עודכן בהצלחה להיום!</span><br>`;
+                        debugLog += `<span style="color:green; font-weight:bold;">✅ הפילטר "${dateFilter.fieldName}" עודכן בהצלחה!</span><br>`;
                         addStatusToUI(debugLog);
-                        break; 
+                        break; // מצאנו ועדכנו, עוצרים את הלולאה
                     }
                 } catch (filterError) {
                     console.error("Error updating filter on worksheet: " + worksheet.name, filterError);
+                    debugLog += `<span style="color:red;">❌ שגיאה בהחלת הפילטר: ${filterError.message}</span><br>`;
+                    addStatusToUI(debugLog);
                 }
             }
 
             if (!hasUpdatedDate) {
-                debugLog += `<br><span style="color:orange; font-weight:bold;">⚠️ לא נמצא פילטר תאריכים (Range) רגיל שניתן לעדכן.</span>`;
+                debugLog += `<br><span style="color:orange; font-weight:bold;">⚠️ לא נמצא פילטר תאריכים רגיל (שאינו Action) בדשבורד.</span>`;
                 addStatusToUI(debugLog);
             }
 
