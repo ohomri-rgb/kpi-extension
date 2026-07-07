@@ -1,93 +1,31 @@
-(function() {
-    const VERSION = "v1.1.3";
-    let hasUpdatedDate = false;
-
-    const checkTableauLoaded = setInterval(() => {
-        if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
-            clearInterval(checkTableauLoaded);
-            initializeDateUpdater();
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Date Filter Auto-Updater</title>
+    <script src="tableau.extensions.1.latest.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 10px; 
+            background-color: #f4f6f9; 
+            color: #333; 
+            font-size: 13px;
         }
-    }, 50);
-
-    async function initializeDateUpdater() {
-        try {
-            await window.tableau.extensions.initializeAsync();
-            if (hasUpdatedDate) return;
-
-            const dashboard = window.tableau.extensions.dashboardContent.dashboard;
-            const worksheets = dashboard.worksheets;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            let debugLog = `<strong>גרסה: ${VERSION}</strong><br>`;
-            debugLog += `📊 שם הדשבורד: "${dashboard.name}"<br>`;
-            debugLog += `📁 מספר גיליונות שזוהו: ${worksheets.length}<br>`;
-            addStatusToUI(debugLog);
-
-            if (worksheets.length === 0) {
-                debugLog += `<span style="color:red;">⚠️ אזהרה: ה-API לא מזהה גיליונות עבודה פעילים בדשבורד זה.</span><br>`;
-                addStatusToUI(debugLog);
-                return;
-            }
-
-            // לולאה סינכרונית כדי לוודא סדר הדפסה וביצוע יציב
-            for (const worksheet of worksheets) {
-                debugLog += `<br>🔍 סורק גיליון: "${worksheet.name}"...<br>`;
-                addStatusToUI(debugLog);
-
-                try {
-                    const filters = await worksheet.getFiltersAsync();
-                    debugLog += `   • נמצאו ${filters.length} פילטרים בגיליון זה.<br>`;
-                    
-                    for (const filter of filters) {
-                        debugLog += `     - פילטר: "${filter.fieldName}" (סוג: ${filter.filterType}, דאטה: ${filter.dataType})<br>`;
-                    }
-                    addStatusToUI(debugLog);
-
-                    // חיפוש פילטר התאריך
-                    const dateFilter = filters.find(f => 
-                        f.dataType === window.tableau.DataType.Date || 
-                        f.dataType === window.tableau.DataType.DateTime ||
-                        f.fieldName.toLowerCase().includes('date') ||
-                        f.fieldName.includes('תאריך')
-                    );
-
-                    if (dateFilter) {
-                        debugLog += `⚡ מנסה לעדכן את "${dateFilter.fieldName}" בגיליון "${worksheet.name}"...<br>`;
-                        addStatusToUI(debugLog);
-
-                        await worksheet.applyRangeFilterAsync(dateFilter.fieldName, {
-                            min: null, 
-                            max: today
-                        });
-
-                        hasUpdatedDate = true;
-                        debugLog += `<span style="color:green;">✅ הצלחה! הפילטר עודכן בהצלחה לתאריך של היום.</span><br>`;
-                        addStatusToUI(debugLog);
-                        break; // אם מצאנו ועדכנו בהצלחה, אפשר לעצור
-                    }
-
-                } catch (filterError) {
-                    debugLog += `<span style="color:red;">❌ שגיאה בשליפת פילטרים מגיליון זה: ${filterError.message}</span><br>`;
-                    addStatusToUI(debugLog);
-                }
-            }
-
-            if (!hasUpdatedDate) {
-                debugLog += `<br><span style="color:orange;">⚠️ סריקה הסתיימה. לא נמצא שום פילטר תאריכים מתאים שיכול להתעדכן.</span>`;
-                addStatusToUI(debugLog);
-            }
-
-        } catch (error) {
-            console.error("Error during Tableau init:", error);
-            addStatusToUI("שגיאה באתחול האקסטנשיין: " + error.message);
+        .status-container { 
+            background: white; 
+            border: 1px solid #ccd1d9; 
+            padding: 12px; 
+            border-radius: 4px; 
+            color: #4a6572;
+            line-height: 1.5;
         }
-    }
+    </style>
+</head>
+<body>
 
-    function addStatusToUI(htmlMessage) {
-        const statusDiv = document.getElementById("statusMessage");
-        if (statusDiv) {
-            statusDiv.innerHTML = htmlMessage;
-        }
-    }
-})();
+    <div id="statusMessage" class="status-container">מאתחל את מערכת עדכון התאריכים...</div>
+
+    <script src="dateUpdater.js"></script>
+</body>
+</html>
