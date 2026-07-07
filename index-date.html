@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v1.1.1";
+    const VERSION = "v1.1.2";
     let hasUpdatedDate = false;
 
     const checkTableauLoaded = setInterval(() => {
@@ -17,11 +17,20 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
+            let debugLog = `<strong>גרסה: ${VERSION}</strong><br>מתחיל סריקת גיליונות...<br>`;
+            addStatusToUI(debugLog);
+
             // רצים על כל הגיליונות בדשבורד
             const promises = dashboard.worksheets.map(worksheet => {
                 return worksheet.getFiltersAsync().then(filters => {
+                    debugLog += `🔍 גיליון: "${worksheet.name}" (נמצאו ${filters.length} פילטרים)<br>`;
                     
-                    // גישה גמישה: מחפשים פילטר שמסוגו תאריך, ללא קשר אם הוא Range, Relative או סליידר
+                    filters.forEach(f => {
+                        debugLog += `   • פילטר: "${f.fieldName}" | סוג: ${f.filterType} | דאטה: ${f.dataType}<br>`;
+                    });
+                    addStatusToUI(debugLog);
+
+                    // מחפשים כל פילטר שקשור לתאריך
                     const dateFilter = filters.find(filter => 
                         filter.dataType === window.tableau.DataType.Date || 
                         filter.dataType === window.tableau.DataType.DateTime ||
@@ -30,18 +39,20 @@
                     );
 
                     if (dateFilter) {
-                        console.log(`Found date filter: "${dateFilter.fieldName}" on worksheet "${worksheet.name}". Trying to update...`);
+                        debugLog += `⚡ מנסה לעדכן את "${dateFilter.fieldName}" בגיליון "${worksheet.name}"...<br>`;
+                        addStatusToUI(debugLog);
 
-                        // נסיעה לעדכון כ-Range (זה עובד על רוב סוגי הסליידרים של תאריכים בטאבלו)
                         return worksheet.applyRangeFilterAsync(dateFilter.fieldName, {
-                            min: null, // משאיר את נקודת ההתחלה המקורית ללא שינוי
+                            min: null, 
                             max: today
                         }).then(() => {
                             hasUpdatedDate = true;
-                            addStatusToUI(`הפילטר "${dateFilter.fieldName}" עודכן בהצלחה לתאריך של היום.`);
+                            debugLog += `<span style="color:green;">✅ הצלחה! הפילטר עודכן להיום.</span><br>`;
+                            addStatusToUI(debugLog);
                             return true;
                         }).catch(err => {
-                            console.warn(`Failed to apply range filter on ${dateFilter.fieldName}, trying fallback...`, err);
+                            debugLog += `<span style="color:red;">❌ שגיאה בעדכון הפילטר: ${err.message}</span><br>`;
+                            addStatusToUI(debugLog);
                             return false;
                         });
                     }
@@ -51,22 +62,22 @@
 
             Promise.all(promises).then(results => {
                 const updated = results.some(r => r === true);
-                if (!updated) {
-                    addStatusToUI("לא נמצא פילטר תאריכים מתאים. ודא שהפילטר מוחל על הגיליונות בדשבורד.");
+                if (!updated && !hasUpdatedDate) {
+                    debugLog += `<br><span style="color:orange;">⚠️ סריקה הסתיימה. לא נמצא שום פילטר תאריכים מתאים באף גיליון.</span>`;
+                    addStatusToUI(debugLog);
                 }
             });
 
         }).catch(error => {
             console.error("Error during Tableau init:", error);
-            addStatusToUI("שגיאה באתחול האקסטנשיין.");
+            addStatusToUI("שגיאה באתחול האקסטנשיין: " + error.message);
         });
     }
 
-    function addStatusToUI(message) {
+    function addStatusToUI(htmlMessage) {
         const statusDiv = document.getElementById("statusMessage");
         if (statusDiv) {
-            const timestamp = new Date().toLocaleTimeString();
-            statusDiv.innerHTML = `[${timestamp}] ${message}`;
+            statusDiv.innerHTML = htmlMessage;
         }
     }
 })();
