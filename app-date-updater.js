@@ -1,7 +1,5 @@
 (function() {
-    const VERSION = "v1.1.0";
-    
-    // דגל שימנע ריצה כפולה במהלך חיי הסשן של האקסטנשיין
+    const VERSION = "v1.2.1";
     let hasUpdatedDate = false;
 
     const checkTableauLoaded = setInterval(() => {
@@ -11,62 +9,81 @@
         }
     }, 50);
 
-    function initializeDateUpdater() {
-        window.tableau.extensions.initializeAsync().then(() => {
-            // הגנה מפני ריצה חוזרת אם האקסטנשיין מאותחל מחדש משום מה
-            if (hasUpdatedDate) return; 
+    async function initializeDateUpdater() {
+        try {
+            await window.tableau.extensions.initializeAsync();
+            if (hasUpdatedDate) return;
 
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
+            const worksheets = dashboard.worksheets;
             
-            // רצים על כל הגיליונות בדשבורד כדי למצוא את פילטר התאריך
-            const promises = dashboard.worksheets.map(worksheet => {
-                return worksheet.getFiltersAsync().then(filters => {
-                    // מחפשים פילטר שהוא מסוג Range ומכיל תאריכים
-                    const dateRangeFilter = filters.find(filter => 
-                        filter.filterType === window.tableau.FilterType.Range && 
-                        (filter.dataType === window.tableau.DataType.Date || filter.dataType === window.tableau.DataType.DateTime)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let debugLog = `<strong>גרסה: ${VERSION}</strong><br>`;
+            debugLog += `📊 דשבורד: "${dashboard.name}"<br><hr>`;
+            addStatusToUI(debugLog);
+
+            // סריקת גיליונות
+            for (const worksheet of worksheets) {
+                try {
+                    const filters = await worksheet.getFiltersAsync();
+                    
+                    // סינון מדויק: מחפשים פילטר שהוא Range, קשור לתאריך, ולא פילטר מסוג Action
+                    const dateFilter = filters.find(f => 
+                        f.filterType === window.tableau.TableauEventType.FilterChanged || // בדיקת סוג הטווח
+                        (f.dataType === window.tableau.DataType.Date || f.dataType === window.tableau.DataType.DateTime) &&
+                        !f.fieldName.startsWith("Action (") // התעלמות מפילטרים אוטומטיים של דשבורד אקשן
                     );
 
-                    if (dateRangeFilter) {
-                        // יצירת תאריך של היום (מקומי) ללא שעות
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
+                    if (dateFilter) {
+                        debugLog += `⚡ נמצא פילטר תאריכים מתאים: "${dateFilter.fieldName}"<br>`;
+                        
+                        // שליפת ערך המינימום הנוכחי של הסליידר כדי לא לדרוס אותו
+                        let currentMin = null;
+                        if (dateFilter.minValue && dateFilter.minValue.value) {
+                            currentMin = new Date(dateFilter.minValue.value);
+                        }
 
-                        console.log(`Found date range filter: "${dateRangeFilter.fieldName}" on worksheet "${worksheet.name}". Updating max value to today.`);
+                        if (!currentMin) {
+                            debugLog += `⚠️ לא הצלחתי לקרוא את תאריך המינימום הקיים, משתמש בברירת מחדל.<br>`;
+                            currentMin = new Date(dateFilter.domainMin.value); // גיבוי לערך המינימלי של הדאטה
+                        }
 
-                        // עדכון פילטר הטווח: משאירים את ה-min כפי שהוא (null) ומעדכנים רק את ה-max ליום הנוכחי
-                        return worksheet.applyRangeFilterAsync(dateRangeFilter.fieldName, {
-                            min: null, 
+                        debugLog += `📅 טווח חדש מתוכנן: מ-${currentMin.toLocaleDateString()} עד ${today.toLocaleDateString()}<br>`;
+                        addStatusToUI(debugLog);
+
+                        // עדכון הטווח - שולחים את המינימום המקורי ואת המקסימום של היום
+                        await worksheet.applyRangeFilterAsync(dateFilter.fieldName, {
+                            min: currentMin, 
                             max: today
-                        }).then(() => {
-                            hasUpdatedDate = true; // סימון שהעדכון הצליח
-                            addStatusToUI(`הפילטר "${dateRangeFilter.fieldName}" עודכן בהצלחה לתאריך של היום.`);
-                            return true; // נמצא ועודכן
                         });
+
+                        hasUpdatedDate = true;
+                        debugLog += `<span style="color:green; font-weight:bold;">✅ הפילטר "${dateFilter.fieldName}" עודכן בהצלחה להיום!</span><br>`;
+                        addStatusToUI(debugLog);
+                        break; 
                     }
-                    return false;
-                });
-            });
-
-            // בודקים אם הצלחנו לעדכן לפחות פילטר אחד
-            Promise.all(promises).then(results => {
-                const updated = results.some(r => r === true);
-                if (!updated) {
-                    addStatusToUI("לא נמצא פילטר תאריכים מסוג טווח (Range) בדשבורד.");
+                } catch (filterError) {
+                    console.error("Error updating filter on worksheet: " + worksheet.name, filterError);
                 }
-            });
+            }
 
-        }).catch(error => {
+            if (!hasUpdatedDate) {
+                debugLog += `<br><span style="color:orange; font-weight:bold;">⚠️ לא נמצא פילטר תאריכים (Range) רגיל שניתן לעדכן.</span>`;
+                addStatusToUI(debugLog);
+            }
+
+        } catch (error) {
             console.error("Error during Tableau init:", error);
-            addStatusToUI("שגיאה באתחול האקסטנשיין.");
-        });
+            addStatusToUI("<span style='color:red;'>שגיאה באתחול: " + error.message + "</span>");
+        }
     }
 
-    function addStatusToUI(message) {
+    function addStatusToUI(htmlMessage) {
         const statusDiv = document.getElementById("statusMessage");
         if (statusDiv) {
-            const timestamp = new Date().toLocaleTimeString();
-            statusDiv.innerHTML = `[${timestamp}] ${message}`;
+            statusDiv.innerHTML = htmlMessage;
         }
     }
 })();
