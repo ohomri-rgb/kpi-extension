@@ -1,30 +1,72 @@
-<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>Date Filter Auto-Updater</title>
-    <script src="tableau.extensions.1.latest.js"></script>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            padding: 10px; 
-            background-color: #f4f6f9; 
-            color: #333; 
-            font-size: 13px;
-        }
-        .status-container { 
-            background: white; 
-            border: 1px solid #ccd1d9; 
-            padding: 8px; 
-            border-radius: 4px; 
-            color: #4a6572;
-        }
-    </style>
-</head>
-<body>
+(function() {
+    const VERSION = "v1.1.1";
+    let hasUpdatedDate = false;
 
-    <div id="statusMessage" class="status-container">מפעיל אתחול תאריך אוטומטי...</div>
+    const checkTableauLoaded = setInterval(() => {
+        if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
+            clearInterval(checkTableauLoaded);
+            initializeDateUpdater();
+        }
+    }, 50);
 
-    <script src="app-date-updater.js"></script>
-</body>
-</html>
+    function initializeDateUpdater() {
+        window.tableau.extensions.initializeAsync().then(() => {
+            if (hasUpdatedDate) return; 
+
+            const dashboard = window.tableau.extensions.dashboardContent.dashboard;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // רצים על כל הגיליונות בדשבורד
+            const promises = dashboard.worksheets.map(worksheet => {
+                return worksheet.getFiltersAsync().then(filters => {
+                    
+                    // גישה גמישה: מחפשים פילטר שמסוגו תאריך, ללא קשר אם הוא Range, Relative או סליידר
+                    const dateFilter = filters.find(filter => 
+                        filter.dataType === window.tableau.DataType.Date || 
+                        filter.dataType === window.tableau.DataType.DateTime ||
+                        filter.fieldName.toLowerCase().includes('date') ||
+                        filter.fieldName.includes('תאריך')
+                    );
+
+                    if (dateFilter) {
+                        console.log(`Found date filter: "${dateFilter.fieldName}" on worksheet "${worksheet.name}". Trying to update...`);
+
+                        // נסיעה לעדכון כ-Range (זה עובד על רוב סוגי הסליידרים של תאריכים בטאבלו)
+                        return worksheet.applyRangeFilterAsync(dateFilter.fieldName, {
+                            min: null, // משאיר את נקודת ההתחלה המקורית ללא שינוי
+                            max: today
+                        }).then(() => {
+                            hasUpdatedDate = true;
+                            addStatusToUI(`הפילטר "${dateFilter.fieldName}" עודכן בהצלחה לתאריך של היום.`);
+                            return true;
+                        }).catch(err => {
+                            console.warn(`Failed to apply range filter on ${dateFilter.fieldName}, trying fallback...`, err);
+                            return false;
+                        });
+                    }
+                    return false;
+                });
+            });
+
+            Promise.all(promises).then(results => {
+                const updated = results.some(r => r === true);
+                if (!updated) {
+                    addStatusToUI("לא נמצא פילטר תאריכים מתאים. ודא שהפילטר מוחל על הגיליונות בדשבורד.");
+                }
+            });
+
+        }).catch(error => {
+            console.error("Error during Tableau init:", error);
+            addStatusToUI("שגיאה באתחול האקסטנשיין.");
+        });
+    }
+
+    function addStatusToUI(message) {
+        const statusDiv = document.getElementById("statusMessage");
+        if (statusDiv) {
+            const timestamp = new Date().toLocaleTimeString();
+            statusDiv.innerHTML = `[${timestamp}] ${message}`;
+        }
+    }
+})();
