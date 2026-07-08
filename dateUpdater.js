@@ -1,65 +1,44 @@
 (function() {
-    const VERSION = "v1.6.5";
+    const VERSION = "v1.3.5";
 
     const checkTableauLoaded = setInterval(() => {
         if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
             clearInterval(checkTableauLoaded);
-            fixDateSliderBug();
+            updateDateDirectly();
         }
     }, 50);
 
-    async function fixDateSliderBug() {
+    async function updateDateDirectly() {
         try {
+            // אתחול האקסטנשיין
             await window.tableau.extensions.initializeAsync();
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
             
+            // פנייה ישירה לגיליון
             const worksheet = dashboard.worksheets.find(w => w.name === "Product Detail Sheet");
             if (!worksheet) {
-                document.getElementById("statusMessage").innerHTML = `❌ לא נמצא גיליון בשם Product Detail Sheet`;
+                document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>❌ לא נמצא גיליון בשם Product Detail Sheet`;
                 return;
             }
 
-            const filters = await worksheet.getFiltersAsync();
-            const orderDateFilter = filters.find(f => f.fieldName === "Order Date");
+            // 1. תאריך מינימום קשיח (כמו ב-POC שעבד - לא נוגעים בזה)
+            let minDate = new Date(2024, 0, 1); 
 
-            if (!orderDateFilter) {
-                document.getElementById("statusMessage").innerHTML = `❌ לא נמצא פילטר בשם Order Date`;
-                return;
-            }
+            // 2. תאריך מקסימום עתידי לבדיקת מתיחת הסליידר (הניסוי שלך)
+            let maxDate = new Date(2030, 11, 31); 
 
-            // שלב 1: שליפת ערך המינימום הנוכחי כפי שהוא מוצג כרגע בסליידר (צד שמאל)
-            let currentMinFormatted = orderDateFilter.minValue.formattedValue; // מחזיר מחרוזת כמו "3/4/2025"
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>⏳ מפעיל את ה-POC על הפילטר Order Date...`;
 
-            // שלב 2: המרה ידנית בטוחה לאובייקט תאריך של JS כדי שטאבלו לא יזרוק שגיאת טיפוס
-            let minDateParts = currentMinFormatted.split(/[\/\-\.]/);
-            let minDateObj;
-            
-            // בדיקה האם הפורמט הוא DD/MM/YYYY או MM/DD/YYYY (נשבץ לפי המבנה הנפוץ של טאבלו)
-            if (minDateParts[0] > 12) {
-                // פורמט DD/MM/YYYY
-                minDateObj = new Date(minDateParts[2], minDateParts[1] - 1, minDateParts[0]);
-            } else {
-                // פורמט MM/DD/YYYY
-                minDateObj = new Date(minDateParts[2], minDateParts[0] - 1, minDateParts[1]);
-            }
-
-            // שלב 3: הגדרת תאריך מקסימום עתידי קיצוני (שנת 2035) בפורמט אובייקט נקי
-            // זה יאלץ את טאבלו למתוח את הסליידר ימינה עד הסוף המוחלט של הדאטה הקיים והעתידי
-            let futureMaxObj = new Date(2035, 11, 31);
-
-            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>⏳ מותח את הסליידר ימינה משומר על שמאל (${minDateObj.toLocaleDateString()})...`;
-
-            // שלב 4: החלת הפילטר
+            // 3. החלת הפילטר במבנה המדויק שעבד
             await worksheet.applyRangeFilterAsync("Order Date", {
-                min: minDateObj,
-                max: futureMaxObj
+                min: minDate,
+                max: maxDate
             });
 
-            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>✅ <strong>הצלחה!</strong> הסליידר נמתח ימינה בהצלחה ויקלוט נתונים חדשים באופן אוטומטי.`;
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>✅ <strong>הצלחה!</strong> הפילטר Order Date עודכן למקסימום המוחלט.`;
 
         } catch (error) {
             document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>❌ שגיאה: ${error.message}`;
-            console.error("Error details:", error);
         }
     }
 })();
