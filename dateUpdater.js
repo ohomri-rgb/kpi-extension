@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v1.3.0";
+    const VERSION = "v1.3.1";
 
     const checkTableauLoaded = setInterval(() => {
         if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
@@ -10,54 +10,35 @@
 
     async function updateDateDirectly() {
         try {
+            // 1. אתחול ה-Extension
             await window.tableau.extensions.initializeAsync();
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
             
-            // גישה ישירה לגיליון שלך
+            // 2. פנייה ישירה לגיליון הנתונים שלך
             const worksheet = dashboard.worksheets.find(w => w.name === "Product Detail Sheet");
             if (!worksheet) {
-                document.getElementById("statusMessage").innerHTML = "❌ לא נמצא גיליון בשם Product Detail Sheet";
+                document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>❌ לא נמצא גיליון בשם Product Detail Sheet בדשבורד.`;
                 return;
             }
 
-            // שליפת פילטר ספציפי
-            const filters = await worksheet.getFiltersAsync();
-            const orderDateFilter = filters.find(f => f.fieldName === "Order Date");
-
-            if (!orderDateFilter) {
-                document.getElementById("statusMessage").innerHTML = "❌ לא נמצא פילטר בשם Order Date";
-                return;
-            }
-
-            // חילוץ המינימום הקיים
-            let minDate = null;
-            if (orderDateFilter.minValue && orderDateFilter.minValue.value) {
-                minDate = new Date(orderDateFilter.minValue.value);
-            } else if (orderDateFilter.domainMin && orderDateFilter.domainMin.value) {
-                minDate = new Date(orderDateFilter.domainMin.value);
-            }
-
-            if (!minDate) {
-                document.getElementById("statusMessage").innerHTML = "❌ לא ניתן לקרוא את ערך המינימום בפילטר";
-                return;
-            }
-
-            // יצירת תאריך מקסימום (היום)
+            // 3. יצירת תאריך המקסימום של היום
             let maxDate = new Date();
             maxDate.setHours(0, 0, 0, 0);
 
-            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>⏳ מעדכן פילטר מ-${minDate.toLocaleDateString()} עד ${maxDate.toLocaleDateString()}...`;
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>⏳ מעדכן את הקצה הימני של Order Date ל-${maxDate.toLocaleDateString()}...`;
 
-            // החלה ישירה ללא פילטרי Action בדרך
+            // 4. החלת הפילטר בפורמט האובייקטים הרשמי של Tableau API 
+            // הגדרת min: null בצורה הזו אומרת לטאבלו: "אל תיגע בצד שמאל, תשאיר אותו כמו שהוא".
             await worksheet.applyRangeFilterAsync("Order Date", {
-                min: minDate,
+                min: null,
                 max: maxDate
             });
 
             document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>✅ <strong>הצלחה!</strong> הפילטר Order Date עודכן בהצלחה לתאריך של היום.`;
 
         } catch (error) {
-            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>❌ שגיאה: ${error.message}`;
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>❌ שגיאה בהחלת הפילטר: ${error.message}`;
+            console.error("Direct update error:", error);
         }
     }
 })();
