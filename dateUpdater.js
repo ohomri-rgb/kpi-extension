@@ -1,106 +1,63 @@
 (function() {
-    const VERSION = "v1.2.0";
-    let hasUpdatedDate = false;
+    const VERSION = "v1.3.0";
 
-    // בדיקה שהספרייה של טאבלו נטענה בדפדפן
     const checkTableauLoaded = setInterval(() => {
         if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
             clearInterval(checkTableauLoaded);
-            initializeDateUpdater();
+            updateDateDirectly();
         }
     }, 50);
 
-    async function initializeDateUpdater() {
+    async function updateDateDirectly() {
         try {
-            // אתחול האקסטנשיין של טאבלו
             await window.tableau.extensions.initializeAsync();
-            
-            // הגנה מפני ריצה כפולה
-            if (hasUpdatedDate) return;
-
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
-            const worksheets = dashboard.worksheets;
             
-            // יצירת תאריך של היום (התאריך הנוכחי)
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            let debugLog = `<strong>גרסה: ${VERSION}</strong><br>`;
-            debugLog += `📊 דשבורד: "${dashboard.name}"<br>`;
-            debugLog += `⏳ מנסה לעדכן את סוף הטווח לתאריך של היום (${today.toLocaleDateString()})...<br><hr>`;
-            addStatusToUI(debugLog);
-
-            // שלב א': סריקת פילטרים בגיליונות
-            for (const worksheet of worksheets) {
-                try {
-                    const filters = await worksheet.getFiltersAsync();
-                    
-                    // מחפשים פילטר שקשור לתאריך (לפי סוג או שם שדה)
-                    const dateFilter = filters.find(f => 
-                        f.dataType === window.tableau.DataType.Date || 
-                        f.dataType === window.tableau.DataType.DateTime ||
-                        f.fieldName.toLowerCase().includes('date') ||
-                        f.fieldName.includes('תאריך')
-                    );
-
-                    if (dateFilter) {
-                        debugLog += `⚡ נמצא פילטר "${dateFilter.fieldName}" בגיליון "${worksheet.name}". מעדכן...<br>`;
-                        addStatusToUI(debugLog);
-
-                        // עדכון סוף הטווח (max) בלבד, משאירים את ההתחלה ללא שינוי (null)
-                        await worksheet.applyRangeFilterAsync(dateFilter.fieldName, {
-                            min: null, 
-                            max: today
-                        });
-
-                        hasUpdatedDate = true;
-                        debugLog += `<span style="color:green; font-weight:bold;">✅ הפילטר "${dateFilter.fieldName}" עודכן בהצלחה!</span><br>`;
-                        addStatusToUI(debugLog);
-                        break; 
-                    }
-                } catch (filterError) {
-                    console.error("Error reading filters from worksheet: " + worksheet.name, filterError);
-                }
+            // גישה ישירה לגיליון שלך
+            const worksheet = dashboard.worksheets.find(w => w.name === "Product Detail Sheet");
+            if (!worksheet) {
+                document.getElementById("statusMessage").innerHTML = "❌ לא נמצא גיליון בשם Product Detail Sheet";
+                return;
             }
 
-            // שלב ב': אם לא נמצא פילטר, נבדוק אם מדובר בפרמטר גלובלי של תאריך
-            if (!hasUpdatedDate) {
-                debugLog += `⚠️ לא נמצא פילטר תאריכים רגיל. בודק פרמטרים בדשבורד...<br>`;
-                addStatusToUI(debugLog);
+            // שליפת פילטר ספציפי
+            const filters = await worksheet.getFiltersAsync();
+            const orderDateFilter = filters.find(f => f.fieldName === "Order Date");
 
-                const parameters = await dashboard.getParametersAsync();
-                const dateParam = parameters.find(p => 
-                    (p.dataType === window.tableau.DataType.Date || p.dataType === window.tableau.DataType.DateTime) &&
-                    (p.name.toLowerCase().includes('end') || p.name.toLowerCase().includes('to') || p.name.includes('סוף') || p.name.toLowerCase().includes('date'))
-                );
-
-                if (dateParam) {
-                    debugLog += `⚡ נמצא פרמטר תאריך בשם "${dateParam.name}". מעדכן אותו להיום...<br>`;
-                    addStatusToUI(debugLog);
-
-                    await dateParam.changeValueAsync(today);
-                    hasUpdatedDate = true;
-                    debugLog += `<span style="color:green; font-weight:bold;">✅ הפרמטר "${dateParam.name}" עודכן בהצלחה!</span><br>`;
-                    addStatusToUI(debugLog);
-                }
+            if (!orderDateFilter) {
+                document.getElementById("statusMessage").innerHTML = "❌ לא נמצא פילטר בשם Order Date";
+                return;
             }
 
-            // אם הגענו לכאן ושום דבר לא השתנה
-            if (!hasUpdatedDate) {
-                debugLog += `<br><span style="color:orange; font-weight:bold;">⚠️ הסריקה הסתיימה. לא נמצא שום פילטר או פרמטר תאריכים מתאים לעדכון.</span>`;
-                addStatusToUI(debugLog);
+            // חילוץ המינימום הקיים
+            let minDate = null;
+            if (orderDateFilter.minValue && orderDateFilter.minValue.value) {
+                minDate = new Date(orderDateFilter.minValue.value);
+            } else if (orderDateFilter.domainMin && orderDateFilter.domainMin.value) {
+                minDate = new Date(orderDateFilter.domainMin.value);
             }
+
+            if (!minDate) {
+                document.getElementById("statusMessage").innerHTML = "❌ לא ניתן לקרוא את ערך המינימום בפילטר";
+                return;
+            }
+
+            // יצירת תאריך מקסימום (היום)
+            let maxDate = new Date();
+            maxDate.setHours(0, 0, 0, 0);
+
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>⏳ מעדכן פילטר מ-${minDate.toLocaleDateString()} עד ${maxDate.toLocaleDateString()}...`;
+
+            // החלה ישירה ללא פילטרי Action בדרך
+            await worksheet.applyRangeFilterAsync("Order Date", {
+                min: minDate,
+                max: maxDate
+            });
+
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>✅ <strong>הצלחה!</strong> הפילטר Order Date עודכן בהצלחה לתאריך של היום.`;
 
         } catch (error) {
-            console.error("Error during Tableau init:", error);
-            addStatusToUI("<span style='color:red;'>שגיאה באתחול האקסטנשיין: " + error.message + "</span>");
-        }
-    }
-
-    function addStatusToUI(htmlMessage) {
-        const statusDiv = document.getElementById("statusMessage");
-        if (statusDiv) {
-            statusDiv.innerHTML = htmlMessage;
+            document.getElementById("statusMessage").innerHTML = `גרסה: ${VERSION}<br>❌ שגיאה: ${error.message}`;
         }
     }
 })();
