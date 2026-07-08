@@ -1,14 +1,14 @@
 (function() {
-    const VERSION = "v1.8.0";
+    const VERSION = "v1.9.0";
 
     const checkTableauLoaded = setInterval(() => {
         if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
             clearInterval(checkTableauLoaded);
-            syncFilterAndDisplayRealMax();
+            perfectDateSync();
         }
     }, 50);
 
-    async function syncFilterAndDisplayRealMax() {
+    async function perfectDateSync() {
         try {
             await window.tableau.extensions.initializeAsync();
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
@@ -19,14 +19,13 @@
                 return;
             }
 
-            // --- שלב 1: שליפת התאריכים המוחלטים מהדאטה הגולמי (מתעלם מפילטרים קיימים) ---
-            let finalMinDate = new Date(2024, 0, 1); // ברירת מחדל לגיבוי
+            // --- שלב 1: שליפת תאריכי הקצה המוחלטים ישירות מהנתונים (מתעלם מפילטרים) ---
+            let finalMinDate = new Date(2024, 0, 1); // ערך ברירת מחדל לגיבוי צד שמאל
+            let finalMaxDate = new Date();           // ערך ברירת מחדל לגיבוי צד ימין
             let maxDataDateStr = "מתעדכן...";
             
             try {
-                // גורמים לטאבלו להביא את כל ה-Domain המקורי בלי קשר לפילטר התקוע כרגע
                 const summaryData = await worksheet.getSummaryDataAsync({ ignoreFilters: true });
-                
                 const dateColumnIndex = summaryData.columns.find(col => col.fieldName === "Order Date")?.index;
                 
                 if (dateColumnIndex !== undefined && summaryData.data.length > 0) {
@@ -53,6 +52,7 @@
                     });
 
                     if (latestDateObj) {
+                        finalMaxDate = latestDateObj;
                         maxDataDateStr = latestDateObj.toLocaleDateString('he-IL');
                     }
                     if (earliestDateObj) {
@@ -60,26 +60,25 @@
                     }
                 }
             } catch (dataError) {
-                console.error("Failed to fetch absolute summary data:", dataError);
-                maxDataDateStr = "לא ניתן לחילוץ";
+                console.error("Failed to fetch summary data:", dataError);
+                maxDataDateStr = "שגיאה בשליפת תאריך מקסימלי";
             }
 
-            // --- שלב 2: הצגת הסטטוס האמיתי והנקי למשתמש ---
-            document.getElementById("statusMessage").innerHTML = `
-                <div style="font-family: Arial, sans-serif; line-height: 1.5; direction: rtl; text-align: right;">
-                    <span style="color: #2e7d32; font-weight: bold; font-size: 14px;">✅ סנכרון תאריכים הושלם</span><br>
-                    <span style="color: #444; font-size: 13px;">📅 הנתונים בדשבורד מעודכנים עד לתאריך: <strong>${maxDataDateStr}</strong></span>
-                </div>
-            `;
-
-            // --- שלב 3: הפעלת ה-Hack מאחורי הקלעים כדי לפתוח את הסליידר ---
-            // צד שמאל מקבל את התאריך המינימלי האמיתי שנמצא בדאטה, וצד ימין נדחף ל-2030
-            let experimentalFutureDate = new Date(2030, 11, 31); 
-
+            // --- שלב 2: עדכון פיזי של הפילטר בדשבורד לערכים האמיתיים בלבד ---
+            // אנחנו מעבירים את האובייקטים הנקיים של התאריכים ישירות. 
+            // צד ימין יקבל בדיוק את היום האחרון בדאטה (למשל 24.11.2026) ולא יום אחד מעבר!
             await worksheet.applyRangeFilterAsync("Order Date", {
                 min: finalMinDate,
-                max: experimentalFutureDate
+                max: finalMaxDate
             });
+
+            // --- שלב 3: הצגת הודעת אישור נקייה ומקצועית למשתמש ---
+            document.getElementById("statusMessage").innerHTML = `
+                <div style="font-family: Arial, sans-serif; line-height: 1.5; direction: rtl; text-align: right;">
+                    <span style="color: #2e7d32; font-weight: bold; font-size: 14px;">✅ סנכרון תאריכים הושלם בהצלחה</span><br>
+                    <span style="color: #444; font-size: 13px;">📅 הנתונים בדשבורד והסליידר עודכנו עד לתאריך: <strong>${maxDataDateStr}</strong></span>
+                </div>
+            `;
 
         } catch (error) {
             document.getElementById("statusMessage").innerHTML = `❌ שגיאה: ${error.message}`;
