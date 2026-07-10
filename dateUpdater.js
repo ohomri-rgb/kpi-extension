@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v3.3.0-Robust";
+    const VERSION = "v3.4.0-FixedMinDomain";
     let attempts = 0;
     const MAX_ATTEMPTS = 400;
 
@@ -47,24 +47,36 @@
 
             const targetFilterName = targetFilter.fieldName;
             
-            // --- שלב 2: חילוץ ושמירה של הטווח המקורי מהפילטר הקיים ---
-            let originalMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
-            if (isNaN(originalMinDate.getTime())) {
-                originalMinDate = new Date(2023, 0, 1);
+            // --- שלב 2: חילוץ דינמי של המינימום המוחלט מתוך ה-Domain המקורי (מניעת קיצור הסליידר) ---
+            let absoluteMinDate = null;
+            try {
+                const domainInfo = await targetFilter.getDomainAsync();
+                if (domainInfo && domainInfo.min && domainInfo.min.value) {
+                    absoluteMinDate = new Date(domainInfo.min.value);
+                }
+            } catch (domainError) {
+                console.warn("[Tableau Extension] Could not fetch domain via getDomainAsync, falling back to filter configuration.");
+            }
+
+            // Fallback במידה וה-Domain API לא זמין או החזיר ערך משובש
+            if (!absoluteMinDate || isNaN(absoluteMinDate.getTime())) {
+                absoluteMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
+                if (isNaN(absoluteMinDate.getTime())) {
+                    absoluteMinDate = new Date(2023, 0, 1);
+                }
             }
 
             // --- שלב 3: מתיחה זמנית קדימה ל-2030 לחשיפת הנתונים החדשים ---
             let temporaryFutureDate = new Date(2030, 11, 31);
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                min: originalMinDate,
+                min: absoluteMinDate,
                 max: temporaryFutureDate
             });
 
-            // --- שלב 4: שליפת הדאטה וזיהוי עמודת התאריך לפי סוג הנתונים (ולא לפי שם) ---
+            // --- שלב 4: שליפת הדאטה וזיהוי עמודת התאריך לפי סוג הנתונים ---
             let trueVisibleMaxDate = null;
             const summaryData = await targetWorksheet.getSummaryDataAsync();
             
-            // במקום לחפש לפי שם השדה בדיוק, מחפשים את עמודת התאריך הראשונה בדאטה שמוחזר
             const dateColumn = summaryData.columns.find(col => 
                 col.dataType === 'date' || 
                 col.dataType === 'date-time' || 
@@ -105,8 +117,7 @@
                 });
             }
 
-            // --- שלב 5: הגנה קריטית למקרה שהזיהוי נכשל - לא נשארים ב-2030! ---
-            // אם לא מצאנו תאריך מקסימלי אמיתי בדאטה, נשחזר את המקסימום המקורי של הפילטר (או התאריך של היום)
+            // --- שלב 5: הגנה קריטית למקרה שהזיהוי נכשל ---
             if (!trueVisibleMaxDate) {
                 trueVisibleMaxDate = targetFilter.maxValue ? new Date(targetFilter.maxValue.value) : new Date();
                 if (isNaN(trueVisibleMaxDate.getTime())) {
@@ -114,9 +125,9 @@
                 }
             }
 
-            // --- שלב 6: נעילה מחדש וכיווץ הסליידר לקצה האמיתי ---
+            // --- שלב 6: נעילה מחדש וכיווץ הסליידר לקצה האמיתי תוך שמירה על המינימום המוחלט ---
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                min: originalMinDate,
+                min: absoluteMinDate,
                 max: trueVisibleMaxDate
             });
 
