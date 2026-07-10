@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v3.4.0-FixedMinDomain";
+    const VERSION = "v3.5.0-Turbo";
     let attempts = 0;
     const MAX_ATTEMPTS = 400;
 
@@ -47,95 +47,76 @@
 
             const targetFilterName = targetFilter.fieldName;
             
-            // --- שלב 2: חילוץ דינמי של המינימום המוחלט מתוך ה-Domain המקורי (מניעת קיצור הסליידר) ---
+            // --- שלב 2: שליפת ה-Domain המלא (Min ו-Max המוחלטים) בפעולה אחת מהירה ---
             let absoluteMinDate = null;
+            let absoluteMaxDate = null;
+
             try {
                 const domainInfo = await targetFilter.getDomainAsync();
-                if (domainInfo && domainInfo.min && domainInfo.min.value) {
-                    absoluteMinDate = new Date(domainInfo.min.value);
+                if (domainInfo) {
+                    if (domainInfo.min && domainInfo.min.value) {
+                        absoluteMinDate = new Date(domainInfo.min.value);
+                    }
+                    if (domainInfo.max && domainInfo.max.value) {
+                        absoluteMaxDate = new Date(domainInfo.max.value);
+                    }
                 }
             } catch (domainError) {
-                console.warn("[Tableau Extension] Could not fetch domain via getDomainAsync, falling back to filter configuration.");
+                console.warn("[Tableau Extension] Could not fetch domain via getDomainAsync, using fallback logic.");
             }
 
-            // Fallback במידה וה-Domain API לא זמין או החזיר ערך משובש
-            if (!absoluteMinDate || isNaN(absoluteMinDate.getTime())) {
-                absoluteMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
-                if (isNaN(absoluteMinDate.getTime())) {
-                    absoluteMinDate = new Date(2023, 0, 1);
-                }
-            }
-
-            // --- שלב 3: מתיחה זמנית קדימה ל-2030 לחשיפת הנתונים החדשים ---
-            let temporaryFutureDate = new Date(2030, 11, 31);
-            await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                min: absoluteMinDate,
-                max: temporaryFutureDate
-            });
-
-            // --- שלב 4: שליפת הדאטה וזיהוי עמודת התאריך לפי סוג הנתונים ---
-            let trueVisibleMaxDate = null;
-            const summaryData = await targetWorksheet.getSummaryDataAsync();
-            
-            const dateColumn = summaryData.columns.find(col => 
-                col.dataType === 'date' || 
-                col.dataType === 'date-time' || 
-                col.fieldName.toLowerCase().includes('date') ||
-                col.fieldName === targetFilterName
-            );
-            
-            if (dateColumn && summaryData.data.length > 0) {
-                const dateColumnIndex = dateColumn.index;
-                let maxTime = 0;
+            // --- שלב 3: מנגנון הגנה (Fallback) רק אם ה-Domain API נכשל או חזר ריק ---
+            if (!absoluteMinDate || isNaN(absoluteMinDate.getTime()) || !absoluteMaxDate || isNaN(absoluteMaxDate.getTime())) {
                 
-                summaryData.data.forEach(row => {
-                    const rawCell = row[dateColumnIndex];
-                    if (!rawCell) return;
+                // במקרה של כישלון, נשחזר את שיטת המתיחה המהירה, אך רק כמוצא אחרון
+                absoluteMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
+                
+                let temporaryFutureDate = new Date(2030, 11, 31);
+                await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
+                    min: absoluteMinDate,
+                    max: temporaryFutureDate
+                });
 
-                    let parsedDate = new Date(rawCell.value);
-                    
-                    // מנגנון הגנה לפורמטים מקומיים (dd/mm/yyyy)
-                    if (isNaN(parsedDate.getTime()) && rawCell.formattedValue) {
-                        const parts = rawCell.formattedValue.split(/[-/.]/);
-                        if (parts.length === 3) {
-                            const day = parseInt(parts[0], 10);
-                            const month = parseInt(parts[1], 10) - 1;
-                            const year = parseInt(parts[2], 10);
-                            const testDate = new Date(year, month, day);
-                            if (!isNaN(testDate.getTime())) {
-                                parsedDate = testDate;
+                const summaryData = await targetWorksheet.getSummaryDataAsync();
+                const dateColumn = summaryData.columns.find(col => 
+                    col.dataType === 'date' || col.dataType === 'date-time' || col.fieldName === targetFilterName
+                );
+                
+                if (dateColumn && summaryData.data.length > 0) {
+                    const dateColumnIndex = dateColumn.index;
+                    let maxTime = 0;
+                    summaryData.data.forEach(row => {
+                        const rawCell = row[dateColumnIndex];
+                        if (rawCell) {
+                            let parsedDate = new Date(rawCell.value);
+                            if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > maxTime) {
+                                maxTime = parsedDate.getTime();
+                                absoluteMaxDate = parsedDate;
                             }
                         }
-                    }
-
-                    if (!isNaN(parsedDate.getTime())) {
-                        if (parsedDate.getTime() > maxTime) {
-                            maxTime = parsedDate.getTime();
-                            trueVisibleMaxDate = parsedDate;
-                        }
-                    }
-                });
-            }
-
-            // --- שלב 5: הגנה קריטית למקרה שהזיהוי נכשל ---
-            if (!trueVisibleMaxDate) {
-                trueVisibleMaxDate = targetFilter.maxValue ? new Date(targetFilter.maxValue.value) : new Date();
-                if (isNaN(trueVisibleMaxDate.getTime())) {
-                    trueVisibleMaxDate = new Date();
+                    });
                 }
             }
 
-            // --- שלב 6: נעילה מחדש וכיווץ הסליידר לקצה האמיתי תוך שמירה על המינימום המוחלט ---
+            // הגנה סופית על ה-Max
+            if (!absoluteMaxDate || isNaN(absoluteMaxDate.getTime())) {
+                absoluteMaxDate = new Date();
+            }
+            if (!absoluteMinDate || isNaN(absoluteMinDate.getTime())) {
+                absoluteMinDate = new Date(2023, 0, 1);
+            }
+
+            // --- שלב 4: עדכון יחיד וסופי של הפילטר (חוסך ריצה כפולה של הדשבורד) ---
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
                 min: absoluteMinDate,
-                max: trueVisibleMaxDate
+                max: absoluteMaxDate
             });
 
-            // --- שלב 7: עדכון ה-UI למשתמש ---
-            renderUI(trueVisibleMaxDate.toLocaleDateString('he-IL'), targetFilterName, targetWorksheet.name);
+            // --- שלב 5: עדכון ה-UI למשתמש ---
+            renderUI(absoluteMaxDate.toLocaleDateString('he-IL'), targetFilterName, targetWorksheet.name);
 
         } catch (error) {
-            renderError(`שגיאה בתהליך הסנכרון האוטומטי: ${error.message}`);
+            renderError(`שגיאה בתהליך הסנכרון המהיר: ${error.message}`);
         }
     }
 
@@ -210,14 +191,14 @@
             <div class="status-card">
                 <div class="status-header">
                     <span class="status-dot"></span>
-                    <span class="status-title">סנכרון פילטר אוטומטי</span>
+                    <span class="status-title">סנכרון מהיר הושלם</span>
                 </div>
                 <div class="meta-info">
                     גיליון: <strong>${sheetName}</strong><br>
                     פילטר: <strong>${filterName}</strong>
                 </div>
                 <div class="date-display">
-                    <span class="date-label">טווח עליון מכויל ל-</span>
+                    <span class="date-label">הסליידר עודכן לקצה העדכני:</span>
                     <span class="date-value">${formattedDate}</span>
                 </div>
             </div>
@@ -230,7 +211,7 @@
         
         container.innerHTML = `
             <div style="font-family: Arial, sans-serif; direction: rtl; text-align: right; color: #dc2626; padding: 12px; border: 1px solid #fca5a5; background: #fef2f2; border-radius: 6px; font-size: 13px;">
-                <strong>❌ שגיאה בסנכרון הדינמי:</strong><br>${msg}
+                <strong>❌ שגיאה בסנכרון:</strong><br>${msg}
             </div>
         `;
     }
