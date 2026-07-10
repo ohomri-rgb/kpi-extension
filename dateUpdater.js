@@ -1,218 +1,113 @@
 (function() {
-    const VERSION = "v3.5.0-Turbo";
-    let attempts = 0;
     const MAX_ATTEMPTS = 400;
+    let attempts = 0;
 
-    const checkTableauLoaded = setInterval(() => {
+    const poll = setInterval(() => {
         attempts++;
-        if (typeof window.tableau !== 'undefined' && window.tableau.extensions) {
-            clearInterval(checkTableauLoaded);
-            
+        if (window.tableau?.extensions) {
+            clearInterval(poll);
             if (!document.getElementById("statusMessage")) {
                 console.error(`[Tableau Extension] ❌ Missing HTML element with ID 'statusMessage'`);
                 return;
             }
-            
             autoDiscoverAndSync();
         } else if (attempts >= MAX_ATTEMPTS) {
-            clearInterval(checkTableauLoaded);
+            clearInterval(poll);
             console.error(`[Tableau Extension] Timeout loading Tableau Extensions API.`);
         }
     }, 50);
 
     async function autoDiscoverAndSync() {
         try {
-            await window.tableau.extensions.initializeAsync();
-            const dashboard = window.tableau.extensions.dashboardContent.dashboard;
+            await tableau.extensions.initializeAsync();
+            const { worksheets } = tableau.extensions.dashboardContent.dashboard;
 
-            let targetWorksheet = null;
-            let targetFilter = null;
-
-            // --- שלב 1: סריקה וזיהוי פילטר הטווח הפעיל ---
-            for (const worksheet of dashboard.worksheets) {
-                const filters = await worksheet.getFiltersAsync();
-                const rangeFilter = filters.find(f => f.filterType === window.tableau.FilterType.Range);
-                
-                if (rangeFilter) {
-                    targetWorksheet = worksheet;
-                    targetFilter = rangeFilter;
-                    break;
-                }
+            let ws = null, filter = null;
+            for (const w of worksheets) {
+                const f = (await w.getFiltersAsync()).find(f => f.filterType === tableau.FilterType.Range);
+                if (f) { ws = w; filter = f; break; }
             }
+            if (!ws || !filter) return renderError(`לא נמצא פילטר מסוג Range (סליידר) באף גיליון בדשבורד.`);
 
-            if (!targetWorksheet || !targetFilter) {
-                renderError(`לא נמצא פילטר מסוג Range (סליידר) באף גיליון בדשבורד.`);
-                return;
-            }
+            const filterName = filter.fieldName;
 
-            const targetFilterName = targetFilter.fieldName;
-            
-            // --- שלב 2: שליפת ה-Domain המלא (Min ו-Max המוחלטים) בפעולה אחת מהירה ---
-            let absoluteMinDate = null;
-            let absoluteMaxDate = null;
-
+            // מינימום מוחלט (עם פולבק)
+            let minDate = null;
             try {
-                const domainInfo = await targetFilter.getDomainAsync();
-                if (domainInfo) {
-                    if (domainInfo.min && domainInfo.min.value) {
-                        absoluteMinDate = new Date(domainInfo.min.value);
-                    }
-                    if (domainInfo.max && domainInfo.max.value) {
-                        absoluteMaxDate = new Date(domainInfo.max.value);
-                    }
-                }
-            } catch (domainError) {
-                console.warn("[Tableau Extension] Could not fetch domain via getDomainAsync, using fallback logic.");
+                const domain = await filter.getDomainAsync();
+                if (domain?.min?.value) minDate = new Date(domain.min.value);
+            } catch { console.warn("[Tableau Extension] getDomainAsync failed, using filter config fallback."); }
+            if (!minDate || isNaN(minDate)) {
+                minDate = filter.minValue ? new Date(filter.minValue.value) : new Date(2023, 0, 1);
+                if (isNaN(minDate)) minDate = new Date(2023, 0, 1);
             }
 
-            // --- שלב 3: מנגנון הגנה (Fallback) רק אם ה-Domain API נכשל או חזר ריק ---
-            if (!absoluteMinDate || isNaN(absoluteMinDate.getTime()) || !absoluteMaxDate || isNaN(absoluteMaxDate.getTime())) {
-                
-                // במקרה של כישלון, נשחזר את שיטת המתיחה המהירה, אך רק כמוצא אחרון
-                absoluteMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
-                
-                let temporaryFutureDate = new Date(2030, 11, 31);
-                await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                    min: absoluteMinDate,
-                    max: temporaryFutureDate
-                });
+            // מתיחה זמנית ל-2030 כדי לחשוף דאטה חדש
+            await ws.applyRangeFilterAsync(filterName, { min: minDate, max: new Date(2030, 11, 31) });
 
-                const summaryData = await targetWorksheet.getSummaryDataAsync();
-                const dateColumn = summaryData.columns.find(col => 
-                    col.dataType === 'date' || col.dataType === 'date-time' || col.fieldName === targetFilterName
-                );
-                
-                if (dateColumn && summaryData.data.length > 0) {
-                    const dateColumnIndex = dateColumn.index;
-                    let maxTime = 0;
-                    summaryData.data.forEach(row => {
-                        const rawCell = row[dateColumnIndex];
-                        if (rawCell) {
-                            let parsedDate = new Date(rawCell.value);
-                            if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > maxTime) {
-                                maxTime = parsedDate.getTime();
-                                absoluteMaxDate = parsedDate;
-                            }
-                        }
-                    });
+            // זיהוי המקסימום האמיתי מתוך הדאטה
+            let maxDate = null;
+            const summary = await ws.getSummaryDataAsync();
+            const dateCol = summary.columns.find(c =>
+                c.dataType === 'date' || c.dataType === 'date-time' ||
+                c.fieldName.toLowerCase().includes('date') || c.fieldName === filterName);
+
+            if (dateCol && summary.data.length) {
+                let maxTime = 0;
+                for (const row of summary.data) {
+                    const cell = row[dateCol.index];
+                    if (!cell) continue;
+
+                    let d = new Date(cell.value);
+                    if (isNaN(d) && cell.formattedValue) {
+                        const [p1, p2, p3] = cell.formattedValue.split(/[-/.]/).map(Number);
+                        const t = new Date(p3, p2 - 1, p1);
+                        if (!isNaN(t)) d = t;
+                    }
+                    if (!isNaN(d) && d.getTime() > maxTime) { maxTime = d.getTime(); maxDate = d; }
                 }
             }
-
-            // הגנה סופית על ה-Max
-            if (!absoluteMaxDate || isNaN(absoluteMaxDate.getTime())) {
-                absoluteMaxDate = new Date();
-            }
-            if (!absoluteMinDate || isNaN(absoluteMinDate.getTime())) {
-                absoluteMinDate = new Date(2023, 0, 1);
+            if (!maxDate) {
+                maxDate = filter.maxValue ? new Date(filter.maxValue.value) : new Date();
+                if (isNaN(maxDate)) maxDate = new Date();
             }
 
-            // --- שלב 4: עדכון יחיד וסופי של הפילטר (חוסך ריצה כפולה של הדשבורד) ---
-            await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                min: absoluteMinDate,
-                max: absoluteMaxDate
-            });
+            // נעילה סופית לטווח האמיתי
+            await ws.applyRangeFilterAsync(filterName, { min: minDate, max: maxDate });
 
-            // --- שלב 5: עדכון ה-UI למשתמש ---
-            renderUI(absoluteMaxDate.toLocaleDateString('he-IL'), targetFilterName, targetWorksheet.name);
-
-        } catch (error) {
-            renderError(`שגיאה בתהליך הסנכרון המהיר: ${error.message}`);
+            renderUI(maxDate.toLocaleDateString('he-IL'), filterName, ws.name);
+        } catch (err) {
+            renderError(`שגיאה בתהליך הסנכרון האוטומטי: ${err.message}`);
         }
     }
 
-    function renderUI(formattedDate, filterName, sheetName) {
-        const container = document.getElementById("statusMessage");
-        if (!container) return;
-        
-        container.innerHTML = `
-            <style>
-                @keyframes pulse {
-                    0% { transform: scale(0.95); opacity: 0.5; }
-                    50% { transform: scale(1.1); opacity: 1; }
-                    100% { transform: scale(0.95); opacity: 0.5; }
-                }
-                .status-card {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-                    direction: rtl;
-                    text-align: right;
-                    background: #ffffff;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 8px;
-                    padding: 14px;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-                    max-width: 290px;
-                    margin: 0 auto;
-                }
-                .status-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin-bottom: 10px;
-                }
-                .status-dot {
-                    width: 8px;
-                    height: 8px;
-                    background-color: #10b981;
-                    border-radius: 50%;
-                    display: inline-block;
-                    animation: pulse 2s infinite ease-in-out;
-                }
-                .status-title {
-                    color: #0f172a;
-                    font-weight: 600;
-                    font-size: 13px;
-                }
-                .meta-info {
-                    font-size: 11px;
-                    color: #64748b;
-                    margin-bottom: 8px;
-                    line-height: 1.4;
-                }
-                .date-display {
-                    background: #f8fafc;
-                    border: 1px dashed #cbd5e1;
-                    border-radius: 6px;
-                    padding: 8px 12px;
-                    text-align: center;
-                }
-                .date-label {
-                    font-size: 11px;
-                    color: #64748b;
-                    display: block;
-                    margin-bottom: 2px;
-                }
-                .date-value {
-                    font-size: 18px;
-                    font-weight: 700;
-                    color: #1e293b;
-                }
-            </style>
-            
+    const style = `
+        <style>
+            @keyframes pulse { 0%{transform:scale(.95);opacity:.5} 50%{transform:scale(1.1);opacity:1} 100%{transform:scale(.95);opacity:.5} }
+            .status-card{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;direction:rtl;text-align:right;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px;box-shadow:0 4px 6px -1px rgba(0,0,0,.05);max-width:290px;margin:0 auto}
+            .status-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+            .status-dot{width:8px;height:8px;background:#10b981;border-radius:50%;display:inline-block;animation:pulse 2s infinite ease-in-out}
+            .status-title{color:#0f172a;font-weight:600;font-size:13px}
+            .meta-info{font-size:11px;color:#64748b;margin-bottom:8px;line-height:1.4}
+            .date-display{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px 12px;text-align:center}
+            .date-label{font-size:11px;color:#64748b;display:block;margin-bottom:2px}
+            .date-value{font-size:18px;font-weight:700;color:#1e293b}
+        </style>`;
+
+    function renderUI(date, filterName, sheetName) {
+        const c = document.getElementById("statusMessage");
+        if (!c) return;
+        c.innerHTML = `${style}
             <div class="status-card">
-                <div class="status-header">
-                    <span class="status-dot"></span>
-                    <span class="status-title">סנכרון מהיר הושלם</span>
-                </div>
-                <div class="meta-info">
-                    גיליון: <strong>${sheetName}</strong><br>
-                    פילטר: <strong>${filterName}</strong>
-                </div>
-                <div class="date-display">
-                    <span class="date-label">הסליידר עודכן לקצה העדכני:</span>
-                    <span class="date-value">${formattedDate}</span>
-                </div>
-            </div>
-        `;
+                <div class="status-header"><span class="status-dot"></span><span class="status-title">סנכרון פילטר אוטומטי</span></div>
+                <div class="meta-info">גיליון: <strong>${sheetName}</strong><br>פילטר: <strong>${filterName}</strong></div>
+                <div class="date-display"><span class="date-label">טווח עליון מכויל ל-</span><span class="date-value">${date}</span></div>
+            </div>`;
     }
 
     function renderError(msg) {
-        const container = document.getElementById("statusMessage");
-        if (!container) return;
-        
-        container.innerHTML = `
-            <div style="font-family: Arial, sans-serif; direction: rtl; text-align: right; color: #dc2626; padding: 12px; border: 1px solid #fca5a5; background: #fef2f2; border-radius: 6px; font-size: 13px;">
-                <strong>❌ שגיאה בסנכרון:</strong><br>${msg}
-            </div>
-        `;
+        const c = document.getElementById("statusMessage");
+        if (!c) return;
+        c.innerHTML = `<div style="font-family:Arial,sans-serif;direction:rtl;text-align:right;color:#dc2626;padding:12px;border:1px solid #fca5a5;background:#fef2f2;border-radius:6px;font-size:13px"><strong>❌ שגיאה בסנכרון הדינמי:</strong><br>${msg}</div>`;
     }
 })();
