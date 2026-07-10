@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v3.0.0-Dynamic";
+    const VERSION = "v3.2.0-SafeDynamic";
     let attempts = 0;
     const MAX_ATTEMPTS = 400;
 
@@ -24,45 +24,45 @@
         try {
             await window.tableau.extensions.initializeAsync();
             const dashboard = window.tableau.extensions.dashboardContent.dashboard;
-            const dashName = dashboard.name;
 
             let targetWorksheet = null;
-            let targetFilterName = null;
+            let targetFilter = null;
 
-            // --- שלב 1: סריקה אוטומטית לזיהוי הפילטר והגיליון ---
+            // --- שלב 1: סריקה וזיהוי פילטר הטווח הפעיל ---
             for (const worksheet of dashboard.worksheets) {
                 const filters = await worksheet.getFiltersAsync();
-                // מחפשים פילטר שהוא מסוג Range (תאריך או מספר)
                 const rangeFilter = filters.find(f => f.filterType === window.tableau.FilterType.Range);
                 
                 if (rangeFilter) {
                     targetWorksheet = worksheet;
-                    targetFilterName = rangeFilter.fieldName;
-                    break; // מצאנו את פילטר הטווח הראשון, עוצרים את הסריקה
+                    targetFilter = rangeFilter;
+                    break;
                 }
             }
 
-            // הגנה: אם לא נמצא שום פילטר טווח בדשבורד
-            if (!targetWorksheet || !targetFilterName) {
-                renderError(`לא נמצא פילטר מסוג Range (סליידר תאריך/מספר) באף אחד מהגיליונות בדשבורד.`);
+            if (!targetWorksheet || !targetFilter) {
+                renderError(`לא נמצא פילטר מסוג Range (סליידר) באף גיליון בדשבורד.`);
                 return;
             }
 
-            console.log(`[Dynamic Sync] Found target in Dashboard: "${dashName}" | Sheet: "${targetWorksheet.name}" | Filter: "${targetFilterName}"`);
+            const targetFilterName = targetFilter.fieldName;
+            
+            // --- שלב 2: חילוץ ושמירה של הטווח המקורי מהפילטר הקיים כדי לא לקצר אותו ---
+            let originalMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
+            if (isNaN(originalMinDate.getTime())) {
+                originalMinDate = new Date(2023, 0, 1); // Fallback למקרה של קריאה משובשת
+            }
 
-            // --- שלב 2: מתיחה זמנית ל-2030 לחשיפת הדאטה ---
-            let initialMinDate = new Date(2024, 0, 1); 
+            // --- שלב 3: מתיחה זמנית קדימה לחשיפת הנתונים החדשים ---
             let temporaryFutureDate = new Date(2030, 11, 31);
-
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                min: initialMinDate,
+                min: originalMinDate,
                 max: temporaryFutureDate
             });
 
-            // --- שלב 3: שליפת הדאטה המוצג בפועל באותו גיליון ---
+            // --- שלב 4: שליפת הדאטה המוצג וניתוח תאריכים מתקדם ---
             let trueVisibleMaxDate = null;
             const summaryData = await targetWorksheet.getSummaryDataAsync();
-            
             const dateColumn = summaryData.columns.find(col => col.fieldName === targetFilterName);
             
             if (dateColumn && summaryData.data.length > 0) {
@@ -70,34 +70,52 @@
                 let maxTime = 0;
                 
                 summaryData.data.forEach(row => {
-                    const cellValue = row[dateColumnIndex].value;
-                    if (cellValue) {
-                        const parsedDate = new Date(cellValue);
-                        if (!isNaN(parsedDate.getTime())) {
-                            if (parsedDate.getTime() > maxTime) {
-                                maxTime = parsedDate.getTime();
-                                trueVisibleMaxDate = parsedDate;
+                    const rawCell = row[dateColumnIndex];
+                    if (!rawCell) return;
+
+                    let parsedDate = new Date(rawCell.value);
+                    
+                    // מנגנון הגנה: אם ה-value הנייטיבי לא פוענח, מפרקים את ה-formattedValue (dd/mm/yyyy)
+                    if (isNaN(parsedDate.getTime()) && rawCell.formattedValue) {
+                        const parts = rawCell.formattedValue.split(/[-/.]/);
+                        if (parts.length === 3) {
+                            // בודק אם הפורמט הוא יום/חודש/שנה ומסדר עבור ה-Constructor של JS
+                            const day = parseInt(parts[0], 10);
+                            const month = parseInt(parts[1], 10) - 1;
+                            const year = parseInt(parts[2], 10);
+                            const testDate = new Date(year, month, day);
+                            if (!isNaN(testDate.getTime())) {
+                                parsedDate = testDate;
                             }
+                        }
+                    }
+
+                    // השוואה למציאת התאריך המקסימלי
+                    if (!isNaN(parsedDate.getTime())) {
+                        if (parsedDate.getTime() > maxTime) {
+                            maxTime = parsedDate.getTime();
+                            trueVisibleMaxDate = parsedDate;
                         }
                     }
                 });
             }
 
+            // הגנה קריטית: אם השליפה נכשלה, לא נועלים על היום אלא נשארים פתוחים על המקסימום המוחלט
             if (!trueVisibleMaxDate) {
-                trueVisibleMaxDate = new Date();
+                trueVisibleMaxDate = temporaryFutureDate; 
             }
 
-            // --- שלב 4: נעילה מחדש על המקס האמיתי הגלוי ---
+            // --- שלב 5: נעילה מחדש תוך שמירה מלאה על נקודת המינימום המקורית ---
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
-                min: initialMinDate,
+                min: originalMinDate,
                 max: trueVisibleMaxDate
             });
 
-            // --- שלב 5: הצגת הממשק למשתמש עם שמות המקור הדינמיים ---
+            // --- שלב 6: עדכון ה-UI למשתמש ---
             renderUI(trueVisibleMaxDate.toLocaleDateString('he-IL'), targetFilterName, targetWorksheet.name);
 
         } catch (error) {
-            renderError(`שגיאה בתהליך הסנכרון הדינמי: ${error.message}`);
+            renderError(`שגיאה בתהליך הסנכרון האוטומטי: ${error.message}`);
         }
     }
 
@@ -175,8 +193,8 @@
                     <span class="status-title">סנכרון פילטר אוטומטי</span>
                 </div>
                 <div class="meta-info">
-                    גיליון זוהה: <strong>${sheetName}</strong><br>
-                    פילטר זוהה: <strong>${filterName}</strong>
+                    גיליון: <strong>${sheetName}</strong><br>
+                    פילטר: <strong>${filterName}</strong>
                 </div>
                 <div class="date-display">
                     <span class="date-label">טווח עליון מכויל ל-</span>
@@ -192,7 +210,7 @@
         
         container.innerHTML = `
             <div style="font-family: Arial, sans-serif; direction: rtl; text-align: right; color: #dc2626; padding: 12px; border: 1px solid #fca5a5; background: #fef2f2; border-radius: 6px; font-size: 13px;">
-                <strong>❌ שגיאה בסריקה הדינמית:</strong><br>${msg}
+                <strong>❌ שגיאה בסנכרון הדינמי:</strong><br>${msg}
             </div>
         `;
     }
