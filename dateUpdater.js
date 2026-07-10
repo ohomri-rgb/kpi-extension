@@ -1,5 +1,5 @@
 (function() {
-    const VERSION = "v3.2.0-SafeDynamic";
+    const VERSION = "v3.3.0-Robust";
     let attempts = 0;
     const MAX_ATTEMPTS = 400;
 
@@ -47,23 +47,30 @@
 
             const targetFilterName = targetFilter.fieldName;
             
-            // --- שלב 2: חילוץ ושמירה של הטווח המקורי מהפילטר הקיים כדי לא לקצר אותו ---
+            // --- שלב 2: חילוץ ושמירה של הטווח המקורי מהפילטר הקיים ---
             let originalMinDate = targetFilter.minValue ? new Date(targetFilter.minValue.value) : new Date(2023, 0, 1);
             if (isNaN(originalMinDate.getTime())) {
-                originalMinDate = new Date(2023, 0, 1); // Fallback למקרה של קריאה משובשת
+                originalMinDate = new Date(2023, 0, 1);
             }
 
-            // --- שלב 3: מתיחה זמנית קדימה לחשיפת הנתונים החדשים ---
+            // --- שלב 3: מתיחה זמנית קדימה ל-2030 לחשיפת הנתונים החדשים ---
             let temporaryFutureDate = new Date(2030, 11, 31);
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
                 min: originalMinDate,
                 max: temporaryFutureDate
             });
 
-            // --- שלב 4: שליפת הדאטה המוצג וניתוח תאריכים מתקדם ---
+            // --- שלב 4: שליפת הדאטה וזיהוי עמודת התאריך לפי סוג הנתונים (ולא לפי שם) ---
             let trueVisibleMaxDate = null;
             const summaryData = await targetWorksheet.getSummaryDataAsync();
-            const dateColumn = summaryData.columns.find(col => col.fieldName === targetFilterName);
+            
+            // במקום לחפש לפי שם השדה בדיוק, מחפשים את עמודת התאריך הראשונה בדאטה שמוחזר
+            const dateColumn = summaryData.columns.find(col => 
+                col.dataType === 'date' || 
+                col.dataType === 'date-time' || 
+                col.fieldName.toLowerCase().includes('date') ||
+                col.fieldName === targetFilterName
+            );
             
             if (dateColumn && summaryData.data.length > 0) {
                 const dateColumnIndex = dateColumn.index;
@@ -75,11 +82,10 @@
 
                     let parsedDate = new Date(rawCell.value);
                     
-                    // מנגנון הגנה: אם ה-value הנייטיבי לא פוענח, מפרקים את ה-formattedValue (dd/mm/yyyy)
+                    // מנגנון הגנה לפורמטים מקומיים (dd/mm/yyyy)
                     if (isNaN(parsedDate.getTime()) && rawCell.formattedValue) {
                         const parts = rawCell.formattedValue.split(/[-/.]/);
                         if (parts.length === 3) {
-                            // בודק אם הפורמט הוא יום/חודש/שנה ומסדר עבור ה-Constructor של JS
                             const day = parseInt(parts[0], 10);
                             const month = parseInt(parts[1], 10) - 1;
                             const year = parseInt(parts[2], 10);
@@ -90,7 +96,6 @@
                         }
                     }
 
-                    // השוואה למציאת התאריך המקסימלי
                     if (!isNaN(parsedDate.getTime())) {
                         if (parsedDate.getTime() > maxTime) {
                             maxTime = parsedDate.getTime();
@@ -100,18 +105,22 @@
                 });
             }
 
-            // הגנה קריטית: אם השליפה נכשלה, לא נועלים על היום אלא נשארים פתוחים על המקסימום המוחלט
+            // --- שלב 5: הגנה קריטית למקרה שהזיהוי נכשל - לא נשארים ב-2030! ---
+            // אם לא מצאנו תאריך מקסימלי אמיתי בדאטה, נשחזר את המקסימום המקורי של הפילטר (או התאריך של היום)
             if (!trueVisibleMaxDate) {
-                trueVisibleMaxDate = temporaryFutureDate; 
+                trueVisibleMaxDate = targetFilter.maxValue ? new Date(targetFilter.maxValue.value) : new Date();
+                if (isNaN(trueVisibleMaxDate.getTime())) {
+                    trueVisibleMaxDate = new Date();
+                }
             }
 
-            // --- שלב 5: נעילה מחדש תוך שמירה מלאה על נקודת המינימום המקורית ---
+            // --- שלב 6: נעילה מחדש וכיווץ הסליידר לקצה האמיתי ---
             await targetWorksheet.applyRangeFilterAsync(targetFilterName, {
                 min: originalMinDate,
                 max: trueVisibleMaxDate
             });
 
-            // --- שלב 6: עדכון ה-UI למשתמש ---
+            // --- שלב 7: עדכון ה-UI למשתמש ---
             renderUI(trueVisibleMaxDate.toLocaleDateString('he-IL'), targetFilterName, targetWorksheet.name);
 
         } catch (error) {
